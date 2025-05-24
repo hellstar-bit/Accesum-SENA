@@ -1,4 +1,4 @@
-// src/app.module.ts
+// backend/src/app.module.ts
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule as NestConfigModule } from '@nestjs/config';
@@ -11,6 +11,7 @@ import { AccessModule } from './access/access.module';
 import { ConfigModule } from './config/config.module';
 import { AuthModule } from './auth/auth.module';
 import { ImportModule } from './import/import.module';
+import { DashboardModule } from './dashboard/dashboard.module'; // ⬅️ Agregar esta línea
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { ImportModule } from './import/import.module';
     ConfigModule,
     AuthModule,
     ImportModule,
+    DashboardModule, // ⬅️ Agregar esta línea
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -1,25 +1,7 @@
-// src/pages/Dashboard.tsx
+// frontend/src/pages/Dashboard.tsx
 import { useState, useEffect } from 'react';
-
-interface DashboardStats {
-  totalUsers: number;
-  activeUsers: number;
-  todayAccess: number;
-  totalProfiles: number;
-  usersByType: {
-    funcionarios: number;
-    contratistas: number;
-    aprendices: number;
-    visitantes: number;
-  };
-}
-
-interface RecentActivity {
-  id: number;
-  user: string;
-  type: 'entry' | 'exit';
-  time: string;
-}
+import { dashboardService } from '../services/dashboardService';
+import type { DashboardStats, RecentActivity } from '../services/dashboardService';
 
 const Dashboard = () => {
   const [stats, setStats] = useState<DashboardStats>({
@@ -34,17 +16,9 @@ const Dashboard = () => {
       visitantes: 0,
     }
   });
+  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Datos de ejemplo para actividad reciente
-  const recentActivity: RecentActivity[] = [
-    { id: 1, user: 'Juan Pérez', type: 'entry', time: '08:30 AM' },
-    { id: 2, user: 'María López', type: 'entry', time: '08:45 AM' },
-    { id: 3, user: 'Carlos Rodríguez', type: 'entry', time: '09:00 AM' },
-    { id: 4, user: 'Ana Martínez', type: 'exit', time: '12:30 PM' },
-    { id: 5, user: 'Luis García', type: 'entry', time: '02:15 PM' },
-  ];
 
   useEffect(() => {
     fetchDashboardData();
@@ -53,27 +27,30 @@ const Dashboard = () => {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      // Simulamos datos hasta implementar endpoints específicos
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      setError(null);
       
-      setStats({
-        totalUsers: 156,
-        activeUsers: 142,
-        todayAccess: 89,
-        totalProfiles: 156,
-        usersByType: {
-          funcionarios: 45,
-          contratistas: 32,
-          aprendices: 71,
-          visitantes: 8,
-        }
-      });
+      const [statsData, activityData] = await Promise.all([
+        dashboardService.getStats(),
+        dashboardService.getRecentActivity(5)
+      ]);
+      
+      setStats(statsData);
+      setRecentActivity(activityData);
     } catch (err) {
       setError('Error al cargar los datos del dashboard');
       console.error('Error:', err);
     } finally {
       setLoading(false);
     }
+  };
+
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString('es-CO', { 
+      hour: '2-digit', 
+      minute: '2-digit',
+      hour12: true 
+    });
   };
 
   if (loading) {
@@ -94,6 +71,12 @@ const Dashboard = () => {
           </svg>
           <p className="ml-3 text-red-700">{error}</p>
         </div>
+        <button 
+          onClick={fetchDashboardData}
+          className="mt-3 btn-primary"
+        >
+          Reintentar
+        </button>
       </div>
     );
   }
@@ -184,19 +167,36 @@ const Dashboard = () => {
             <h2 className="text-lg font-semibold text-gray-800">Usuarios por Tipo</h2>
           </div>
           <div className="p-6 space-y-4">
-            {Object.entries(stats.usersByType).map(([type, count]) => (
-              <div key={type} className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <div className={`h-3 w-3 rounded-full mr-3 ${
-                    type === 'funcionarios' ? 'bg-blue-500' :
-                    type === 'contratistas' ? 'bg-green-500' :
-                    type === 'aprendices' ? 'bg-yellow-500' : 'bg-purple-500'
-                  }`}></div>
-                  <span className="text-sm font-medium text-gray-700 capitalize">{type}</span>
+            {Object.entries(stats.usersByType).map(([type, count]) => {
+              const total = Object.values(stats.usersByType).reduce((a, b) => a + b, 0);
+              const percentage = total > 0 ? (count / total) * 100 : 0;
+              
+              return (
+                <div key={type}>
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center">
+                      <div className={`h-3 w-3 rounded-full mr-3 ${
+                        type === 'funcionarios' ? 'bg-blue-500' :
+                        type === 'contratistas' ? 'bg-green-500' :
+                        type === 'aprendices' ? 'bg-yellow-500' : 'bg-purple-500'
+                      }`}></div>
+                      <span className="text-sm font-medium text-gray-700 capitalize">{type}</span>
+                    </div>
+                    <div className="text-sm font-semibold text-gray-900">{count}</div>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className={`h-2 rounded-full ${
+                        type === 'funcionarios' ? 'bg-blue-500' :
+                        type === 'contratistas' ? 'bg-green-500' :
+                        type === 'aprendices' ? 'bg-yellow-500' : 'bg-purple-500'
+                      }`}
+                      style={{ width: `${percentage}%` }}
+                    ></div>
+                  </div>
                 </div>
-                <div className="text-sm font-semibold text-gray-900">{count}</div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -206,32 +206,38 @@ const Dashboard = () => {
             <h2 className="text-lg font-semibold text-gray-800">Actividad Reciente</h2>
           </div>
           <div className="divide-y">
-            {recentActivity.map((activity) => (
-              <div key={activity.id} className="px-6 py-4 flex justify-between items-center">
-                <div className="flex items-center">
-                  <div className={`h-10 w-10 rounded-full flex items-center justify-center ${
-                    activity.type === 'entry' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
-                  }`}>
-                    {activity.type === 'entry' ? (
-                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-                      </svg>
-                    ) : (
-                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                      </svg>
-                    )}
+            {recentActivity.length > 0 ? (
+              recentActivity.map((activity) => (
+                <div key={activity.id} className="px-6 py-4 flex justify-between items-center">
+                  <div className="flex items-center">
+                    <div className={`h-10 w-10 rounded-full flex items-center justify-center ${
+                      activity.type === 'entry' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
+                    }`}>
+                      {activity.type === 'entry' ? (
+                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                        </svg>
+                      ) : (
+                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                        </svg>
+                      )}
+                    </div>
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-gray-900">{activity.user}</p>
+                      <p className="text-sm text-gray-500">
+                        {activity.type === 'entry' ? 'Entrada' : 'Salida'}
+                      </p>
+                    </div>
                   </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-900">{activity.user}</p>
-                    <p className="text-sm text-gray-500">
-                      {activity.type === 'entry' ? 'Entrada' : 'Salida'}
-                    </p>
-                  </div>
+                  <span className="text-sm text-gray-500">{formatTime(activity.time)}</span>
                 </div>
-                <span className="text-sm text-gray-500">{activity.time}</span>
+              ))
+            ) : (
+              <div className="px-6 py-8 text-center text-gray-500">
+                No hay actividad reciente
               </div>
-            ))}
+            )}
           </div>
         </div>
       </div>

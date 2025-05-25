@@ -96,4 +96,17 @@ export const accessService = {
     const response = await api.get<SearchResult>(`/access/search/${documentNumber}`);
     return response.data;
   },
+
+  async importFromExcel(file: File): Promise<any> {
+  const formData = new FormData();
+  formData.append('file', file);
+  
+  const response = await api.post('/import/excel', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  
+  return response.data;
+},
 };

@@ -51,7 +51,7 @@ export class AccessService {
           where: { id: qrInfo.id, documentNumber: qrInfo.doc },
           relations: ['user', 'type', 'center'],
         });
-      } catch (error) {
+      } catch (error : any) {
         throw new BadRequestException('Código QR inválido');
       }
     } else if (dto.profileId) {

@@ -1,6 +1,6 @@
 // frontend/src/components/access/QRScanner.tsx
-import { useState, useRef } from 'react';
-import { QrReader } from 'react-qr-reader';
+import { useState, useEffect, useRef } from 'react';
+import { Html5QrcodeScanner } from 'html5-qrcode';
 import { accessService } from '../../services/accessService';
 
 interface QRScannerProps {
@@ -13,25 +13,52 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
   const [loading, setLoading] = useState(false);
   const [lastScanned, setLastScanned] = useState<any>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const scannerRef = useRef<Html5QrcodeScanner | null>(null);
 
-  const handleScan = async (result: any) => {
+  useEffect(() => {
+    if (scanning) {
+      scannerRef.current = new Html5QrcodeScanner(
+        "qr-reader",
+        { 
+          fps: 10, 
+          qrbox: { width: 250, height: 250 },
+          aspectRatio: 1.0
+        },
+        false
+      );
+
+      scannerRef.current.render(handleScan, handleError);
+    } else {
+      if (scannerRef.current) {
+        scannerRef.current.clear();
+        scannerRef.current = null;
+      }
+    }
+
+    return () => {
+      if (scannerRef.current) {
+        scannerRef.current.clear();
+      }
+    };
+  }, [scanning]);
+
+  const handleScan = async (result: string) => {
     if (result && !loading) {
       setLoading(true);
       setMessage(null);
 
       try {
-        // Verificar si es entrada o salida
-        const checkInOrOut = await determineAction(result.text);
+        const checkInOrOut = await determineAction(result);
         
         if (checkInOrOut === 'entry') {
-          const response = await accessService.checkIn({ qrData: result.text });
+          const response = await accessService.checkIn({ qrData: result });
           setLastScanned(response);
           setMessage({
             type: 'success',
             text: `✅ Entrada registrada: ${response.user.profile.firstName} ${response.user.profile.lastName}`,
           });
         } else {
-          const response = await accessService.checkOut({ qrData: result.text });
+          const response = await accessService.checkOut({ qrData: result });
           setLastScanned(response);
           setMessage({
             type: 'success',
@@ -40,7 +67,6 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
         }
         
         onScanSuccess();
-        // Pausar el escaneo por 3 segundos para evitar múltiples lecturas
         setTimeout(() => {
           setLoading(false);
           setLastScanned(null);
@@ -75,13 +101,13 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
       const checkInOrOut = await determineActionByProfile(searchResult.profile!.id);
       
       if (checkInOrOut === 'entry') {
-        const response = await accessService.checkIn({ profileId: searchResult.profile!.id });
+        await accessService.checkIn({ profileId: searchResult.profile!.id });
         setMessage({
           type: 'success',
           text: `✅ Entrada registrada: ${searchResult.profile!.fullName}`,
         });
       } else {
-        const response = await accessService.checkOut({ profileId: searchResult.profile!.id });
+        await accessService.checkOut({ profileId: searchResult.profile!.id });
         setMessage({
           type: 'success',
           text: `👋 Salida registrada: ${searchResult.profile!.fullName}`,
@@ -101,8 +127,6 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
   };
 
   const determineAction = async (qrData: string): Promise<'entry' | 'exit'> => {
-    // Aquí podrías implementar lógica para determinar si es entrada o salida
-    // Por ahora, vamos a consultar el estado actual
     try {
       const qrInfo = JSON.parse(qrData);
       const current = await accessService.getCurrentOccupancy();
@@ -127,7 +151,6 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
     <div className="bg-white rounded-lg shadow-lg p-6">
       <h2 className="text-xl font-semibold mb-4">Control de Acceso</h2>
 
-      {/* Botones de modo */}
       <div className="flex space-x-4 mb-6">
         <button
           onClick={() => setScanning(!scanning)}
@@ -141,32 +164,12 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
         </button>
       </div>
 
-      {/* Escáner QR */}
       {scanning && (
         <div className="mb-6">
-          <div className="relative bg-black rounded-lg overflow-hidden" style={{ maxWidth: '400px', margin: '0 auto' }}>
-            <QrReader
-                onResult={(result, error) => {
-                    if (result) handleScan(result);
-                    if (error) handleError(error);
-                }}
-                constraints={{ facingMode: 'environment' }}
-                scanDelay={500}
-                containerStyle={{ width: '100%' }}
-                videoStyle={{ width: '100%' }}
-/>
-            {loading && (
-              <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-                <div className="bg-white rounded-lg p-4">
-                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-sena-green"></div>
-                </div>
-              </div>
-            )}
-          </div>
+          <div id="qr-reader" className="max-w-md mx-auto"></div>
         </div>
       )}
 
-      {/* Búsqueda manual */}
       <div className="mb-6">
         <h3 className="text-lg font-medium mb-2">Búsqueda Manual</h3>
         <div className="flex space-x-2">
@@ -189,7 +192,6 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
         </div>
       </div>
 
-      {/* Mensajes */}
       {message && (
         <div
           className={`p-4 rounded-lg mb-4 ${
@@ -202,7 +204,6 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
         </div>
       )}
 
-      {/* Último escaneado */}
       {lastScanned && (
         <div className="bg-gray-50 rounded-lg p-4">
           <h4 className="font-medium mb-2">Último Registro:</h4>

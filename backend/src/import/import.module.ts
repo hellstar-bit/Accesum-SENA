@@ -1,4 +1,4 @@
-// src/import/import.module.ts
+// backend/src/import/import.module.ts
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { MulterModule } from '@nestjs/platform-express';
@@ -10,6 +10,8 @@ import { Role } from '../users/entities/role.entity';
 import { PersonnelType } from '../config/entities/personnel-type.entity';
 import { Regional } from '../config/entities/regional.entity';
 import { Center } from '../config/entities/center.entity';
+import { Ficha } from '../config/entities/ficha.entity';
+import { Program } from '../config/entities/program.entity';
 
 @Module({
   imports: [
@@ -20,6 +22,8 @@ import { Center } from '../config/entities/center.entity';
       PersonnelType,
       Regional,
       Center,
+      Ficha,        // ⭐ AGREGAR
+      Program,      // ⭐ AGREGAR
     ]),
     MulterModule.register({
       limits: {

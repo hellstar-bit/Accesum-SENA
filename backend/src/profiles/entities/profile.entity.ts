@@ -1,4 +1,4 @@
-// src/profiles/entities/profile.entity.ts
+// backend/src/profiles/entities/profile.entity.ts
 import { Entity, PrimaryGeneratedColumn, Column, OneToOne, JoinColumn, ManyToOne } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Regional } from '../../config/entities/regional.entity';
@@ -52,6 +52,10 @@ export class Profile {
   @Column({ type: 'text', nullable: true })
   qrCode: string;
 
+  // ⭐ NUEVO CAMPO - Estado del aprendiz
+  @Column({ length: 50, nullable: true })
+  learnerStatus: string; // 'EN FORMACION', 'CANCELADO', 'RETIRO VOLUNTARIO', 'APLAZADO'
+
   @OneToOne(() => User, user => user.profile)
   @JoinColumn({ name: 'userId' })
   user: User;
@@ -100,4 +104,11 @@ export class Profile {
 
   @Column({ nullable: true })
   fichaId: number;
+
+  // Timestamps automáticos
+  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+  createdAt: Date;
+
+  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP', onUpdate: 'CURRENT_TIMESTAMP' })
+  updatedAt: Date;
 }

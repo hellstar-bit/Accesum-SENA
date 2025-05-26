@@ -15,8 +15,11 @@ import { Ficha } from '../config/entities/ficha.entity';
 import { Program } from '../config/entities/program.entity';
 import { ImportLearnersResultDto, ExcelLearnerRowDto } from './import-learners.dto';
 
-// Definir el tipo de archivo localmente
-type UploadedFile = {
+// ✅ Si tienes instalado @types/multer, descomenta esta línea:
+import { Express } from 'express';
+
+// Usar el tipo correcto para Multer - alternativa más robusta
+interface UploadedFile {
   fieldname: string;
   originalname: string;
   encoding: string;
@@ -26,7 +29,10 @@ type UploadedFile = {
   destination?: string;
   filename?: string;
   path?: string;
-};
+}
+
+// ✅ Alternativa si tienes problemas de tipos, descomenta y usa esta línea:
+// type UploadedFile = Express.Multer.File;
 
 @Injectable()
 export class ImportService {
@@ -83,22 +89,44 @@ export class ImportService {
 
       const workbook = new ExcelJS.Workbook();
       
-      // Intentar cargar el archivo con diferentes métodos
+      // Intentar cargar el archivo con conversión de buffer más segura
       try {
-        await workbook.xlsx.load(file.buffer);
+        // Método 1: Convertir a ArrayBuffer para compatibilidad con ExcelJS
+        const arrayBuffer = file.buffer.buffer.slice(
+          file.buffer.byteOffset,
+          file.buffer.byteOffset + file.buffer.byteLength
+        );
+        
+        await workbook.xlsx.load(arrayBuffer);
       } catch (xlsxError) {
-        console.log('❌ Error con xlsx, intentando con xls...');
-        // Si falla xlsx, intentar como xls (archivo más viejo)
-        throw new BadRequestException('Error al leer el archivo Excel. Asegúrate de que sea un archivo Excel válido (.xlsx o .xls)');
+        console.log('❌ Error con método 1, intentando método alternativo...');
+        
+        try {
+          // Método 2: Usar Uint8Array
+          const uint8Array = new Uint8Array(file.buffer);
+          await workbook.xlsx.load(uint8Array.buffer);
+        } catch (secondError) {
+          console.log('❌ Error con ambos métodos:', xlsxError, secondError);
+          throw new BadRequestException('Error al leer el archivo Excel. Asegúrate de que sea un archivo Excel válido (.xlsx o .xls)');
+        }
       }
+      
       const worksheet = workbook.worksheets[0];
 
       if (!worksheet) {
         throw new BadRequestException('No se encontró hoja de trabajo');
       }
 
+      console.log('📊 Información de la hoja:');
+      console.log('- Número de filas:', worksheet.rowCount);
+      console.log('- Número de columnas:', worksheet.columnCount);
+
       // ✅ EXTRAER INFORMACIÓN DEL HEADER
       const fichaInfo = await this.extractHeaderInfo(worksheet);
+      
+      if (!fichaInfo.code) {
+        throw new BadRequestException('No se pudo extraer el código de la ficha');
+      }
       
       // ✅ CREAR O ACTUALIZAR FICHA
       const { ficha, isNew } = await this.createOrUpdateFicha(fichaInfo);
@@ -124,16 +152,23 @@ export class ImportService {
       }
 
       // ✅ PROCESAR FILAS DE DATOS
-      const dataStartRow = 7; // Los datos empiezan en la fila 7
-      result.totalRows = worksheet.rowCount - dataStartRow + 1;
+      const dataStartRow = 6; // Los datos empiezan en la fila 6
+      let processedRows = 0;
 
       for (let rowNumber = dataStartRow; rowNumber <= worksheet.rowCount; rowNumber++) {
         const row = worksheet.getRow(rowNumber);
 
         if (this.isEmptyRow(row)) continue;
 
+        processedRows++;
+
         try {
           const learnerData = this.extractLearnerData(row, rowNumber);
+          
+          // Validar datos mínimos requeridos
+          if (!learnerData.numeroDocumento || !learnerData.nombre || !learnerData.apellidos || !learnerData.correoElectronico) {
+            throw new Error(`Faltan datos requeridos en fila ${rowNumber}`);
+          }
           
           // Verificar si el usuario ya existe
           const existingProfile = await this.profileRepository.findOne({
@@ -154,6 +189,7 @@ export class ImportService {
           }
 
         } catch (error: any) {
+          console.error(`Error en fila ${rowNumber}:`, error.message);
           result.errors.push({
             row: rowNumber,
             error: error.message,
@@ -163,10 +199,14 @@ export class ImportService {
         }
       }
 
+      result.totalRows = processedRows;
       result.success = (result.importedRows + result.updatedRows) > 0;
+
+      console.log('✅ Importación completada:', result);
       return result;
 
     } catch (error: any) {
+      console.error('❌ Error general en importación:', error);
       result.errors.push({
         row: 0,
         error: `Error general: ${error.message}`,
@@ -176,26 +216,100 @@ export class ImportService {
   }
 
   private async extractHeaderInfo(worksheet: ExcelJS.Worksheet) {
-    // Extraer información del header
-    const fichaRow = worksheet.getRow(3); // "Ficha de Caracterización:"
-    const estadoRow = worksheet.getRow(4); // "Estado:"
-    const fechaRow = worksheet.getRow(5); // "Fecha del Reporte:"
+    // Extraer información del header según el formato real
+    // Fila 2: A="Ficha de Caracterización:" B="2853176 - ANÁLISIS Y DESARROLLO DE SOFTWARE"
+    // Fila 3: A="Estado:" B="EN EJECUCIÓN"  
+    // Fila 4: A="Fecha del Reporte:" B="03/04/2025"
 
-    const fichaText = this.getCellValue(fichaRow, 2)?.toString() || '';
-    const estadoText = this.getCellValue(estadoRow, 2)?.toString() || '';
-    const fechaText = this.getCellValue(fechaRow, 2)?.toString() || '';
+    console.log('🔍 Debug - Leyendo header del Excel...');
+    
+    // Debug: mostrar las primeras filas para identificar el problema
+    for (let i = 1; i <= 5; i++) {
+      const row = worksheet.getRow(i);
+      console.log(`Fila ${i}:`, {
+        A: this.getCellValue(row, 1),
+        B: this.getCellValue(row, 2),
+        C: this.getCellValue(row, 3)
+      });
+    }
 
-    // Parsear "2856502 - GESTIÓN DE REDES DE DATOS"
-    const [fichaCode, ...fichaNameParts] = fichaText.split(' - ');
-    const fichaName = fichaNameParts.join(' - ');
+    const fichaRow = worksheet.getRow(2);
+    const estadoRow = worksheet.getRow(3);
+    const fechaRow = worksheet.getRow(4);
 
-    return {
-      code: fichaCode?.trim() || '',
-      name: fichaName?.trim() || '',
-      status: estadoText?.trim() || 'EN EJECUCIÓN',
-      reportDate: this.parseDate(fechaText),
-      isNew: false, // Se determinará en createOrUpdateFicha
+    // Leer valores de la columna B (índice 2) - NO de la columna A
+    const fichaCell = this.getCellValue(fichaRow, 2); // Columna B
+    const estadoCell = this.getCellValue(estadoRow, 2); // Columna B
+    const fechaCell = this.getCellValue(fechaRow, 2); // Columna B
+
+    console.log('🔍 Debug - Valores leídos:');
+    console.log('Ficha (B2):', fichaCell);
+    console.log('Estado (B3):', estadoCell);
+    console.log('Fecha (B4):', fechaCell);
+
+    // Parsear ficha: "2853176 - ANÁLISIS Y DESARROLLO DE SOFTWARE"
+    const fichaText = fichaCell?.toString()?.trim() || '';
+    let fichaCode = '';
+    let fichaName = '';
+    
+    if (fichaText.includes(' - ')) {
+      const [code, ...nameParts] = fichaText.split(' - ');
+      fichaCode = code.trim();
+      fichaName = nameParts.join(' - ').trim();
+    } else if (fichaText.match(/^\d+/)) {
+      // Si solo hay números sin el formato completo
+      const match = fichaText.match(/^(\d+)/);
+      fichaCode = match ? match[1] : fichaText;
+      fichaName = fichaText.replace(/^\d+\s*-?\s*/, '').trim() || 'Programa sin nombre';
+    } else {
+      // Si no se puede extraer, usar el texto completo como código
+      fichaCode = fichaText;
+      fichaName = 'Programa sin nombre';
+    }
+
+    // Parsear estado: "EN EJECUCIÓN"
+    const estadoText = estadoCell?.toString()?.trim() || '';
+    let fichaStatus = 'EN EJECUCIÓN'; // Por defecto
+    
+    const upperEstado = estadoText.toUpperCase();
+    if (upperEstado.includes('EJECUCIÓN') || upperEstado.includes('EJECUCION')) {
+      fichaStatus = 'EN EJECUCIÓN';
+    } else if (upperEstado.includes('TERMINADA') || upperEstado.includes('FINALIZADA')) {
+      fichaStatus = 'TERMINADA';
+    } else if (upperEstado.includes('CANCELADA')) {
+      fichaStatus = 'CANCELADA';
+    }
+
+    // Parsear fecha: "03/04/2025"
+    const fechaText = fechaCell?.toString()?.trim() || '';
+    let reportDate: Date | null = null;
+    
+    try {
+      if (fechaText.includes('/')) {
+        const [day, month, year] = fechaText.split('/');
+        reportDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+      }
+    } catch (error) {
+      console.warn('No se pudo parsear la fecha:', fechaText);
+    }
+
+    const result = {
+      code: fichaCode,
+      name: fichaName,
+      status: fichaStatus,
+      reportDate: reportDate,
     };
+
+    console.log('✅ Resultado del parseo del header:', result);
+    
+    // Validar que se extrajo información válida
+    if (!fichaCode || fichaCode === 'Ficha de Caracterización:') {
+      console.error('❌ Error: No se pudo extraer el código de la ficha correctamente');
+      console.error('Valor leído:', fichaText);
+      throw new BadRequestException('No se pudo extraer el código de la ficha del Excel. Verifica el formato del archivo.');
+    }
+    
+    return result;
   }
 
   private async createOrUpdateFicha(fichaInfo: any): Promise<{ ficha: Ficha; isNew: boolean }> {
@@ -211,6 +325,7 @@ export class ImportService {
       ficha.status = fichaInfo.status;
       ficha.reportDate = fichaInfo.reportDate;
       ficha = await this.fichaRepository.save(ficha);
+      console.log('🔄 Ficha actualizada:', ficha.code);
     } else {
       // Crear nueva ficha
       isNew = true;
@@ -227,21 +342,25 @@ export class ImportService {
       });
 
       ficha = await this.fichaRepository.save(ficha);
+      console.log('🆕 Nueva ficha creada:', ficha.code);
     }
 
     return { ficha, isNew };
   }
 
   private extractLearnerData(row: ExcelJS.Row, rowNumber: number): ExcelLearnerRowDto {
-    return {
+    const result = {
       tipoDocumento: this.normalizeDocumentType(this.getCellValue(row, 1)?.toString() || ''),
       numeroDocumento: this.getCellValue(row, 2)?.toString()?.trim() || '',
       nombre: this.getCellValue(row, 3)?.toString()?.trim() || '',
       apellidos: this.getCellValue(row, 4)?.toString()?.trim() || '',
       celular: this.getCellValue(row, 5)?.toString()?.trim() || '',
       correoElectronico: this.getCellValue(row, 6)?.toString()?.trim() || '',
-      estado: this.normalizeStatus(this.getCellValue(row, 7)?.toString() || ''),
+      estado: this.normalizeStatus(this.getCellValue(row, 7)?.toString() || '') // ✅ COLUMNA G (7)
     };
+
+    console.log(`Fila ${rowNumber}:`, result);
+    return result;
   }
 
   private async createNewLearner(
@@ -292,6 +411,8 @@ export class ImportService {
 
     // ✅ GENERAR QR AUTOMÁTICAMENTE
     await this.generateQRForProfile(profile);
+
+    console.log(`✅ Nuevo aprendiz creado: ${learnerData.nombre} ${learnerData.apellidos}`);
   }
 
   private async updateExistingLearner(
@@ -314,6 +435,8 @@ export class ImportService {
     if (!existingProfile.qrCode) {
       await this.generateQRForProfile(existingProfile);
     }
+
+    console.log(`🔄 Aprendiz actualizado: ${learnerData.nombre} ${learnerData.apellidos}`);
   }
 
   private async generateQRForProfile(profile: Profile) {
@@ -386,16 +509,25 @@ export class ImportService {
     try {
       const cell = row.getCell(columnNumber);
       if (cell && cell.value !== null && cell.value !== undefined) {
+        // Manejar diferentes tipos de valores
         if (cell.value instanceof Date) {
-          return cell.value.toISOString();
+          return cell.value.toLocaleDateString('es-CO');
         }
-        if (typeof cell.value === 'object' && cell.value !== null && 'text' in cell.value) {
-          return (cell.value as any).text;
+        if (typeof cell.value === 'object' && cell.value !== null) {
+          // Manejar rich text y fórmulas
+          if ('text' in cell.value) {
+            return (cell.value as any).text;
+          }
+          if ('result' in cell.value) {
+            return (cell.value as any).result;
+          }
+          return cell.value.toString();
         }
         return cell.value;
       }
       return '';
     } catch (error) {
+      console.warn(`Error al leer celda ${columnNumber}:`, error);
       return '';
     }
   }
@@ -409,25 +541,10 @@ export class ImportService {
     return values;
   }
 
-  // Método auxiliar para convertir datos de node-xlsx a ExcelJS
-  private async convertXlsDataToWorksheet(workbook: ExcelJS.Workbook, sheetData: any[][]): Promise<ExcelJS.Worksheet> {
-    const worksheet = workbook.addWorksheet('ImportedSheet');
-    
-    // Agregar datos fila por fila
-    sheetData.forEach((rowData, rowIndex) => {
-      const row = worksheet.getRow(rowIndex + 1);
-      rowData.forEach((cellData, colIndex) => {
-        row.getCell(colIndex + 1).value = cellData;
-      });
-      row.commit();
-    });
-    
-    return worksheet;
-  }
-
   // Mantener el método existente para compatibilidad
   async importFromExcel(file: UploadedFile): Promise<any> {
     // Método existente para otros tipos de importación...
     // (mantener la implementación actual)
+    throw new BadRequestException('Método no implementado aún');
   }
 }

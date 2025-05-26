@@ -11,7 +11,8 @@ import { AccessModule } from './access/access.module';
 import { ConfigModule } from './config/config.module';
 import { AuthModule } from './auth/auth.module';
 import { ImportModule } from './import/import.module';
-import { DashboardModule } from './dashboard/dashboard.module'; // ⬅️ Agregar esta línea
+import { DashboardModule } from './dashboard/dashboard.module';
+import { LearnerModule } from './learner/learner.module'; // ⭐ AGREGAR
 
 @Module({
   imports: [
@@ -25,7 +26,8 @@ import { DashboardModule } from './dashboard/dashboard.module'; // ⬅️ Agrega
     ConfigModule,
     AuthModule,
     ImportModule,
-    DashboardModule, // ⬅️ Agregar esta línea
+    DashboardModule,
+    LearnerModule, // ⭐ AGREGAR
   ],
   controllers: [AppController],
   providers: [AppService],

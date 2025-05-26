@@ -5,7 +5,8 @@ import UserManagement from './pages/UserManagement';
 import ProfileManagement from './pages/ProfileManagement';
 import AccessControl from './pages/AccessControl';
 import Configuration from './pages/Configuration';
-import ImportPage from './pages/ImportPage'; // ⭐ AGREGAR
+import ImportPage from './pages/ImportPage';
+import LearnerProfile from './pages/LearnerProfile'; // ⭐ AGREGAR
 import Layout from './components/layout/Layout';
 import PrivateRoute from './components/auth/PrivateRoute';
 import { AuthProvider } from './context/AuthContext';
@@ -27,7 +28,8 @@ function App() {
             <Route path="profiles/*" element={<ProfileManagement />} />
             <Route path="access/*" element={<AccessControl />} />
             <Route path="config/*" element={<Configuration />} />
-            <Route path="import" element={<ImportPage />} /> {/* ⭐ AGREGAR SIN /* */}
+            <Route path="import" element={<ImportPage />} />
+            <Route path="my-profile" element={<LearnerProfile />} /> {/* ⭐ AGREGAR */}
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

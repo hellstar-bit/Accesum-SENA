@@ -121,6 +121,9 @@ export class ImportService {
       console.log('- Número de filas:', worksheet.rowCount);
       console.log('- Número de columnas:', worksheet.columnCount);
 
+      // 🔍 DEBUG: Mostrar estructura del Excel (comentar en producción)
+      this.debugExcelStructure(worksheet);
+
       // ✅ EXTRAER INFORMACIÓN DEL HEADER
       const fichaInfo = await this.extractHeaderInfo(worksheet);
       
@@ -151,8 +154,9 @@ export class ImportService {
         throw new BadRequestException('Faltan datos de referencia básicos');
       }
 
-      // ✅ PROCESAR FILAS DE DATOS
-      const dataStartRow = 6; // Los datos empiezan en la fila 6
+      // ✅ PROCESAR FILAS DE DATOS - Usar detección dinámica
+      const dataStartRow = this.findDataStartRow(worksheet);
+      console.log(`📊 Datos de aprendices empiezan en fila ${dataStartRow}`);
       let processedRows = 0;
 
       for (let rowNumber = dataStartRow; rowNumber <= worksheet.rowCount; rowNumber++) {
@@ -215,104 +219,266 @@ export class ImportService {
     }
   }
 
-  private async extractHeaderInfo(worksheet: ExcelJS.Worksheet) {
-    // Extraer información del header según el formato real
-    // Fila 2: A="Ficha de Caracterización:" B="2853176 - ANÁLISIS Y DESARROLLO DE SOFTWARE"
-    // Fila 3: A="Estado:" B="EN EJECUCIÓN"  
-    // Fila 4: A="Fecha del Reporte:" B="03/04/2025"
+  // 🔍 MÉTODO DE DEBUG PARA VER LA ESTRUCTURA DEL EXCEL
+  private debugExcelStructure(worksheet: ExcelJS.Worksheet) {
+    console.log('🔍 === DEBUG COMPLETO DEL EXCEL ===');
+    console.log('Total de filas:', worksheet.rowCount);
+    console.log('Total de columnas:', worksheet.columnCount);
+    
+    // Mostrar las primeras 15 filas con más detalle
+    for (let rowIndex = 1; rowIndex <= Math.min(15, worksheet.rowCount); rowIndex++) {
+      const row = worksheet.getRow(rowIndex);
+      const rowData: any = {};
+      
+      // Leer hasta 10 columnas
+      for (let colIndex = 1; colIndex <= 10; colIndex++) {
+        const cellValue = this.getCellValue(row, colIndex);
+        if (cellValue && cellValue.toString().trim()) {
+          rowData[`Col${colIndex}`] = cellValue.toString().trim();
+        }
+      }
+      
+      if (Object.keys(rowData).length > 0) {
+        console.log(`Fila ${rowIndex}:`, rowData);
+      }
+    }
+    
+    console.log('🔍 === FIN DEBUG EXCEL ===');
+  }
 
+  // ✅ MÉTODO MEJORADO PARA EXTRAER INFORMACIÓN DEL HEADER
+  private async extractHeaderInfo(worksheet: ExcelJS.Worksheet) {
     console.log('🔍 Debug - Leyendo header del Excel...');
     
-    // Debug: mostrar las primeras filas para identificar el problema
-    for (let i = 1; i <= 5; i++) {
-      const row = worksheet.getRow(i);
-      console.log(`Fila ${i}:`, {
-        A: this.getCellValue(row, 1),
-        B: this.getCellValue(row, 2),
-        C: this.getCellValue(row, 3)
+    // Buscar dinámicamente las filas que contienen la información
+    let fichaInfo = { code: '', name: '', status: 'EN EJECUCIÓN', reportDate: null };
+
+    // Buscar en las primeras 10 filas
+    for (let rowIndex = 1; rowIndex <= 10; rowIndex++) {
+      const row = worksheet.getRow(rowIndex);
+      const cellA = this.getCellValue(row, 1)?.toString()?.trim() || '';
+      const cellB = this.getCellValue(row, 2)?.toString()?.trim() || '';
+      const cellC = this.getCellValue(row, 3)?.toString()?.trim() || '';
+
+      // Buscar "Ficha de Caracterización"
+      if (cellA.toLowerCase().includes('ficha') && cellA.toLowerCase().includes('caracterizaci')) {
+        const fichaValue = cellB || cellC; // Probar columna B y C
+        console.log(`📋 Encontrada ficha en fila ${rowIndex}:`, fichaValue);
+        
+        if (fichaValue && fichaValue.toString().trim()) {
+          const fichaText = fichaValue.toString().trim();
+          
+          // Parsear: "2853176 - ANÁLISIS Y DESARROLLO DE SOFTWARE"
+          if (fichaText.includes(' - ')) {
+            const [code, ...nameParts] = fichaText.split(' - ');
+            fichaInfo.code = code.trim();
+            fichaInfo.name = nameParts.join(' - ').trim();
+          } else if (fichaText.match(/^\d+/)) {
+            // Si solo hay números
+            const match = fichaText.match(/^(\d+)/);
+            fichaInfo.code = match ? match[1] : fichaText;
+            fichaInfo.name = fichaText.replace(/^\d+\s*-?\s*/, '').trim() || 'Programa sin nombre';
+          } else {
+            fichaInfo.code = fichaText;
+            fichaInfo.name = 'Programa sin nombre';
+          }
+        }
+      }
+
+      // Buscar "Estado"
+      if (cellA.toLowerCase().includes('estado')) {
+        const estadoValue = cellB || cellC;
+        console.log(`📊 Encontrado estado en fila ${rowIndex}:`, estadoValue);
+        
+        if (estadoValue) {
+          const estadoText = estadoValue.toString().trim().toUpperCase();
+          if (estadoText.includes('EJECUCIÓN') || estadoText.includes('EJECUCION')) {
+            fichaInfo.status = 'EN EJECUCIÓN';
+          } else if (estadoText.includes('TERMINADA') || estadoText.includes('FINALIZADA')) {
+            fichaInfo.status = 'TERMINADA';
+          } else if (estadoText.includes('CANCELADA')) {
+            fichaInfo.status = 'CANCELADA';
+          }
+        }
+      }
+
+      // Buscar "Fecha del Reporte"
+      if (cellA.toLowerCase().includes('fecha') && cellA.toLowerCase().includes('reporte')) {
+        const fechaValue = cellB || cellC;
+        console.log(`📅 Encontrada fecha en fila ${rowIndex}:`, fechaValue);
+        
+        if (fechaValue) {
+          try {
+            const fechaText = fechaValue.toString().trim();
+            if (fechaText.includes('/')) {
+              const [day, month, year] = fechaText.split('/');
+              let fichaInfo: { code: string; name: string; status: string; reportDate: Date | null } = { 
+              code: '', 
+              name: '', 
+              status: 'EN EJECUCIÓN', 
+              reportDate: null 
+};
+            }
+          } catch (error) {
+            console.warn('No se pudo parsear la fecha:', fechaValue);
+          }
+        }
+      }
+    }
+
+    console.log('✅ Información extraída del header:', fichaInfo);
+
+    // Validar que se extrajo información mínima
+    if (!fichaInfo.code) {
+      console.error('❌ No se pudo extraer el código de ficha');
+      console.error('Estructura del archivo no reconocida. Verifique que:');
+      console.error('1. Existe una fila con "Ficha de Caracterización:"');
+      console.error('2. El código de ficha está en la columna siguiente');
+      console.error('3. El formato sea: "CODIGO - NOMBRE DEL PROGRAMA"');
+      
+      throw new BadRequestException(
+        'No se encontró código de ficha en el archivo. Verifique el formato. ' +
+        'Debe existir una fila con "Ficha de Caracterización:" seguida del código en el formato "NUMERO - NOMBRE"'
+      );
+    }
+
+    return fichaInfo;
+  }
+
+  // ✅ MÉTODO PARA ENCONTRAR DÓNDE EMPIEZAN LOS DATOS DE APRENDICES
+  private findDataStartRow(worksheet: ExcelJS.Worksheet): number {
+    // Buscar la fila que contiene los headers de la tabla
+    // Esperamos algo como: "Tipo de Documento", "Número de Documento", "Nombre", etc.
+    
+    for (let rowIndex = 1; rowIndex <= 15; rowIndex++) {
+      const row = worksheet.getRow(rowIndex);
+      const cellA = this.getCellValue(row, 1)?.toString()?.toLowerCase() || '';
+      const cellB = this.getCellValue(row, 2)?.toString()?.toLowerCase() || '';
+      const cellC = this.getCellValue(row, 3)?.toString()?.toLowerCase() || '';
+      
+      // Buscar headers típicos de la tabla de datos
+      if (
+        (cellA.includes('tipo') && cellA.includes('documento')) ||
+        cellA.includes('documento') ||
+        cellB.includes('documento') ||
+        cellC.includes('nombre')
+      ) {
+        console.log(`📊 Headers de tabla encontrados en fila ${rowIndex}`);
+        return rowIndex + 1; // Los datos empiezan en la siguiente fila
+      }
+    }
+    
+    // Si no encuentra headers, asumir que empiezan en la fila 7 (fallback)
+    console.log('⚠️ No se encontraron headers de tabla, usando fila 7 por defecto');
+    return 7;
+  }
+
+  // ✅ MÉTODO MEJORADO PARA LEER CELDAS
+  private getCellValue(row: ExcelJS.Row, columnNumber: number): any {
+    try {
+      const cell = row.getCell(columnNumber);
+      if (cell && cell.value !== null && cell.value !== undefined) {
+        // Manejar diferentes tipos de valores
+        if (cell.value instanceof Date) {
+          return cell.value.toLocaleDateString('es-CO');
+        }
+        if (typeof cell.value === 'object' && cell.value !== null) {
+          // Manejar rich text y fórmulas
+          if ('text' in cell.value) {
+            return (cell.value as any).text;
+          }
+          if ('result' in cell.value) {
+            return (cell.value as any).result;
+          }
+          if ('richText' in cell.value) {
+            // Manejar texto enriquecido
+            const richText = (cell.value as any).richText;
+            return richText.map((rt: any) => rt.text || '').join('');
+          }
+          return cell.value.toString();
+        }
+        return cell.value;
+      }
+      return '';
+    } catch (error) {
+      console.warn(`Error al leer celda ${columnNumber}:`, error);
+      return '';
+    }
+  }
+
+  // ✅ MÉTODO MEJORADO PARA DETECTAR FILAS VACÍAS
+  private isEmptyRow(row: ExcelJS.Row): boolean {
+    // Verificar si la fila está completamente vacía o solo tiene datos irrelevantes
+    const cellA = this.getCellValue(row, 1)?.toString()?.trim() || '';
+    const cellB = this.getCellValue(row, 2)?.toString()?.trim() || '';
+    const cellC = this.getCellValue(row, 3)?.toString()?.trim() || '';
+    const cellD = this.getCellValue(row, 4)?.toString()?.trim() || '';
+    
+    // Si no hay datos en las primeras 4 columnas, considerar vacía
+    if (!cellA && !cellB && !cellC && !cellD) {
+      return true;
+    }
+    
+    // Ignorar filas que parecen ser headers o separadores
+    const combinedText = (cellA + cellB + cellC + cellD).toLowerCase();
+    if (
+      combinedText.includes('tipo') ||
+      combinedText.includes('documento') ||
+      combinedText.includes('nombre') ||
+      combinedText.includes('apellido') ||
+      combinedText.includes('correo') ||
+      combinedText.includes('estado') ||
+      combinedText === '' ||
+      combinedText.length < 3
+    ) {
+      return true;
+    }
+    
+    return false;
+  }
+
+  // ✅ MÉTODO MEJORADO PARA EXTRAER DATOS DE APRENDICES
+  private extractLearnerData(row: ExcelJS.Row, rowNumber: number): ExcelLearnerRowDto {
+    const rawData = {
+      col1: this.getCellValue(row, 1)?.toString()?.trim() || '',
+      col2: this.getCellValue(row, 2)?.toString()?.trim() || '',
+      col3: this.getCellValue(row, 3)?.toString()?.trim() || '',
+      col4: this.getCellValue(row, 4)?.toString()?.trim() || '',
+      col5: this.getCellValue(row, 5)?.toString()?.trim() || '',
+      col6: this.getCellValue(row, 6)?.toString()?.trim() || '',
+      col7: this.getCellValue(row, 7)?.toString()?.trim() || '',
+    };
+
+    console.log(`📝 Fila ${rowNumber} - Datos raw:`, rawData);
+
+    const result = {
+      tipoDocumento: this.normalizeDocumentType(rawData.col1),
+      numeroDocumento: rawData.col2,
+      nombre: rawData.col3,
+      apellidos: rawData.col4,
+      celular: rawData.col5,
+      correoElectronico: rawData.col6,
+      estado: this.normalizeStatus(rawData.col7)
+    };
+
+    console.log(`📝 Fila ${rowNumber} - Datos procesados:`, result);
+
+    // Validar datos mínimos
+    if (!result.numeroDocumento || !result.nombre || !result.apellidos || !result.correoElectronico) {
+      console.warn(`⚠️ Fila ${rowNumber} - Faltan datos requeridos:`, {
+        tieneDocumento: !!result.numeroDocumento,
+        tieneNombre: !!result.nombre,
+        tieneApellidos: !!result.apellidos,
+        tieneEmail: !!result.correoElectronico,
       });
     }
 
-    const fichaRow = worksheet.getRow(2);
-    const estadoRow = worksheet.getRow(3);
-    const fechaRow = worksheet.getRow(4);
-
-    // Leer valores de la columna B (índice 2) - NO de la columna A
-    const fichaCell = this.getCellValue(fichaRow, 2); // Columna B
-    const estadoCell = this.getCellValue(estadoRow, 2); // Columna B
-    const fechaCell = this.getCellValue(fechaRow, 2); // Columna B
-
-    console.log('🔍 Debug - Valores leídos:');
-    console.log('Ficha (B2):', fichaCell);
-    console.log('Estado (B3):', estadoCell);
-    console.log('Fecha (B4):', fechaCell);
-
-    // Parsear ficha: "2853176 - ANÁLISIS Y DESARROLLO DE SOFTWARE"
-    const fichaText = fichaCell?.toString()?.trim() || '';
-    let fichaCode = '';
-    let fichaName = '';
-    
-    if (fichaText.includes(' - ')) {
-      const [code, ...nameParts] = fichaText.split(' - ');
-      fichaCode = code.trim();
-      fichaName = nameParts.join(' - ').trim();
-    } else if (fichaText.match(/^\d+/)) {
-      // Si solo hay números sin el formato completo
-      const match = fichaText.match(/^(\d+)/);
-      fichaCode = match ? match[1] : fichaText;
-      fichaName = fichaText.replace(/^\d+\s*-?\s*/, '').trim() || 'Programa sin nombre';
-    } else {
-      // Si no se puede extraer, usar el texto completo como código
-      fichaCode = fichaText;
-      fichaName = 'Programa sin nombre';
-    }
-
-    // Parsear estado: "EN EJECUCIÓN"
-    const estadoText = estadoCell?.toString()?.trim() || '';
-    let fichaStatus = 'EN EJECUCIÓN'; // Por defecto
-    
-    const upperEstado = estadoText.toUpperCase();
-    if (upperEstado.includes('EJECUCIÓN') || upperEstado.includes('EJECUCION')) {
-      fichaStatus = 'EN EJECUCIÓN';
-    } else if (upperEstado.includes('TERMINADA') || upperEstado.includes('FINALIZADA')) {
-      fichaStatus = 'TERMINADA';
-    } else if (upperEstado.includes('CANCELADA')) {
-      fichaStatus = 'CANCELADA';
-    }
-
-    // Parsear fecha: "03/04/2025"
-    const fechaText = fechaCell?.toString()?.trim() || '';
-    let reportDate: Date | null = null;
-    
-    try {
-      if (fechaText.includes('/')) {
-        const [day, month, year] = fechaText.split('/');
-        reportDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-      }
-    } catch (error) {
-      console.warn('No se pudo parsear la fecha:', fechaText);
-    }
-
-    const result = {
-      code: fichaCode,
-      name: fichaName,
-      status: fichaStatus,
-      reportDate: reportDate,
-    };
-
-    console.log('✅ Resultado del parseo del header:', result);
-    
-    // Validar que se extrajo información válida
-    if (!fichaCode || fichaCode === 'Ficha de Caracterización:') {
-      console.error('❌ Error: No se pudo extraer el código de la ficha correctamente');
-      console.error('Valor leído:', fichaText);
-      throw new BadRequestException('No se pudo extraer el código de la ficha del Excel. Verifica el formato del archivo.');
-    }
-    
     return result;
   }
 
   private async createOrUpdateFicha(fichaInfo: any): Promise<{ ficha: Ficha; isNew: boolean }> {
+  try {
+    // Buscar ficha existente con manejo de errores
     let ficha = await this.fichaRepository.findOne({
       where: { code: fichaInfo.code },
     });
@@ -323,45 +489,62 @@ export class ImportService {
       // Actualizar ficha existente
       ficha.name = fichaInfo.name;
       ficha.status = fichaInfo.status;
-      ficha.reportDate = fichaInfo.reportDate;
+      if (fichaInfo.reportDate) {
+        ficha.reportDate = fichaInfo.reportDate;
+      }
       ficha = await this.fichaRepository.save(ficha);
       console.log('🔄 Ficha actualizada:', ficha.code);
     } else {
-      // Crear nueva ficha
+      // Crear nueva ficha con manejo de duplicados
       isNew = true;
       const defaultProgram = await this.programRepository.findOne({
         where: { name: 'Programa por Defecto' },
       });
 
-      ficha = this.fichaRepository.create({
-        code: fichaInfo.code,
-        name: fichaInfo.name,
-        status: fichaInfo.status,
-        reportDate: fichaInfo.reportDate,
-        programId: defaultProgram?.id || 1,
-      });
+      try {
+        ficha = this.fichaRepository.create({
+          code: fichaInfo.code,
+          name: fichaInfo.name,
+          status: fichaInfo.status,
+          reportDate: fichaInfo.reportDate,
+          programId: defaultProgram?.id || 1,
+        });
 
-      ficha = await this.fichaRepository.save(ficha);
-      console.log('🆕 Nueva ficha creada:', ficha.code);
+        ficha = await this.fichaRepository.save(ficha);
+        console.log('🆕 Nueva ficha creada:', ficha.code);
+      } catch (duplicateError: any) {
+        // Si hay error de duplicado, intentar buscar la ficha nuevamente
+        if (duplicateError.message.includes('Entrada duplicada') || duplicateError.code === 'ER_DUP_ENTRY') {
+          console.log('⚠️ Ficha duplicada detectada, buscando existente...');
+          ficha = await this.fichaRepository.findOne({
+            where: { code: fichaInfo.code },
+          });
+          
+          if (ficha) {
+            // Actualizar la ficha encontrada
+            ficha.name = fichaInfo.name;
+            ficha.status = fichaInfo.status;
+            if (fichaInfo.reportDate) {
+              ficha.reportDate = fichaInfo.reportDate;
+            }
+            ficha = await this.fichaRepository.save(ficha);
+            isNew = false;
+            console.log('🔄 Ficha duplicada actualizada:', ficha.code);
+          } else {
+            throw new Error(`Error al crear/encontrar ficha ${fichaInfo.code}: ${duplicateError.message}`);
+          }
+        } else {
+          throw duplicateError;
+        }
+      }
     }
 
     return { ficha, isNew };
+  } catch (error: any) {
+    console.error('❌ Error en createOrUpdateFicha:', error);
+    throw new Error(`Error al procesar ficha ${fichaInfo.code}: ${error.message}`);
   }
-
-  private extractLearnerData(row: ExcelJS.Row, rowNumber: number): ExcelLearnerRowDto {
-    const result = {
-      tipoDocumento: this.normalizeDocumentType(this.getCellValue(row, 1)?.toString() || ''),
-      numeroDocumento: this.getCellValue(row, 2)?.toString()?.trim() || '',
-      nombre: this.getCellValue(row, 3)?.toString()?.trim() || '',
-      apellidos: this.getCellValue(row, 4)?.toString()?.trim() || '',
-      celular: this.getCellValue(row, 5)?.toString()?.trim() || '',
-      correoElectronico: this.getCellValue(row, 6)?.toString()?.trim() || '',
-      estado: this.normalizeStatus(this.getCellValue(row, 7)?.toString() || '') // ✅ COLUMNA G (7)
-    };
-
-    console.log(`Fila ${rowNumber}:`, result);
-    return result;
-  }
+}
 
   private async createNewLearner(
     learnerData: ExcelLearnerRowDto,
@@ -498,37 +681,6 @@ export class ImportService {
       return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
     } catch {
       return null;
-    }
-  }
-
-  private isEmptyRow(row: ExcelJS.Row): boolean {
-    return !this.getCellValue(row, 1) && !this.getCellValue(row, 2) && !this.getCellValue(row, 3);
-  }
-
-  private getCellValue(row: ExcelJS.Row, columnNumber: number): any {
-    try {
-      const cell = row.getCell(columnNumber);
-      if (cell && cell.value !== null && cell.value !== undefined) {
-        // Manejar diferentes tipos de valores
-        if (cell.value instanceof Date) {
-          return cell.value.toLocaleDateString('es-CO');
-        }
-        if (typeof cell.value === 'object' && cell.value !== null) {
-          // Manejar rich text y fórmulas
-          if ('text' in cell.value) {
-            return (cell.value as any).text;
-          }
-          if ('result' in cell.value) {
-            return (cell.value as any).result;
-          }
-          return cell.value.toString();
-        }
-        return cell.value;
-      }
-      return '';
-    } catch (error) {
-      console.warn(`Error al leer celda ${columnNumber}:`, error);
-      return '';
     }
   }
 

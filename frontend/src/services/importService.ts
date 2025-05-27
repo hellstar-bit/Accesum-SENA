@@ -43,12 +43,18 @@ export interface LegacyImportResult {
 }
 
 export const importService = {
-  // ⭐ NUEVO - Importar aprendices con formato específico del SENA
-  async importLearners(file: File): Promise<ImportResult> {
+  // ⭐ NUEVO MÉTODO - Con formulario manual
+  async importLearnersWithForm(file: File, fichaData: {
+    codigo: string;
+    nombre: string;
+    estado: string;
+    fecha: string;
+  }): Promise<ImportResult> {
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('fichaData', JSON.stringify(fichaData));
 
-    const response = await api.post<ImportResult>('/import/learners-excel', formData, {
+    const response = await api.post<ImportResult>('/import/learners-with-form', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -56,6 +62,7 @@ export const importService = {
 
     return response.data;
   },
+
 
   // Método existente para importación general (mantener compatibilidad)
   async importExcel(file: File): Promise<LegacyImportResult> {
@@ -70,4 +77,6 @@ export const importService = {
 
     return response.data;
   },
+
+
 };

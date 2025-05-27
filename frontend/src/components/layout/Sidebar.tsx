@@ -1,4 +1,4 @@
-// frontend/src/components/layout/Sidebar.tsx
+// frontend/src/components/layout/Sidebar.tsx - Menú Actualizado
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
@@ -10,7 +10,7 @@ interface SidebarProps {
 const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
   const { user } = useAuth();
 
-  // Menús por rol
+  // Menús por rol actualizados
   const getMenuItemsByRole = () => {
     const baseItems = [
       { 
@@ -25,49 +25,56 @@ const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
       'Administrador': [
         ...baseItems,
         { 
-          name: 'Usuarios', 
+          name: 'Usuarios y Perfiles', 
           path: '/users', 
           icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z', 
-          roles: ['Administrador'] 
-        },
-        { 
-          name: 'Perfiles', 
-          path: '/profiles', 
-          icon: 'M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2', 
-          roles: ['Administrador'] 
+          roles: ['Administrador'],
+          description: 'Gestión completa de usuarios y perfiles'
         },
         { 
           name: 'Control de Acceso', 
           path: '/access', 
           icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01', 
-          roles: ['Administrador'] 
+          roles: ['Administrador'],
+          description: 'Escáner QR e historial de accesos'
         },
         { 
-          name: 'Importar', 
+          name: 'Importar Datos', 
           path: '/import', 
           icon: 'M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12', 
-          roles: ['Administrador'] 
+          roles: ['Administrador'],
+          description: 'Importación masiva desde Excel'
         },
         { 
           name: 'Configuración', 
           path: '/config', 
           icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z', 
-          roles: ['Administrador'] 
+          roles: ['Administrador'],
+          description: 'Configuración del sistema'
         },
       ],
       'Instructor': [
         ...baseItems,
         { 
+          name: 'Gestión de Aprendices', 
+          path: '/users', 
+          icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z', 
+          roles: ['Instructor'],
+          description: 'Ver y gestionar aprendices'
+        },
+        { 
           name: 'Importar Aprendices', 
           path: '/import', 
           icon: 'M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12', 
-          roles: ['Instructor'] 
+          roles: ['Instructor'],
+          description: 'Importar desde reportes SENA'
         },
         { 
           name: 'Ver Asistencia', 
           path: '/access', 
           icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01', 
-          roles: ['Instructor'] 
+          roles: ['Instructor'],
+          description: 'Historial de asistencia'
         },
       ],
       'Aprendiz': [
@@ -75,7 +82,8 @@ const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
           name: 'Mi Perfil', 
           path: '/my-profile', 
           icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z', 
-          roles: ['Aprendiz'] 
+          roles: ['Aprendiz'],
+          description: 'Gestionar mi información personal'
         },
       ],
       'Escaner': [
@@ -83,7 +91,8 @@ const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
           name: 'Control de Acceso', 
           path: '/access', 
           icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01', 
-          roles: ['Escaner'] 
+          roles: ['Escaner'],
+          description: 'Escáner de códigos QR'
         },
       ],
       'Funcionario': [
@@ -92,7 +101,8 @@ const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
           name: 'Mi Perfil', 
           path: '/my-profile', 
           icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z', 
-          roles: ['Funcionario'] 
+          roles: ['Funcionario'],
+          description: 'Gestionar mi información personal'
         },
       ],
       'Contratista': [
@@ -101,7 +111,8 @@ const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
           name: 'Mi Perfil', 
           path: '/my-profile', 
           icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z', 
-          roles: ['Contratista'] 
+          roles: ['Contratista'],
+          description: 'Gestionar mi información personal'
         },
       ],
       'Visitante': [
@@ -110,7 +121,8 @@ const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
           name: 'Mi Perfil', 
           path: '/my-profile', 
           icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z', 
-          roles: ['Visitante'] 
+          roles: ['Visitante'],
+          description: 'Gestionar mi información personal'
         },
       ],
     };
@@ -126,7 +138,7 @@ const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
 
   return (
     <>
-      {/* Backdrop - cierra el sidebar al hacer clic */}
+      {/* Backdrop */}
       {isOpen && (
         <div 
           className="fixed inset-0 z-20 bg-black bg-opacity-50"
@@ -168,28 +180,35 @@ const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
             <NavLink
               key={item.path}
               to={item.path}
-              onClick={handleClose} // Cierra el sidebar al hacer clic en cualquier enlace
+              onClick={handleClose}
               className={({ isActive }) => `
-                flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200
+                group flex flex-col px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200
                 ${isActive 
                   ? 'bg-sena-green text-white shadow-md' 
                   : 'text-gray-700 hover:bg-sena-light hover:text-sena-green'}
               `}
             >
-              <svg 
-                className="w-5 h-5 mr-3 flex-shrink-0" 
-                fill="none" 
-                stroke="currentColor" 
-                viewBox="0 0 24 24"
-              >
-                <path 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round" 
-                  strokeWidth="2" 
-                  d={item.icon}
-                />
-              </svg>
-              <span className="truncate">{item.name}</span>
+              <div className="flex items-center">
+                <svg 
+                  className="w-5 h-5 mr-3 flex-shrink-0" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round" 
+                    strokeWidth="2" 
+                    d={item.icon}
+                  />
+                </svg>
+                <span className="truncate">{item.name}</span>
+              </div>
+              {item.description && (
+                <span className="text-xs opacity-75 mt-1 ml-8 leading-tight">
+                  {item.description}
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>
@@ -197,8 +216,11 @@ const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
         {/* Footer del sidebar */}
         <div className="p-4 border-t bg-gray-50">
           <div className="text-center">
-            <p className="text-xs text-gray-500 font-medium">ACCESUM v1.0</p>
+            <p className="text-xs text-gray-500 font-medium">ACCESUM v2.0</p>
             <p className="text-xs text-gray-400">© 2025 SENA</p>
+            <p className="text-xs text-gray-400 mt-1">
+              {user?.role === 'Administrador' ? '🔧 Módulo Unificado' : '👤 Gestión Personal'}
+            </p>
           </div>
         </div>
       </aside>

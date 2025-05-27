@@ -1,4 +1,4 @@
-// frontend/src/pages/UserManagement.tsx - Versión Unificada
+// frontend/src/pages/UserManagement.tsx - Con estadísticas de fichas
 import { useState, useEffect } from 'react';
 import UserList from '../components/users/UserList';
 import UserForm from '../components/users/UserForm';
@@ -68,7 +68,6 @@ const UserManagement = () => {
 
   const handleUserUpdated = () => {
     setRefreshTrigger(prev => prev + 1);
-    // Mantener la vista abierta para ver los cambios
   };
 
   // Combinar estadísticas de usuarios y perfiles
@@ -104,20 +103,6 @@ const UserManagement = () => {
         color: 'purple',
         description: 'Perfiles con QR generado'
       },
-      {
-        title: 'Sin Código QR',
-        value: profileStats.profilesWithoutQR,
-        icon: 'M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
-        color: 'yellow',
-        description: 'Perfiles pendientes de QR'
-      },
-      {
-        title: 'Tipos de Personal',
-        value: profileStats.profilesByType.length,
-        icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10',
-        color: 'indigo',
-        description: 'Categorías de personal'
-      }
     ];
   };
 
@@ -135,7 +120,7 @@ const UserManagement = () => {
 
       {/* Stats Cards */}
       {combinedStats && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {combinedStats.map((stat, index) => (
             <div key={index} className="bg-white rounded-lg shadow p-6">
               <div className="flex items-center">
@@ -155,20 +140,79 @@ const UserManagement = () => {
         </div>
       )}
 
+      {/* ⭐ ESTADÍSTICAS DE APRENDICES POR FICHA */}
+      {userStats && userStats.learnersByFicha && userStats.learnersByFicha.length > 0 && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold text-gray-800">🎓 Aprendices por Ficha</h3>
+            <span className="text-sm text-gray-500">
+              {userStats.learnersByFicha.length} fichas activas
+            </span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {userStats.learnersByFicha.map((ficha, index) => {
+              const totalAprendices = userStats.learnersByFicha?.reduce((sum, f) => sum + parseInt(f.count), 0) || 0;
+              const percentage = totalAprendices > 0 ? (parseInt(ficha.count) / totalAprendices * 100).toFixed(1) : '0';
+              
+              return (
+                <div key={index} className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="font-medium text-green-900 text-sm">
+                      📋 {ficha.fichaCode}
+                    </div>
+                    <div className="text-2xl font-bold text-green-800">
+                      {ficha.count}
+                    </div>
+                  </div>
+                  <div className="text-xs text-green-700 mb-2" title={ficha.fichaName}>
+                    {ficha.fichaName.length > 40 
+                      ? `${ficha.fichaName.substring(0, 40)}...` 
+                      : ficha.fichaName}
+                  </div>
+                  <div className="flex justify-between text-xs text-green-600">
+                    <span>{percentage}% del total</span>
+                    <span>Aprendices</span>
+                  </div>
+                  {/* Barra de progreso */}
+                  <div className="mt-2 w-full bg-green-200 rounded-full h-1.5">
+                    <div 
+                      className="bg-green-600 h-1.5 rounded-full transition-all duration-300"
+                      style={{ width: `${percentage}%` }}
+                    ></div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Estadísticas por tipo de personal */}
       {profileStats && profileStats.profilesByType.length > 0 && (
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Distribución por Tipo de Personal</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">👥 Distribución por Tipo de Personal</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             {profileStats.profilesByType.map((type, index) => {
               const total = profileStats.profilesByType.reduce((sum, t) => sum + parseInt(t.count), 0);
               const percentage = total > 0 ? (parseInt(type.count) / total * 100).toFixed(1) : '0';
               
+              // Colores por tipo
+              const getTypeColor = (typeName: string) => {
+                switch (typeName.toLowerCase()) {
+                  case 'aprendiz': return 'bg-green-100 text-green-800 border-green-200';
+                  case 'instructor': return 'bg-blue-100 text-blue-800 border-blue-200';
+                  case 'funcionario': return 'bg-purple-100 text-purple-800 border-purple-200';
+                  case 'contratista': return 'bg-orange-100 text-orange-800 border-orange-200';
+                  case 'visitante': return 'bg-gray-100 text-gray-800 border-gray-200';
+                  default: return 'bg-gray-100 text-gray-800 border-gray-200';
+                }
+              };
+              
               return (
-                <div key={index} className="text-center p-4 bg-gray-50 rounded-lg">
-                  <div className="text-2xl font-bold text-gray-800">{type.count}</div>
-                  <div className="text-sm text-gray-600 capitalize">{type.typeName}</div>
-                  <div className="text-xs text-gray-500">{percentage}%</div>
+                <div key={index} className={`rounded-lg p-4 border ${getTypeColor(type.typeName)}`}>
+                  <div className="text-2xl font-bold mb-1">{type.count}</div>
+                  <div className="text-sm font-medium capitalize mb-1">{type.typeName}s</div>
+                  <div className="text-xs opacity-75">{percentage}%</div>
                 </div>
               );
             })}
@@ -182,7 +226,7 @@ const UserManagement = () => {
         onViewUser={handleViewUser}
         onCreateUser={handleCreateUser}
         refreshTrigger={refreshTrigger}
-        showViewAction={true} // Nueva prop para mostrar botón "Ver"
+        showViewAction={true}
       />
 
       {/* Modal para Formulario */}

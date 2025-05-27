@@ -1,3 +1,4 @@
+/* frontend/src/index.css - Agregar estos estilos para SweetAlert2 */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -26,4 +27,137 @@ body {
   .input-field {
     @apply w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-sena-green focus:border-transparent;
   }
+}
+
+/* ⭐ ESTILOS PERSONALIZADOS PARA SWEETALERT2 */
+
+/* Animaciones personalizadas */
+@keyframes bounceIn {
+  0%, 20%, 40%, 60%, 80% {
+    transform: translate3d(0, 0, 0);
+  }
+  40% {
+    transform: translate3d(0, -30px, 0) scaleY(1.1);
+  }
+  60% {
+    transform: translate3d(0, -15px, 0) scaleY(1.05);
+  }
+  80% {
+    transform: translate3d(0, 0, 0) scaleY(1);
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes shakeX {
+  0%, 100% {
+    transform: translate3d(0, 0, 0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translate3d(-10px, 0, 0);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translate3d(10px, 0, 0);
+  }
+}
+
+.animate__animated {
+  animation-duration: 0.6s;
+  animation-fill-mode: both;
+}
+
+.animate__bounceIn {
+  animation-name: bounceIn;
+}
+
+.animate__shakeX {
+  animation-name: shakeX;
+  animation-duration: 0.8s;
+}
+
+/* Personalización de SweetAlert2 */
+.swal2-popup {
+  border-radius: 1rem !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important;
+}
+
+.swal2-title {
+  font-size: 1.5rem !important;
+  font-weight: 600 !important;
+  margin-bottom: 1rem !important;
+}
+
+.swal2-html-container {
+  font-size: 1rem !important;
+  line-height: 1.5 !important;
+}
+
+.swal2-confirm {
+  border-radius: 0.5rem !important;
+  font-weight: 600 !important;
+  padding: 0.75rem 1.5rem !important;
+  font-size: 1rem !important;
+}
+
+.swal2-timer-progress-bar {
+  background-color: rgba(255, 255, 255, 0.8) !important;
+}
+
+/* Estilos específicos para alertas de entrada */
+.swal2-popup.swal2-success .swal2-success-ring {
+  border-color: #16a34a !important;
+}
+
+.swal2-popup.swal2-success .swal2-success-fix {
+  background-color: #16a34a !important;
+}
+
+.swal2-popup.swal2-success [class^=swal2-success-line] {
+  background-color: #16a34a !important;
+}
+
+/* Estilos específicos para alertas de error */
+.swal2-popup.swal2-error .swal2-x-mark {
+  border-color: #dc2626 !important;
+}
+
+.swal2-popup.swal2-error [class^=swal2-x-mark-line] {
+  background-color: #dc2626 !important;
+}
+
+/* Responsividad mejorada */
+@media (max-width: 768px) {
+  .swal2-popup {
+    width: 90% !important;
+    margin: 1rem !important;
+  }
+  
+  .swal2-title {
+    font-size: 1.25rem !important;
+  }
+  
+  .swal2-html-container {
+    font-size: 0.875rem !important;
+  }
+}
+
+/* Mejoras para el tema SENA */
+.swal2-popup.sena-theme {
+  border: 2px solid #39A900 !important;
+}
+
+.swal2-popup.sena-theme .swal2-title {
+  color: #39A900 !important;
+}
+
+/* Estilos para las imágenes de perfil en las alertas */
+.swal2-html-container img {
+  border: 3px solid #e5e7eb;
+  transition: all 0.3s ease;
+}
+
+.swal2-html-container img:hover {
+  border-color: #39A900;
+  transform: scale(1.05);
 }

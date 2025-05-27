@@ -1,8 +1,8 @@
-// frontend/src/components/users/UserList.tsx - Versión Mejorada
+// frontend/src/components/users/UserList.tsx - Con filtro por ficha
 import { useState, useEffect } from 'react';
 import { userService } from '../../services/userService';
 import { profileService } from '../../services/profileService';
-import type { User, UsersResponse } from '../../services/userService';
+import type { User, UsersResponse, Ficha, UserFilters } from '../../services/userService';
 
 interface UserListProps {
   onEditUser: (user: User) => void;
@@ -20,21 +20,37 @@ const UserList = ({
   showViewAction = false 
 }: UserListProps) => {
   const [users, setUsers] = useState<UsersResponse | null>(null);
+  const [fichas, setFichas] = useState<Ficha[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterRole, setFilterRole] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
+  
+  // ⭐ FILTROS MEJORADOS
+  const [filters, setFilters] = useState<UserFilters>({
+    search: '',
+    role: '',
+    status: undefined,
+    fichaId: undefined,
+  });
 
   useEffect(() => {
     fetchUsers();
+    fetchFichas(); // ⭐ Cargar fichas para el filtro
   }, [currentPage, refreshTrigger]);
 
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const response = await userService.getUsers(currentPage, 10);
+      setError(null);
+      
+      // Limpiar filtros vacíos
+      const cleanFilters = Object.fromEntries(
+        Object.entries(filters).filter(([, value]) => 
+          value !== undefined && value !== null && value !== ''
+        )
+      ) as UserFilters;
+
+      const response = await userService.getUsers(currentPage, 10, cleanFilters);
       setUsers(response);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Error al cargar usuarios');
@@ -43,13 +59,40 @@ const UserList = ({
     }
   };
 
-  const handleSearch = () => {
+  const fetchFichas = async () => {
+    try {
+      const fichasData = await userService.getFichas();
+      setFichas(fichasData);
+    } catch (error) {
+      console.error('Error al cargar fichas:', error);
+    }
+  };
+
+  const handleFilterChange = (key: keyof UserFilters, value: any) => {
+    setFilters(prev => ({
+      ...prev,
+      [key]: value === '' ? undefined : value
+    }));
+  };
+
+  const handleApplyFilters = () => {
     setCurrentPage(1);
     fetchUsers();
   };
 
+  const handleClearFilters = () => {
+    setFilters({
+      search: '',
+      role: '',
+      status: undefined,
+      fichaId: undefined,
+    });
+    setCurrentPage(1);
+    setTimeout(fetchUsers, 100);
+  };
+
   const handleDeleteUser = async (user: User) => {
-    if (!confirm(`¿Estás seguro de desactivar al usuario ${user.profile.firstName} ${user.profile.lastName}?`)) {
+    if (!confirm(`¿Desactivar usuario ${user.profile.firstName} ${user.profile.lastName}?`)) {
       return;
     }
 
@@ -74,23 +117,10 @@ const UserList = ({
     }
   };
 
-  // Filtrar usuarios según los criterios
-  const filteredUsers = users?.data.filter(user => {
-    const matchesSearch = !searchTerm || 
-      user.profile.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.profile.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.profile.documentNumber.includes(searchTerm) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase());
+  // ⭐ OBTENER FICHA SELECCIONADA
+  const selectedFicha = fichas.find(f => f.id === filters.fichaId);
 
-    const matchesRole = !filterRole || user.role.name === filterRole;
-    const matchesStatus = !filterStatus || 
-      (filterStatus === 'active' && user.isActive) ||
-      (filterStatus === 'inactive' && !user.isActive);
-
-    return matchesSearch && matchesRole && matchesStatus;
-  }) || [];
-
-  if (loading) {
+  if (loading && !users) {
     return (
       <div className="flex justify-center items-center py-8">
         <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-sena-green"></div>
@@ -99,7 +129,7 @@ const UserList = ({
     );
   }
 
-  if (error) {
+  if (error && !users) {
     return (
       <div className="bg-red-50 border border-red-200 rounded-lg p-4">
         <p className="text-red-700">{error}</p>
@@ -115,9 +145,17 @@ const UserList = ({
       {/* Header con filtros */}
       <div className="px-6 py-4 border-b space-y-4">
         <div className="flex justify-between items-center">
-          <h2 className="text-lg font-semibold text-gray-800">
-            Lista de Usuarios ({users?.total || 0})
-          </h2>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-800">
+              Lista de Usuarios ({users?.total || 0})
+            </h2>
+            {/* ⭐ MOSTRAR INFORMACIÓN DE FICHA SELECCIONADA */}
+            {selectedFicha && (
+              <p className="text-sm text-blue-600 mt-1">
+                📋 Ficha: {selectedFicha.code} - {selectedFicha.name} ({selectedFicha.status})
+              </p>
+            )}
+          </div>
           <button
             onClick={onCreateUser}
             className="btn-primary flex items-center space-x-2"
@@ -129,24 +167,26 @@ const UserList = ({
           </button>
         </div>
 
-        {/* Filtros */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div>
+        {/* ⭐ FILTROS MEJORADOS */}
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+          {/* Búsqueda */}
+          <div className="md:col-span-2">
             <input
               type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+              value={filters.search || ''}
+              onChange={(e) => handleFilterChange('search', e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleApplyFilters()}
               placeholder="Buscar por nombre, documento o email..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sena-green"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sena-green text-sm"
             />
           </div>
           
+          {/* Rol */}
           <div>
             <select
-              value={filterRole}
-              onChange={(e) => setFilterRole(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sena-green"
+              value={filters.role || ''}
+              onChange={(e) => handleFilterChange('role', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sena-green text-sm"
             >
               <option value="">Todos los roles</option>
               <option value="Administrador">Administrador</option>
@@ -159,11 +199,12 @@ const UserList = ({
             </select>
           </div>
 
+          {/* Estado */}
           <div>
             <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sena-green"
+              value={filters.status || ''}
+              onChange={(e) => handleFilterChange('status', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sena-green text-sm"
             >
               <option value="">Todos los estados</option>
               <option value="active">Activos</option>
@@ -171,15 +212,68 @@ const UserList = ({
             </select>
           </div>
 
+          {/* ⭐ FILTRO POR FICHA - Solo visible si el rol es Aprendiz */}
           <div>
-            <button
-              onClick={handleSearch}
-              className="w-full btn-secondary"
+            <select
+              value={filters.fichaId || ''}
+              onChange={(e) => handleFilterChange('fichaId', e.target.value ? parseInt(e.target.value) : undefined)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sena-green text-sm"
+              disabled={filters.role !== 'Aprendiz'}
             >
-              Aplicar Filtros
+              <option value="">
+                {filters.role === 'Aprendiz' ? 'Todas las fichas' : 'Seleccione rol Aprendiz'}
+              </option>
+              {filters.role === 'Aprendiz' && fichas.map((ficha) => (
+                <option key={ficha.id} value={ficha.id}>
+                  {ficha.code} - {ficha.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Botones */}
+          <div className="flex space-x-2">
+            <button
+              onClick={handleApplyFilters}
+              className="flex-1 bg-sena-green text-white px-3 py-2 rounded-lg hover:bg-sena-dark text-sm font-medium transition-colors"
+            >
+              Filtrar
+            </button>
+            <button
+              onClick={handleClearFilters}
+              className="flex-1 bg-gray-200 text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-300 text-sm font-medium transition-colors"
+            >
+              Limpiar
             </button>
           </div>
         </div>
+
+        {/* ⭐ INFORMACIÓN DE FILTROS ACTIVOS */}
+        {(filters.search || filters.role || filters.status || filters.fichaId) && (
+          <div className="flex flex-wrap gap-2 pt-2">
+            <span className="text-sm text-gray-600">Filtros activos:</span>
+            {filters.search && (
+              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                Búsqueda: "{filters.search}"
+              </span>
+            )}
+            {filters.role && (
+              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                Rol: {filters.role}
+              </span>
+            )}
+            {filters.status && (
+              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                Estado: {filters.status === 'active' ? 'Activo' : 'Inactivo'}
+              </span>
+            )}
+            {selectedFicha && (
+              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                Ficha: {selectedFicha.code}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Table */}
@@ -199,6 +293,12 @@ const UserList = ({
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Estado / QR
               </th>
+              {/* ⭐ MOSTRAR COLUMNA FICHA SOLO PARA APRENDICES */}
+              {filters.role === 'Aprendiz' && (
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Ficha
+                </th>
+              )}
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Ubicación
               </th>
@@ -208,7 +308,7 @@ const UserList = ({
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {filteredUsers.map((user) => (
+            {users?.data.map((user) => (
               <tr key={user.id} className="hover:bg-gray-50">
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">
@@ -230,7 +330,12 @@ const UserList = ({
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="space-y-1">
-                    <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                      user.role.name === 'Aprendiz' ? 'bg-green-100 text-green-800' :
+                      user.role.name === 'Instructor' ? 'bg-blue-100 text-blue-800' :
+                      user.role.name === 'Administrador' ? 'bg-purple-100 text-purple-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
                       {user.role.name}
                     </span>
                     <div className="text-xs text-gray-500">
@@ -248,11 +353,38 @@ const UserList = ({
                       {user.isActive ? 'Activo' : 'Inactivo'}
                     </span>
                     <div className="text-xs">
-                      {/* Aquí podrías agregar información del QR si está disponible */}
-                      <span className="text-gray-500">QR: Verificar</span>
+                      <span className={`inline-flex px-1 py-0.5 rounded text-xs ${
+                        user.profile.qrCode 
+                          ? 'bg-green-100 text-green-700' 
+                          : 'bg-yellow-100 text-yellow-700'
+                      }`}>
+                        QR: {user.profile.qrCode ? '✓' : '⚠'}
+                      </span>
                     </div>
                   </div>
                 </td>
+                {/* ⭐ MOSTRAR INFORMACIÓN DE FICHA PARA APRENDICES */}
+                {filters.role === 'Aprendiz' && (
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {user.profile.ficha ? (
+                      <div className="text-xs">
+                        <div className="font-medium text-gray-900">{user.profile.ficha.code}</div>
+                        <div className="text-gray-500 truncate max-w-24" title={user.profile.ficha.name}>
+                          {user.profile.ficha.name}
+                        </div>
+                        <span className={`inline-flex px-1 py-0.5 rounded text-xs ${
+                          user.profile.ficha.status === 'EN EJECUCIÓN' 
+                            ? 'bg-green-100 text-green-700' 
+                            : 'bg-gray-100 text-gray-700'
+                        }`}>
+                          {user.profile.ficha.status}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-400">Sin ficha</span>
+                    )}
+                  </td>
+                )}
                 <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">
                   <div>
                     <div className="font-medium">{user.profile.regional.name}</div>
@@ -265,7 +397,7 @@ const UserList = ({
                       {showViewAction && (
                         <button
                           onClick={() => onViewUser(user)}
-                          className="text-indigo-600 hover:text-indigo-900"
+                          className="text-indigo-600 hover:text-indigo-900 text-xs"
                           title="Ver perfil completo"
                         >
                           👁️ Ver
@@ -273,7 +405,7 @@ const UserList = ({
                       )}
                       <button
                         onClick={() => onEditUser(user)}
-                        className="text-blue-600 hover:text-blue-900"
+                        className="text-blue-600 hover:text-blue-900 text-xs"
                         title="Editar usuario"
                       >
                         ✏️ Editar
@@ -282,7 +414,7 @@ const UserList = ({
                     <div className="flex space-x-2">
                       <button
                         onClick={() => handleRegenerateQR(user)}
-                        className="text-purple-600 hover:text-purple-900"
+                        className="text-purple-600 hover:text-purple-900 text-xs"
                         title="Regenerar código QR"
                       >
                         🔄 QR
@@ -290,7 +422,7 @@ const UserList = ({
                       {user.isActive && (
                         <button
                           onClick={() => handleDeleteUser(user)}
-                          className="text-red-600 hover:text-red-900"
+                          className="text-red-600 hover:text-red-900 text-xs"
                           title="Desactivar usuario"
                         >
                           🚫 Desactivar
@@ -306,18 +438,18 @@ const UserList = ({
       </div>
 
       {/* Empty State */}
-      {filteredUsers.length === 0 && !loading && (
+      {users?.data.length === 0 && !loading && (
         <div className="text-center py-8">
           <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
           </svg>
           <h3 className="mt-2 text-sm font-medium text-gray-900">No se encontraron usuarios</h3>
           <p className="mt-1 text-sm text-gray-500">
-            {searchTerm || filterRole || filterStatus 
+            {Object.values(filters).some(v => v !== undefined && v !== '') 
               ? 'Intenta ajustar los filtros de búsqueda'
               : 'Comienza creando un nuevo usuario'}
           </p>
-          {!(searchTerm || filterRole || filterStatus) && (
+          {!Object.values(filters).some(v => v !== undefined && v !== '') && (
             <div className="mt-6">
               <button onClick={onCreateUser} className="btn-primary">
                 <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">

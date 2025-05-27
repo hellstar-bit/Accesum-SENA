@@ -1,4 +1,4 @@
-// src/users/users.service.ts
+// backend/src/users/users.service.ts - Actualizado con filtro por ficha
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -6,6 +6,7 @@ import * as bcrypt from 'bcrypt';
 import { User } from './entities/user.entity';
 import { Role } from './entities/role.entity';
 import { Profile } from '../profiles/entities/profile.entity';
+import { Ficha } from '../config/entities/ficha.entity';
 
 export interface CreateUserDto {
   email: string;
@@ -20,6 +21,7 @@ export interface CreateUserDto {
     typeId: number;
     regionalId: number;
     centerId: number;
+    fichaId?: number; // Para aprendices
   };
 }
 
@@ -36,7 +38,19 @@ export interface UpdateUserDto {
     typeId?: number;
     regionalId?: number;
     centerId?: number;
+    fichaId?: number; // Para aprendices
   };
+}
+
+// ⭐ NUEVA INTERFAZ PARA FILTROS
+export interface UserFilters {
+  search?: string;
+  role?: string;
+  status?: string;
+  typeId?: number;
+  fichaId?: number; // ⭐ NUEVO FILTRO
+  regionalId?: number;
+  centerId?: number;
 }
 
 @Injectable()
@@ -48,17 +62,62 @@ export class UsersService {
     private roleRepository: Repository<Role>,
     @InjectRepository(Profile)
     private profileRepository: Repository<Profile>,
+    @InjectRepository(Ficha)
+    private fichaRepository: Repository<Ficha>,
   ) {}
 
-  async findAll(page: number = 1, limit: number = 10) {
+  async findAll(page: number = 1, limit: number = 10, filters: UserFilters = {}) {
     const skip = (page - 1) * limit;
     
-    const [users, total] = await this.userRepository.findAndCount({
-      relations: ['role', 'profile', 'profile.type', 'profile.regional', 'profile.center'],
-      skip,
-      take: limit,
-      order: { createdAt: 'DESC' },
-    });
+    // Construir query con filtros
+    const query = this.userRepository
+      .createQueryBuilder('user')
+      .leftJoinAndSelect('user.role', 'role')
+      .leftJoinAndSelect('user.profile', 'profile')
+      .leftJoinAndSelect('profile.type', 'type')
+      .leftJoinAndSelect('profile.regional', 'regional')
+      .leftJoinAndSelect('profile.center', 'center')
+      .leftJoinAndSelect('profile.ficha', 'ficha') // ⭐ INCLUIR FICHA
+      .skip(skip)
+      .take(limit)
+      .orderBy('user.createdAt', 'DESC');
+
+    // ⭐ APLICAR FILTROS
+    if (filters.search) {
+      query.andWhere(
+        '(profile.firstName LIKE :search OR profile.lastName LIKE :search OR profile.documentNumber LIKE :search OR user.email LIKE :search)',
+        { search: `%${filters.search}%` }
+      );
+    }
+
+    if (filters.role) {
+      query.andWhere('role.name = :role', { role: filters.role });
+    }
+
+    if (filters.status) {
+      const isActive = filters.status === 'active';
+      query.andWhere('user.isActive = :isActive', { isActive });
+    }
+
+    if (filters.typeId) {
+      query.andWhere('profile.typeId = :typeId', { typeId: filters.typeId });
+    }
+
+    // ⭐ FILTRO POR FICHA - Solo para aprendices
+    if (filters.fichaId) {
+      query.andWhere('profile.fichaId = :fichaId', { fichaId: filters.fichaId });
+      query.andWhere('role.name = :roleName', { roleName: 'Aprendiz' });
+    }
+
+    if (filters.regionalId) {
+      query.andWhere('profile.regionalId = :regionalId', { regionalId: filters.regionalId });
+    }
+
+    if (filters.centerId) {
+      query.andWhere('profile.centerId = :centerId', { centerId: filters.centerId });
+    }
+
+    const [users, total] = await query.getManyAndCount();
 
     return {
       data: users,
@@ -69,10 +128,18 @@ export class UsersService {
     };
   }
 
+  // ⭐ NUEVO MÉTODO - Obtener fichas para el filtro
+  async getFichas() {
+    return this.fichaRepository.find({
+      order: { code: 'ASC' },
+      select: ['id', 'code', 'name', 'status'],
+    });
+  }
+
   async findOne(id: number) {
     const user = await this.userRepository.findOne({
       where: { id },
-      relations: ['role', 'profile', 'profile.type', 'profile.regional', 'profile.center'],
+      relations: ['role', 'profile', 'profile.type', 'profile.regional', 'profile.center', 'profile.ficha'],
     });
 
     if (!user) {
@@ -83,7 +150,7 @@ export class UsersService {
   }
 
   async create(createUserDto: CreateUserDto) {
-    // Verificar si el email ya existe
+    // Verificar que el email no exista
     const existingUser = await this.userRepository.findOne({
       where: { email: createUserDto.email },
     });
@@ -92,7 +159,7 @@ export class UsersService {
       throw new ConflictException('El email ya está en uso');
     }
 
-    // Verificar si el documento ya existe
+    // Verificar que el documento no exista
     const existingProfile = await this.profileRepository.findOne({
       where: { documentNumber: createUserDto.profile.documentNumber },
     });
@@ -167,7 +234,7 @@ export class UsersService {
   async remove(id: number) {
     const user = await this.findOne(id);
     
-    // Soft delete - marcar como inactivo en lugar de eliminar
+    // Soft delete - marcar como inactivo
     await this.userRepository.update(id, { isActive: false });
 
     return { message: `Usuario ${user.profile.firstName} ${user.profile.lastName} desactivado correctamente` };
@@ -187,11 +254,26 @@ export class UsersService {
       .groupBy('role.name')
       .getRawMany();
 
+    // ⭐ NUEVO - Aprendices por ficha
+    const learnersByFicha = await this.userRepository
+      .createQueryBuilder('user')
+      .leftJoin('user.role', 'role')
+      .leftJoin('user.profile', 'profile')
+      .leftJoin('profile.ficha', 'ficha')
+      .select('ficha.code', 'fichaCode')
+      .addSelect('ficha.name', 'fichaName')
+      .addSelect('COUNT(user.id)', 'count')
+      .where('role.name = :roleName', { roleName: 'Aprendiz' })
+      .andWhere('ficha.id IS NOT NULL')
+      .groupBy('ficha.id')
+      .getRawMany();
+
     return {
       totalUsers,
       activeUsers,
       inactiveUsers,
       usersByRole,
+      learnersByFicha, // ⭐ NUEVA ESTADÍSTICA
     };
   }
 }

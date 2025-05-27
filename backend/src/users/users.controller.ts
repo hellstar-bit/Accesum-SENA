@@ -1,4 +1,4 @@
-// src/users/users.controller.ts
+// backend/src/users/users.controller.ts - Actualizado con filtro por ficha
 import {
     Controller,
     Get,
@@ -23,8 +23,30 @@ import {
     findAll(
       @Query('page') page: string = '1',
       @Query('limit') limit: string = '10',
+      @Query('search') search?: string,
+      @Query('role') role?: string,
+      @Query('status') status?: string,
+      @Query('typeId') typeId?: string,
+      @Query('fichaId') fichaId?: string, // ⭐ NUEVO FILTRO
+      @Query('regionalId') regionalId?: string,
+      @Query('centerId') centerId?: string,
     ) {
-      return this.usersService.findAll(+page, +limit);
+      const filters = {
+        search,
+        role,
+        status,
+        typeId: typeId ? parseInt(typeId) : undefined,
+        fichaId: fichaId ? parseInt(fichaId) : undefined, // ⭐ NUEVO FILTRO
+        regionalId: regionalId ? parseInt(regionalId) : undefined,
+        centerId: centerId ? parseInt(centerId) : undefined,
+      };
+
+      return this.usersService.findAll(+page, +limit, filters);
+    }
+
+    @Get('fichas')
+    async getFichas() {
+      return this.usersService.getFichas();
     }
   
     @Get('stats')

@@ -1,4 +1,4 @@
-// backend/src/access/access.service.ts
+// backend/src/access/access.service.ts - CORREGIDO
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, IsNull, Not } from 'typeorm';
@@ -21,6 +21,7 @@ export interface AccessRecordResponse {
     id: number;
     email: string;
     profile: {
+      id: number;
       firstName: string;
       lastName: string;
       documentNumber: string;
@@ -43,17 +44,11 @@ export class AccessService {
   async createAccessRecord(dto: CreateAccessRecordDto): Promise<AccessRecordResponse> {
     let profile: Profile | null = null;
 
-    // Buscar perfil por QR o por ID
+    console.log('🔍 Creando registro de acceso:', dto);
+
+    // ⭐ BUSCAR PERFIL POR QR O POR ID
     if (dto.qrData) {
-      try {
-        const qrInfo = JSON.parse(dto.qrData);
-        profile = await this.profileRepository.findOne({
-          where: { id: qrInfo.id, documentNumber: qrInfo.doc },
-          relations: ['user', 'type', 'center'],
-        });
-      } catch (error : any) {
-        throw new BadRequestException('Código QR inválido');
-      }
+      profile = await this.findProfileByQRData(dto.qrData);
     } else if (dto.profileId) {
       profile = await this.profileRepository.findOne({
         where: { id: dto.profileId },
@@ -65,42 +60,180 @@ export class AccessService {
       throw new NotFoundException('Perfil no encontrado');
     }
 
-    // Verificar el último registro
+    console.log('👤 Perfil encontrado:', {
+      id: profile.id,
+      name: `${profile.firstName} ${profile.lastName}`,
+      document: profile.documentNumber
+    });
+
+    // ⭐ VERIFICAR EL ÚLTIMO REGISTRO
     const lastRecord = await this.accessRecordRepository.findOne({
       where: { userId: profile.userId },
       order: { entryTime: 'DESC' },
     });
 
+    console.log('📋 Último registro:', lastRecord ? {
+      id: lastRecord.id,
+      entryTime: lastRecord.entryTime,
+      exitTime: lastRecord.exitTime,
+      status: lastRecord.status
+    } : 'Ninguno');
+
     let newRecord: AccessRecord;
 
     if (dto.type === 'entry') {
-      // Verificar si ya tiene una entrada sin salida
+      // ⭐ REGISTRAR ENTRADA
       if (lastRecord && !lastRecord.exitTime) {
-        throw new BadRequestException('El usuario ya tiene una entrada activa sin salida registrada');
+        throw new BadRequestException(
+          `${profile.firstName} ${profile.lastName} ya tiene una entrada activa sin salida registrada`
+        );
       }
 
-      // Crear nueva entrada
       newRecord = this.accessRecordRepository.create({
         userId: profile.userId,
         status: 'entry',
         entryTime: new Date(),
       });
+
+      newRecord = await this.accessRecordRepository.save(newRecord);
+      console.log('✅ Entrada registrada:', newRecord.id);
+
     } else {
-      // Registrar salida
+      // ⭐ REGISTRAR SALIDA
       if (!lastRecord || lastRecord.exitTime) {
-        throw new BadRequestException('No hay entrada activa para registrar salida');
+        throw new BadRequestException(
+          `${profile.firstName} ${profile.lastName} no tiene entrada activa para registrar salida`
+        );
       }
 
       lastRecord.exitTime = new Date();
       lastRecord.status = 'exit';
       newRecord = await this.accessRecordRepository.save(lastRecord);
-    }
-
-    if (dto.type === 'entry') {
-      newRecord = await this.accessRecordRepository.save(newRecord);
+      console.log('✅ Salida registrada:', newRecord.id);
     }
 
     return this.formatAccessRecord(newRecord, profile);
+  }
+
+  // ⭐ NUEVA FUNCIÓN - Buscar perfil por datos QR con validación mejorada
+  private async findProfileByQRData(qrData: string): Promise<Profile | null> {
+    try {
+      console.log('🔍 Procesando datos QR:', qrData);
+      
+      // ⭐ LIMPIAR Y VALIDAR DATOS QR
+      const cleanQRData = this.cleanQRData(qrData);
+      console.log('🧹 Datos QR limpios:', cleanQRData);
+      
+      let qrInfo: any;
+      try {
+        qrInfo = JSON.parse(cleanQRData);
+      } catch (parseError) {
+        console.error('❌ Error parsing QR JSON:', parseError);
+        throw new BadRequestException('Formato de código QR inválido');
+      }
+
+      console.log('📋 Información extraída del QR:', qrInfo);
+
+      // ⭐ VALIDAR ESTRUCTURA DEL QR
+      if (!qrInfo || typeof qrInfo !== 'object') {
+        throw new BadRequestException('Código QR no contiene datos válidos');
+      }
+
+      if (!qrInfo.doc) {
+        throw new BadRequestException('Código QR no contiene número de documento');
+      }
+
+      // ⭐ VALIDAR TIPO DE QR
+      if (qrInfo.type && !qrInfo.type.includes('ACCESUM_SENA')) {
+        throw new BadRequestException('Código QR no es del sistema ACCESUM');
+      }
+
+      // ⭐ BUSCAR PERFIL POR NÚMERO DE DOCUMENTO
+      const profile = await this.profileRepository.findOne({
+        where: { documentNumber: qrInfo.doc.toString() },
+        relations: ['user', 'type', 'center'],
+      });
+
+      if (!profile) {
+        throw new NotFoundException(`No se encontró perfil con documento: ${qrInfo.doc}`);
+      }
+
+      // ⭐ VALIDAR ESTADO DEL USUARIO
+      if (!profile.user.isActive) {
+        throw new BadRequestException(`Usuario ${profile.firstName} ${profile.lastName} está inactivo`);
+      }
+
+      // ⭐ VALIDAR QR ESPECÍFICO SI TIENE ID
+      if (qrInfo.id && qrInfo.id !== profile.id) {
+        console.warn('⚠️ ID del QR no coincide con el perfil encontrado');
+        // No lanzar error, solo advertencia - usar el perfil encontrado por documento
+      }
+
+      console.log('✅ Perfil válido encontrado:', {
+        id: profile.id,
+        name: `${profile.firstName} ${profile.lastName}`,
+        document: profile.documentNumber,
+        type: profile.type.name,
+        userActive: profile.user.isActive
+      });
+
+      return profile;
+
+    } catch (error) {
+      console.error('❌ Error en findProfileByQRData:', error);
+      if (error instanceof BadRequestException || error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new BadRequestException(`Error procesando código QR: ${error.message}`);
+    }
+  }
+
+  // ⭐ NUEVA FUNCIÓN - Limpiar datos QR
+  private cleanQRData(rawData: string): string {
+    try {
+      // Remover espacios y caracteres no imprimibles
+      let cleanData = rawData.trim().replace(/[\x00-\x1F\x7F-\x9F]/g, '');
+      
+      // Si ya es JSON válido, devolverlo
+      try {
+        JSON.parse(cleanData);
+        return cleanData;
+      } catch {
+        // No es JSON válido, continuar con limpieza
+      }
+
+      // Intentar extraer JSON de una cadena más larga
+      const jsonMatch = cleanData.match(/\{.*\}/);
+      if (jsonMatch) {
+        return jsonMatch[0];
+      }
+
+      // Si es solo un número, crear estructura básica
+      const numberMatch = cleanData.match(/^\d+$/);
+      if (numberMatch) {
+        return JSON.stringify({
+          id: null,
+          doc: numberMatch[0],
+          type: 'ACCESUM_SENA_MANUAL',
+          timestamp: Date.now()
+        });
+      }
+
+      // Intentar decodificar URL
+      try {
+        const decoded = decodeURIComponent(cleanData);
+        if (decoded !== cleanData) {
+          return this.cleanQRData(decoded);
+        }
+      } catch {
+        // No es URL encoded
+      }
+
+      throw new Error('No se pudo procesar el formato del QR');
+    } catch (error) {
+      console.error('❌ Error limpiando datos QR:', error);
+      throw error;
+    }
   }
 
   async getCurrentOccupancy() {
@@ -196,7 +329,9 @@ export class AccessService {
       .createQueryBuilder('access')
       .select('HOUR(access.entryTime)', 'hour')
       .addSelect('COUNT(*)', 'count')
-      .where(date ? 'DATE(access.entryTime) = :date' : '1=1', { date })
+      .where(date ? 'DATE(access.entryTime) = :date' : '1=1', { 
+        date: date ? date.toISOString().split('T')[0] : undefined 
+      })
       .groupBy('hour')
       .getRawMany();
 
@@ -205,7 +340,9 @@ export class AccessService {
       .createQueryBuilder('access')
       .select('AVG(TIMESTAMPDIFF(MINUTE, access.entryTime, access.exitTime))', 'avgMinutes')
       .where('access.exitTime IS NOT NULL')
-      .andWhere(date ? 'DATE(access.entryTime) = :date' : '1=1', { date })
+      .andWhere(date ? 'DATE(access.entryTime) = :date' : '1=1', { 
+        date: date ? date.toISOString().split('T')[0] : undefined 
+      })
       .getRawOne();
 
     return {
@@ -220,9 +357,36 @@ export class AccessService {
   }
 
   async searchByDocument(documentNumber: string): Promise<Profile | null> {
+    console.log('🔍 Buscando por documento:', documentNumber);
+    
+    if (!documentNumber || !documentNumber.trim()) {
+      throw new BadRequestException('Número de documento requerido');
+    }
+
+    const cleanDocument = documentNumber.trim().replace(/\D/g, ''); // Solo números
+    
+    if (!cleanDocument) {
+      throw new BadRequestException('Número de documento inválido');
+    }
+
     const profile = await this.profileRepository.findOne({
-      where: { documentNumber },
+      where: { documentNumber: cleanDocument },
       relations: ['user', 'type', 'center'],
+    });
+
+    if (!profile) {
+      console.log('❌ No se encontró perfil con documento:', cleanDocument);
+      return null;
+    }
+
+    if (!profile.user.isActive) {
+      throw new BadRequestException(`Usuario ${profile.firstName} ${profile.lastName} está inactivo`);
+    }
+
+    console.log('✅ Perfil encontrado:', {
+      id: profile.id,
+      name: `${profile.firstName} ${profile.lastName}`,
+      document: profile.documentNumber
     });
 
     return profile;
@@ -238,13 +402,14 @@ export class AccessService {
     return {
       id: record.id,
       entryTime: record.entryTime,
-      exitTime: record.exitTime,
+      exitTime: record.exitTime || undefined,
       status: record.status,
       duration,
       user: {
         id: record.userId,
         email: record.user?.email || '',
         profile: {
+          id: userProfile?.id || 0,
           firstName: userProfile?.firstName || '',
           lastName: userProfile?.lastName || '',
           documentNumber: userProfile?.documentNumber || '',

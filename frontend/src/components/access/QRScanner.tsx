@@ -1,4 +1,4 @@
-// frontend/src/components/access/QRScanner.tsx - Mejorado con SweetAlert2
+// frontend/src/components/access/QRScanner.tsx - CORREGIDO
 import { useState, useEffect, useRef } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { accessService } from '../../services/accessService';
@@ -12,8 +12,8 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
   const [scanning, setScanning] = useState(false);
   const [manualDocument, setManualDocument] = useState('');
   const [loading, setLoading] = useState(false);
-  const [lastScannedCode, setLastScannedCode] = useState<string>(''); // Para evitar doble escaneo
-  const [processingQR, setProcessingQR] = useState(false); // Para pausar el escáner
+  const [lastScannedCode, setLastScannedCode] = useState<string>('');
+  const [processingQR, setProcessingQR] = useState(false);
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
   const lastScanTimeRef = useRef<number>(0);
 
@@ -38,11 +38,30 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
       "qr-reader",
       { 
         fps: 10, 
-        qrbox: { width: 280, height: 280 },
+        qrbox: { width: 250, height: 250 },
         aspectRatio: 1.0,
         showTorchButtonIfSupported: true,
         showZoomSliderIfSupported: true,
         defaultZoomValueIfSupported: 2,
+        // ⭐ CONFIGURACIONES ADICIONALES PARA MEJOR DETECCIÓN
+        videoConstraints: {
+          facingMode: "environment" // Usar cámara trasera por defecto
+        },
+        formatsToSupport: [ // Soportar múltiples formatos
+          0, // QR_CODE
+          1, // DATA_MATRIX
+          2, // UPC_A
+          3, // UPC_E
+          4, // EAN_8
+          5, // EAN_13
+          6, // CODE_128
+          7, // CODE_39
+          8, // CODE_93
+          9, // CODABAR
+          10, // ITF
+          11, // RSS14
+          12, // RSS_EXPANDED
+        ]
       },
       false
     );
@@ -65,11 +84,10 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
     const currentTime = Date.now();
     
     // ⭐ PREVENIR DOBLE ESCANEO
-    // Evitar procesar el mismo QR muy rápido o si ya se está procesando
     if (
       processingQR || 
       result === lastScannedCode || 
-      (currentTime - lastScanTimeRef.current) < 2000 // 2 segundos entre escaneos
+      (currentTime - lastScanTimeRef.current) < 3000 // 3 segundos entre escaneos
     ) {
       return;
     }
@@ -80,46 +98,143 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
     lastScanTimeRef.current = currentTime;
 
     try {
-      console.log('🔍 QR Escaneado:', result);
+      console.log('🔍 QR Escaneado (raw):', result);
+      
+      // ⭐ VALIDAR Y LIMPIAR DATOS DEL QR
+      const cleanQRData = validateAndCleanQRData(result);
+      console.log('🔍 QR Limpio:', cleanQRData);
       
       // Mostrar loading mientras se procesa
       Swal.fire({
         title: 'Procesando...',
-        text: 'Verificando código QR',
-        icon: 'info',
+        html: `
+          <div class="text-center">
+            <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
+            <p class="text-gray-600">Verificando código QR</p>
+            <p class="text-xs text-gray-500 mt-2">Documento: ${getDocumentFromQR(cleanQRData)}</p>
+          </div>
+        `,
         allowOutsideClick: false,
         showConfirmButton: false,
-        didOpen: () => {
-          Swal.showLoading();
+        customClass: {
+          popup: 'animate__animated animate__fadeIn'
         }
       });
 
-      const checkInOrOut = await determineAction(result);
+      // ⭐ DETERMINAR ACCIÓN Y PROCESAR
+      const checkInOrOut = await determineAction(cleanQRData);
+      console.log('🎯 Acción determinada:', checkInOrOut);
       
+      let response;
       if (checkInOrOut === 'entry') {
-        const response = await accessService.checkIn({ qrData: result });
-        await showSuccessAlert('entrada', response);
+        response = await accessService.checkIn({ qrData: cleanQRData });
       } else {
-        const response = await accessService.checkOut({ qrData: result });
-        await showSuccessAlert('salida', response);
+        response = await accessService.checkOut({ qrData: cleanQRData });
       }
       
+      await showSuccessAlert(checkInOrOut, response);
       onScanSuccess();
 
     } catch (error: any) {
       console.error('❌ Error al procesar QR:', error);
-      await showErrorAlert(error.response?.data?.message || 'Error al procesar código QR');
+      console.error('❌ Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+      
+      await showErrorAlert(
+        error.response?.data?.message || 
+        error.message ||
+        'Error al procesar código QR'
+      );
     } finally {
       // ⭐ REANUDAR ESCÁNER DESPUÉS DE UN DELAY
       setTimeout(() => {
         setProcessingQR(false);
-        setLastScannedCode(''); // Limpiar después del delay
-      }, 1500); // 1.5 segundos antes de permitir otro escaneo
+        setLastScannedCode('');
+      }, 2000); // 2 segundos antes de permitir otro escaneo
     }
   };
 
-  const showSuccessAlert = async (tipo: 'entrada' | 'salida', response: any) => {
-    const isEntry = tipo === 'entrada';
+  // ⭐ NUEVA FUNCIÓN - Validar y limpiar datos del QR
+  const validateAndCleanQRData = (rawData: string): string => {
+    try {
+      // Intentar parsear como JSON directamente
+      const parsed = JSON.parse(rawData);
+      
+      // Validar que tenga la estructura esperada
+      if (parsed && typeof parsed === 'object') {
+        if (parsed.id && parsed.doc && parsed.type === 'ACCESUM_SENA') {
+          return JSON.stringify(parsed);
+        }
+      }
+      
+      throw new Error('Formato QR inválido');
+    } catch (jsonError) {
+      // Si no es JSON válido, intentar otras estrategias
+      console.log('No es JSON válido, intentando otras estrategias...');
+      
+      // ⭐ ESTRATEGIA 1: Limpiar caracteres extraños
+      let cleanData = rawData.trim();
+      
+      // Remover caracteres de control y no imprimibles
+      cleanData = cleanData.replace(/[\x00-\x1F\x7F-\x9F]/g, '');
+      
+      // ⭐ ESTRATEGIA 2: Intentar extraer JSON de una cadena más larga
+      const jsonMatch = cleanData.match(/\{.*\}/);
+      if (jsonMatch) {
+        try {
+          const parsed = JSON.parse(jsonMatch[0]);
+          if (parsed.id && parsed.doc && parsed.type === 'ACCESUM_SENA') {
+            return JSON.stringify(parsed);
+          }
+        } catch (e) {
+          console.log('JSON extraído no válido');
+        }
+      }
+      
+      // ⭐ ESTRATEGIA 3: Si es solo un número, crear estructura QR
+      const numberMatch = cleanData.match(/^\d+$/);
+      if (numberMatch) {
+        const documentNumber = numberMatch[0];
+        console.log('🔍 Detectado número de documento puro:', documentNumber);
+        
+        // Crear estructura QR temporal para búsqueda
+        return JSON.stringify({
+          id: null,
+          doc: documentNumber,
+          type: 'ACCESUM_SENA_MANUAL',
+          timestamp: Date.now()
+        });
+      }
+      
+      // ⭐ ESTRATEGIA 4: Intentar decodificar URL encoded
+      try {
+        const decoded = decodeURIComponent(cleanData);
+        if (decoded !== cleanData) {
+          return validateAndCleanQRData(decoded);
+        }
+      } catch (e) {
+        console.log('No es URL encoded');
+      }
+      
+      throw new Error(`Formato de QR no reconocido: ${rawData.substring(0, 50)}...`);
+    }
+  };
+
+  // ⭐ NUEVA FUNCIÓN - Extraer documento del QR para mostrar
+  const getDocumentFromQR = (qrData: string): string => {
+    try {
+      const parsed = JSON.parse(qrData);
+      return parsed.doc || 'No identificado';
+    } catch {
+      return qrData.substring(0, 15) + '...';
+    }
+  };
+
+  const showSuccessAlert = async (tipo: 'entry' | 'exit', response: any) => {
+    const isEntry = tipo === 'entry';
     const user = response.user.profile;
     
     return Swal.fire({
@@ -128,67 +243,76 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
         <div class="text-center">
           <div class="mb-4">
             ${user.profileImage 
-              ? `<img src="${user.profileImage}" class="w-20 h-20 rounded-full mx-auto object-cover mb-2" />` 
-              : `<div class="w-20 h-20 rounded-full mx-auto bg-green-100 flex items-center justify-center text-green-600 text-2xl font-bold mb-2">${user.firstName.charAt(0)}${user.lastName.charAt(0)}</div>`
+              ? `<img src="${user.profileImage}" class="w-20 h-20 rounded-full mx-auto object-cover mb-2 border-4 ${isEntry ? 'border-green-400' : 'border-red-400'}" />` 
+              : `<div class="w-20 h-20 rounded-full mx-auto ${isEntry ? 'bg-green-100' : 'bg-red-100'} flex items-center justify-center ${isEntry ? 'text-green-600' : 'text-red-600'} text-2xl font-bold mb-2 border-4 ${isEntry ? 'border-green-400' : 'border-red-400'}">${user.firstName.charAt(0)}${user.lastName.charAt(0)}</div>`
             }
           </div>
           <h3 class="text-lg font-semibold text-gray-800">${user.firstName} ${user.lastName}</h3>
-          <p class="text-sm text-gray-600">${user.type} - ${user.documentNumber}</p>
-          <p class="text-xs text-gray-500 mt-2">
-            ${isEntry ? '🏢 Ingresó a las instalaciones' : '🚪 Salió de las instalaciones'}
-          </p>
-          <p class="text-xs text-gray-400">
-            ${new Date(response.entryTime).toLocaleTimeString('es-CO', { 
-              hour12: true, 
+          <p class="text-sm text-gray-600 mb-2">${user.type} - ${user.documentNumber}</p>
+          <div class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium mb-3 ${
+            isEntry 
+              ? 'bg-green-100 text-green-800' 
+              : 'bg-red-100 text-red-800'
+          }">
+            ${isEntry ? '🏢 INGRESÓ A LAS INSTALACIONES' : '🚪 SALIÓ DE LAS INSTALACIONES'}
+          </div>
+          <p class="text-sm text-gray-500">
+            ${new Date(response.entryTime || response.exitTime).toLocaleString('es-CO', { 
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long', 
+              day: 'numeric',
               hour: '2-digit', 
-              minute: '2-digit' 
+              minute: '2-digit',
+              hour12: true 
             })}
           </p>
+          ${user.center ? `<p class="text-xs text-gray-400 mt-1">${user.center}</p>` : ''}
         </div>
       `,
       icon: 'success',
       iconColor: isEntry ? '#16a34a' : '#dc2626',
       confirmButtonColor: isEntry ? '#16a34a' : '#dc2626',
       confirmButtonText: 'Continuar',
-      timer: 4000, // ⭐ AUTO-CERRAR DESPUÉS DE 4 SEGUNDOS
+      timer: 5000,
       timerProgressBar: true,
       allowOutsideClick: false,
       customClass: {
         popup: 'animate__animated animate__bounceIn',
         title: isEntry ? 'text-green-700' : 'text-red-700'
-      },
-      // ⭐ SONIDO DE ÉXITO (opcional)
-      didOpen: () => {
-        // Reproducir sonido de éxito si está disponible
-        try {
-          const audio = new Audio('/success-sound.mp3'); // Opcional: agregar archivo de sonido
-          audio.volume = 0.3;
-          audio.play().catch(() => {}); // Ignorar si no se puede reproducir
-        } catch {}
       }
     });
   };
 
   const showErrorAlert = async (message: string) => {
     return Swal.fire({
-      title: '❌ ERROR',
-      text: message,
+      title: '❌ ERROR DE ACCESO',
+      html: `
+        <div class="text-center">
+          <div class="mb-4">
+            <div class="w-16 h-16 rounded-full mx-auto bg-red-100 flex items-center justify-center text-red-600 text-3xl mb-2">
+              ⚠️
+            </div>
+          </div>
+          <p class="text-gray-700 mb-4">${message}</p>
+          <div class="bg-red-50 border border-red-200 rounded-lg p-3">
+            <p class="text-sm text-red-700">
+              <strong>Posibles soluciones:</strong><br>
+              • Verificar que el código QR esté bien generado<br>
+              • Intentar búsqueda manual por documento<br>
+              • Contactar al administrador si persiste
+            </p>
+          </div>
+        </div>
+      `,
       icon: 'error',
       iconColor: '#dc2626',
       confirmButtonColor: '#dc2626',
-      confirmButtonText: 'Reintentar',
-      timer: 3000,
+      confirmButtonText: 'Entendido',
+      timer: 6000,
       timerProgressBar: true,
       customClass: {
         popup: 'animate__animated animate__shakeX'
-      },
-      // ⭐ SONIDO DE ERROR (opcional)
-      didOpen: () => {
-        try {
-          const audio = new Audio('/error-sound.mp3'); // Opcional: agregar archivo de sonido
-          audio.volume = 0.3;
-          audio.play().catch(() => {});
-        } catch {}
       }
     });
   };
@@ -200,94 +324,145 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
 
     // Mostrar loading para búsqueda manual
     Swal.fire({
-      title: 'Buscando...',
-      text: `Documento: ${manualDocument}`,
-      icon: 'info',
+      title: 'Buscando persona...',
+      html: `
+        <div class="text-center">
+          <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p class="text-gray-600">Documento: <strong>${manualDocument}</strong></p>
+          <p class="text-xs text-gray-500 mt-2">Verificando en la base de datos...</p>
+        </div>
+      `,
       allowOutsideClick: false,
-      showConfirmButton: false,
-      didOpen: () => {
-        Swal.showLoading();
-      }
+      showConfirmButton: false
     });
 
     try {
       const searchResult = await accessService.searchByDocument(manualDocument);
       
-      if (!searchResult.found) {
+      if (!searchResult.found || !searchResult.profile) {
         await Swal.fire({
-          title: '❌ No encontrado',
-          text: `No se encontró el documento: ${manualDocument}`,
+          title: '🚫 Persona no encontrada',
+          html: `
+            <div class="text-center">
+              <div class="w-16 h-16 rounded-full mx-auto bg-yellow-100 flex items-center justify-center text-yellow-600 text-3xl mb-4">
+                🔍
+              </div>
+              <p class="text-gray-700 mb-4">No se encontró ninguna persona con el documento:</p>
+              <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+                <p class="text-lg font-bold text-yellow-800">${manualDocument}</p>
+              </div>
+              <p class="text-sm text-gray-600">
+                Verifique que el número esté correcto o contacte al administrador
+              </p>
+            </div>
+          `,
           icon: 'warning',
           confirmButtonColor: '#f59e0b',
-          timer: 3000
+          timer: 4000
         });
         return;
       }
 
-      const checkInOrOut = await determineActionByProfile(searchResult.profile!.id);
+      // ⭐ DETERMINAR ACCIÓN POR PERFIL ID
+      const checkInOrOut = await determineActionByProfile(searchResult.profile.id);
       
+      let response;
       if (checkInOrOut === 'entry') {
-        const response = await accessService.checkIn({ profileId: searchResult.profile!.id });
-        await showSuccessAlert('entrada', response);
+        response = await accessService.checkIn({ profileId: searchResult.profile.id });
       } else {
-        const response = await accessService.checkOut({ profileId: searchResult.profile!.id });
-        await showSuccessAlert('salida', response);
+        response = await accessService.checkOut({ profileId: searchResult.profile.id });
       }
       
+      await showSuccessAlert(checkInOrOut, response);
       setManualDocument('');
       onScanSuccess();
 
     } catch (error: any) {
-      await showErrorAlert(error.response?.data?.message || 'Error al procesar documento');
+      console.error('Error en búsqueda manual:', error);
+      await showErrorAlert(
+        error.response?.data?.message || 
+        'Error al procesar el documento'
+      );
     } finally {
       setLoading(false);
     }
   };
 
+  // ⭐ MEJORAR FUNCIÓN DE DETERMINACIÓN DE ACCIÓN
   const determineAction = async (qrData: string): Promise<'entry' | 'exit'> => {
     try {
       const qrInfo = JSON.parse(qrData);
+      console.log('🎯 Determinando acción para:', qrInfo);
+      
+      // Si no tiene documento, no se puede determinar
+      if (!qrInfo.doc) {
+        throw new Error('Código QR no contiene número de documento');
+      }
+      
       const current = await accessService.getCurrentOccupancy();
-      const isInside = current.records.some(r => r.user.profile.documentNumber === qrInfo.doc);
+      console.log('🏢 Personas actualmente dentro:', current.total);
+      
+      const isInside = current.records.some(r => 
+        r.user.profile.documentNumber === qrInfo.doc
+      );
+      
+      console.log('🎯 ¿Está dentro?', isInside);
       return isInside ? 'exit' : 'entry';
-    } catch {
+    } catch (error) {
+      console.error('Error determinando acción:', error);
+      // Por defecto, asumir entrada si hay error
       return 'entry';
     }
   };
 
   const determineActionByProfile = async (profileId: number): Promise<'entry' | 'exit'> => {
-    const current = await accessService.getCurrentOccupancy();
-    const isInside = current.records.some(r => r.user.id === profileId);
-    return isInside ? 'exit' : 'entry';
+    try {
+      const current = await accessService.getCurrentOccupancy();
+      const isInside = current.records.some(r => r.user.id === profileId);
+      return isInside ? 'exit' : 'entry';
+    } catch (error) {
+      console.error('Error determinando acción por perfil:', error);
+      return 'entry';
+    }
   };
 
   const handleError = (error: any) => {
-    console.log('Error QR Scanner:', error);
-    // No mostrar errores técnicos del escáner para evitar spam
+    // ⭐ MEJORAR MANEJO DE ERRORES DEL ESCÁNER
+    console.log('⚠️ Error técnico del escáner:', error);
+    
+    // Solo mostrar errores críticos, no técnicos normales
+    if (error.includes('NotAllowedError') || error.includes('Permission')) {
+      Swal.fire({
+        title: '📷 Permisos de cámara',
+        text: 'Por favor permita el acceso a la cámara para usar el escáner QR',
+        icon: 'warning',
+        confirmButtonText: 'Entendido'
+      });
+    }
   };
 
   const toggleScanning = () => {
-    if (processingQR) return; // No permitir cambiar estado mientras se procesa
+    if (processingQR) return;
     setScanning(!scanning);
-    setLastScannedCode(''); // Limpiar código anterior
+    setLastScannedCode('');
   };
 
   return (
     <div className="bg-white rounded-lg shadow-lg p-6">
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-semibold">🔍 Control de Acceso</h2>
-        <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+        <h2 className="text-xl font-semibold">🔍 Control de Acceso QR</h2>
+        <div className={`px-3 py-1 rounded-full text-sm font-medium transition-all ${
           scanning 
             ? processingQR 
-              ? 'bg-yellow-100 text-yellow-800' 
+              ? 'bg-yellow-100 text-yellow-800 animate-pulse' 
               : 'bg-green-100 text-green-800'
             : 'bg-gray-100 text-gray-800'
         }`}>
           {scanning 
             ? processingQR 
               ? '⏸️ Procesando...' 
-              : '🟢 Escaneando'
-            : '⭕ Detenido'
+              : '🟢 Escaneando Activo'
+            : '⭕ Escáner Detenido'
           }
         </div>
       </div>
@@ -301,8 +476,8 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
             scanning
               ? processingQR
                 ? 'bg-yellow-500 text-white cursor-not-allowed opacity-75'
-                : 'bg-red-500 text-white hover:bg-red-600 shadow-lg'
-              : 'bg-sena-green text-white hover:bg-sena-dark shadow-lg'
+                : 'bg-red-500 text-white hover:bg-red-600 shadow-lg hover:shadow-xl'
+              : 'bg-sena-green text-white hover:bg-sena-dark shadow-lg hover:shadow-xl'
           }`}
         >
           {scanning ? (
@@ -320,42 +495,43 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
           ) : (
             <>
               <span>📷</span>
-              <span>Iniciar Escáner</span>
+              <span>Iniciar Escáner QR</span>
             </>
           )}
         </button>
       </div>
 
-      {/* ⭐ ÁREA DE ESCÁNER CON ESTADO VISUAL */}
+      {/* ⭐ ÁREA DE ESCÁNER MEJORADA */}
       {scanning && (
         <div className="mb-6">
-          <div className={`relative max-w-md mx-auto border-4 rounded-lg overflow-hidden ${
+          <div className={`relative max-w-sm mx-auto border-4 rounded-xl overflow-hidden transition-all ${
             processingQR 
-              ? 'border-yellow-400 bg-yellow-50' 
-              : 'border-green-400 bg-green-50'
+              ? 'border-yellow-400 bg-yellow-50 shadow-lg' 
+              : 'border-green-400 bg-green-50 shadow-lg'
           }`}>
             {processingQR && (
-              <div className="absolute inset-0 bg-yellow-100 bg-opacity-75 flex items-center justify-center z-10">
+              <div className="absolute inset-0 bg-yellow-100 bg-opacity-90 flex items-center justify-center z-10">
                 <div className="text-center">
                   <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-yellow-600 mx-auto mb-2"></div>
                   <p className="text-yellow-800 font-medium">Procesando...</p>
+                  <p className="text-yellow-600 text-xs">Por favor espere</p>
                 </div>
               </div>
             )}
-            <div id="qr-reader"></div>
+            <div id="qr-reader" className="min-h-[300px]"></div>
           </div>
-          <p className="text-center text-sm text-gray-600 mt-2">
+          <p className="text-center text-sm text-gray-600 mt-3 font-medium">
             {processingQR 
-              ? 'Espere mientras se procesa el código QR...' 
-              : 'Apunte la cámara hacia el código QR'
+              ? '⏳ Espere mientras se procesa el código QR...' 
+              : '📱 Apunte la cámara hacia el código QR del carnet'
             }
           </p>
         </div>
       )}
 
       {/* ⭐ BÚSQUEDA MANUAL MEJORADA */}
-      <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-        <h3 className="text-lg font-medium mb-3 flex items-center">
+      <div className="mb-6 p-4 bg-gradient-to-r from-gray-50 to-blue-50 rounded-lg border border-gray-200">
+        <h3 className="text-lg font-medium mb-3 flex items-center text-gray-800">
           <span className="mr-2">🔢</span>
           Búsqueda Manual por Documento
         </h3>
@@ -363,40 +539,48 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
           <input
             type="text"
             value={manualDocument}
-            onChange={(e) => setManualDocument(e.target.value.replace(/\D/g, ''))} // Solo números
+            onChange={(e) => setManualDocument(e.target.value.replace(/\D/g, ''))}
             onKeyPress={(e) => e.key === 'Enter' && handleManualSearch()}
-            placeholder="Número de documento..."
-            className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sena-green text-center text-lg font-mono"
+            placeholder="Ej: 12345678"
+            className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sena-green focus:border-sena-green text-center text-lg font-mono transition-all"
             disabled={loading || processingQR}
             maxLength={15}
           />
           <button
             onClick={handleManualSearch}
             disabled={loading || !manualDocument.trim() || processingQR}
-            className="px-6 py-3 bg-sena-green text-white rounded-lg hover:bg-sena-dark disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
+            className="px-6 py-3 bg-sena-green text-white rounded-lg hover:bg-sena-dark disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-all shadow-md hover:shadow-lg"
           >
             {loading ? (
               <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white"></div>
             ) : (
-              'Buscar'
+              '🔍 Buscar'
             )}
           </button>
         </div>
         <p className="text-xs text-gray-500 mt-2 text-center">
-          Ingrese solo números del documento de identidad
+          Ingrese solo números del documento de identidad (sin puntos ni espacios)
         </p>
       </div>
 
       {/* ⭐ INSTRUCCIONES MEJORADAS */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h4 className="font-medium text-blue-800 mb-2">📋 Instrucciones:</h4>
-        <ul className="text-sm text-blue-700 space-y-1">
-          <li>• Active el escáner y apunte la cámara al código QR</li>
-          <li>• Mantenga el código QR centrado en el área de escaneo</li>
-          <li>• Espere a que aparezca la confirmación antes del siguiente escaneo</li>
-          <li>• Use búsqueda manual si el código QR no funciona</li>
-          <li>• El sistema detecta automáticamente entrada o salida</li>
-        </ul>
+      <div className="bg-blue-50 border-l-4 border-blue-400 rounded-lg p-4">
+        <h4 className="font-medium text-blue-800 mb-2 flex items-center">
+          <span className="mr-2">💡</span>
+          Guía de Uso:
+        </h4>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-blue-700">
+          <ul className="space-y-1">
+            <li>• 📷 Active el escáner y centre el código QR</li>
+            <li>• ⏱️ Espere la confirmación antes del siguiente escaneo</li>
+            <li>• 🔄 El sistema detecta automáticamente entrada/salida</li>
+          </ul>
+          <ul className="space-y-1">
+            <li>• 🔢 Use búsqueda manual si el QR falla</li>
+            <li>• 📱 Asegúrese de tener buena iluminación</li>
+            <li>• 🆘 Contacte al admin si hay problemas persistentes</li>
+          </ul>
+        </div>
       </div>
     </div>
   );

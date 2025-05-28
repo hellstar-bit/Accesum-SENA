@@ -1,4 +1,4 @@
-/* frontend/src/index.css - Agregar estos estilos para SweetAlert2 */
+/* frontend/src/index.css - ACTUALIZADO con SweetAlert2 optimizado */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -17,21 +17,48 @@ body {
 
 @layer components {
   .btn-primary {
-    @apply bg-sena-green text-white font-semibold py-2 px-4 rounded hover:bg-sena-dark focus:outline-none focus:ring-2 focus:ring-sena-green focus:ring-opacity-50 transition-colors;
+    @apply bg-sena-green text-white font-semibold py-2 px-4 rounded-lg hover:bg-sena-dark focus:outline-none focus:ring-2 focus:ring-sena-green focus:ring-opacity-50 transition-all duration-200 shadow-md hover:shadow-lg;
   }
   
   .btn-secondary {
-    @apply bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-opacity-50 transition-colors;
+    @apply bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-opacity-50 transition-all duration-200 shadow-sm hover:shadow-md;
   }
   
   .input-field {
-    @apply w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-sena-green focus:border-transparent;
+    @apply w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sena-green focus:border-transparent transition-all duration-200;
+  }
+
+  /* Estilos para los botones de acción en la tabla */
+  .action-btn {
+    @apply inline-flex items-center px-2 py-1 text-xs font-medium rounded transition-all duration-200 transform hover:scale-105;
+  }
+
+  .action-btn-primary {
+    @apply action-btn text-blue-600 bg-blue-100 hover:bg-blue-200 hover:text-blue-700;
+  }
+
+  .action-btn-success {
+    @apply action-btn text-green-600 bg-green-100 hover:bg-green-200 hover:text-green-700;
+  }
+
+  .action-btn-warning {
+    @apply action-btn text-yellow-600 bg-yellow-100 hover:bg-yellow-200 hover:text-yellow-700;
+  }
+
+  .action-btn-danger {
+    @apply action-btn text-red-600 bg-red-100 hover:bg-red-200 hover:text-red-700;
+  }
+
+  .action-btn-purple {
+    @apply action-btn text-purple-600 bg-purple-100 hover:bg-purple-200 hover:text-purple-700;
+  }
+
+  .action-btn-indigo {
+    @apply action-btn text-indigo-600 bg-indigo-100 hover:bg-indigo-200 hover:text-indigo-700;
   }
 }
 
-/* ⭐ ESTILOS PERSONALIZADOS PARA SWEETALERT2 */
-
-/* Animaciones personalizadas */
+/* ⭐ ANIMACIONES PERSONALIZADAS PARA SWEETALERT2 */
 @keyframes bounceIn {
   0%, 20%, 40%, 60%, 80% {
     transform: translate3d(0, 0, 0);
@@ -50,6 +77,17 @@ body {
   }
 }
 
+@keyframes fadeInDown {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -100%, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
 @keyframes shakeX {
   0%, 100% {
     transform: translate3d(0, 0, 0);
@@ -62,6 +100,15 @@ body {
   }
 }
 
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
 .animate__animated {
   animation-duration: 0.6s;
   animation-fill-mode: both;
@@ -71,59 +118,154 @@ body {
   animation-name: bounceIn;
 }
 
+.animate__fadeInDown {
+  animation-name: fadeInDown;
+  animation-duration: 0.5s;
+}
+
 .animate__shakeX {
   animation-name: shakeX;
   animation-duration: 0.8s;
 }
 
-/* Personalización de SweetAlert2 */
+.animate__pulse {
+  animation-name: pulse;
+  animation-duration: 1s;
+  animation-iteration-count: infinite;
+}
+
+/* ⭐ PERSONALIZACIÓN AVANZADA DE SWEETALERT2 */
 .swal2-popup {
   border-radius: 1rem !important;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important;
+  border: 2px solid #e5e7eb !important;
+  font-family: Inter, system-ui, sans-serif !important;
 }
 
 .swal2-title {
   font-size: 1.5rem !important;
-  font-weight: 600 !important;
+  font-weight: 700 !important;
   margin-bottom: 1rem !important;
+  color: #374151 !important;
 }
 
 .swal2-html-container {
   font-size: 1rem !important;
-  line-height: 1.5 !important;
+  line-height: 1.6 !important;
+  color: #4b5563 !important;
 }
 
 .swal2-confirm {
-  border-radius: 0.5rem !important;
+  border-radius: 0.75rem !important;
   font-weight: 600 !important;
   padding: 0.75rem 1.5rem !important;
   font-size: 1rem !important;
+  transition: all 0.2s ease !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
+}
+
+.swal2-confirm:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 8px 15px -3px rgba(0, 0, 0, 0.2) !important;
+}
+
+.swal2-cancel {
+  border-radius: 0.75rem !important;
+  font-weight: 600 !important;
+  padding: 0.75rem 1.5rem !important;
+  font-size: 1rem !important;
+  transition: all 0.2s ease !important;
+  box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.1) !important;
+}
+
+.swal2-cancel:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.15) !important;
 }
 
 .swal2-timer-progress-bar {
-  background-color: rgba(255, 255, 255, 0.8) !important;
+  background-color: rgba(255, 255, 255, 0.9) !important;
+  height: 4px !important;
 }
 
-/* Estilos específicos para alertas de entrada */
+/* Estilos específicos para diferentes tipos de alertas */
+.swal2-popup.swal2-success {
+  border-color: #10b981 !important;
+}
+
 .swal2-popup.swal2-success .swal2-success-ring {
-  border-color: #16a34a !important;
+  border-color: #10b981 !important;
 }
 
 .swal2-popup.swal2-success .swal2-success-fix {
-  background-color: #16a34a !important;
+  background-color: #10b981 !important;
 }
 
 .swal2-popup.swal2-success [class^=swal2-success-line] {
-  background-color: #16a34a !important;
+  background-color: #10b981 !important;
 }
 
-/* Estilos específicos para alertas de error */
+.swal2-popup.swal2-error {
+  border-color: #ef4444 !important;
+}
+
 .swal2-popup.swal2-error .swal2-x-mark {
-  border-color: #dc2626 !important;
+  border-color: #ef4444 !important;
 }
 
 .swal2-popup.swal2-error [class^=swal2-x-mark-line] {
-  background-color: #dc2626 !important;
+  background-color: #ef4444 !important;
+}
+
+.swal2-popup.swal2-warning {
+  border-color: #f59e0b !important;
+}
+
+.swal2-popup.swal2-info {
+  border-color: #3b82f6 !important;
+}
+
+.swal2-popup.swal2-question {
+  border-color: #8b5cf6 !important;
+}
+
+/* Mejoras para el contenido HTML personalizado */
+.swal2-html-container img {
+  border: 3px solid #e5e7eb !important;
+  transition: all 0.3s ease !important;
+  border-radius: 0.75rem !important;
+}
+
+.swal2-html-container img:hover {
+  border-color: #39A900 !important;
+  transform: scale(1.02) !important;
+}
+
+/* Estilos para los avatares en las alertas */
+.swal2-html-container .user-avatar {
+  width: 4rem !important;
+  height: 4rem !important;
+  border-radius: 50% !important;
+  border: 3px solid #e5e7eb !important;
+  transition: all 0.3s ease !important;
+}
+
+.swal2-html-container .status-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  padding: 0.5rem 1rem !important;
+  border-radius: 0.75rem !important;
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+  margin: 0.5rem 0 !important;
+}
+
+.swal2-html-container .info-box {
+  background-color: #f3f4f6 !important;
+  border: 1px solid #d1d5db !important;
+  border-radius: 0.75rem !important;
+  padding: 1rem !important;
+  margin: 1rem 0 !important;
 }
 
 /* Responsividad mejorada */
@@ -131,6 +273,7 @@ body {
   .swal2-popup {
     width: 90% !important;
     margin: 1rem !important;
+    font-size: 0.9rem !important;
   }
   
   .swal2-title {
@@ -140,24 +283,155 @@ body {
   .swal2-html-container {
     font-size: 0.875rem !important;
   }
+
+  .swal2-confirm, .swal2-cancel {
+    font-size: 0.9rem !important;
+    padding: 0.6rem 1.2rem !important;
+  }
 }
 
-/* Mejoras para el tema SENA */
+@media (max-width: 480px) {
+  .swal2-popup {
+    width: 95% !important;
+    margin: 0.5rem !important;
+  }
+
+  .swal2-actions {
+    flex-direction: column !important;
+    gap: 0.5rem !important;
+  }
+
+  .swal2-confirm, .swal2-cancel {
+    width: 100% !important;
+    margin: 0 !important;
+  }
+}
+
+/* ⭐ TEMA ESPECÍFICO PARA SENA */
 .swal2-popup.sena-theme {
-  border: 2px solid #39A900 !important;
+  border: 3px solid #39A900 !important;
+  background: linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%) !important;
 }
 
 .swal2-popup.sena-theme .swal2-title {
   color: #39A900 !important;
 }
 
-/* Estilos para las imágenes de perfil en las alertas */
-.swal2-html-container img {
-  border: 3px solid #e5e7eb;
+.swal2-popup.sena-theme .swal2-icon {
+  border-color: #39A900 !important;
+}
+
+/* Estilos para estados de loading en la tabla */
+.table-loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.loading-spinner {
+  width: 2rem;
+  height: 2rem;
+  border: 2px solid #e5e7eb;
+  border-top: 2px solid #39A900;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Mejoras para los filtros activos */
+.filter-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background-color: rgba(255, 255, 255, 0.2);
+  color: white;
+  transition: all 0.2s ease;
+}
+
+.filter-badge:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+  transform: scale(1.05);
+}
+
+/* Estilos para los estados en la tabla */
+.status-active {
+  @apply inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800;
+}
+
+.status-inactive {
+  @apply inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800;
+}
+
+.status-qr-available {
+  @apply inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-700;
+}
+
+.status-qr-missing {
+  @apply inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-yellow-100 text-yellow-700;
+}
+
+/* Mejoras para el hover de las filas de la tabla */
+.table-row-hover {
+  transition: all 0.2s ease;
+}
+
+.table-row-hover:hover {
+  background-color: #f9fafb;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}
+
+/* Estilos para los avatares de usuarios */
+.user-avatar {
+  @apply h-12 w-12 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md;
+  background: linear-gradient(135deg, #39A900 0%, #2d7a00 100%);
   transition: all 0.3s ease;
 }
 
-.swal2-html-container img:hover {
-  border-color: #39A900;
-  transform: scale(1.05);
+.user-avatar:hover {
+  transform: scale(1.1);
+  box-shadow: 0 8px 16px rgba(57, 169, 0, 0.3);
+}
+
+/* Estilos para los badges de rol */
+.role-admin {
+  @apply bg-purple-100 text-purple-800;
+}
+
+.role-instructor {
+  @apply bg-blue-100 text-blue-800;
+}
+
+.role-aprendiz {
+  @apply bg-green-100 text-green-800;
+}
+
+.role-funcionario {
+  @apply bg-indigo-100 text-indigo-800;
+}
+
+.role-contratista {
+  @apply bg-orange-100 text-orange-800;
+}
+
+.role-visitante {
+  @apply bg-gray-100 text-gray-800;
+}
+
+.role-escaner {
+  @apply bg-yellow-100 text-yellow-800;
 }

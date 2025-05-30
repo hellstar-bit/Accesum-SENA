@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { learnerService } from '../services/learnerService.ts';
 import { useAuth } from '../context/AuthContext';
 import type { LearnerProfile } from '../services/learnerService.ts';
+import { downloadLearnerCarnet } from '../utils/carnetGenerator';
 
 const LearnerProfilePage = () => {
   const { user } = useAuth();
@@ -102,103 +103,8 @@ const LearnerProfilePage = () => {
   };
 
   const downloadCarnet = () => {
-    if (!profile) return;
-
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    if (!ctx) {
-      alert('Error al generar el carnet');
-      return;
-    }
-
-    // Configurar tamaño del carnet
-    canvas.width = 350;
-    canvas.height = 550;
-
-    // Fondo
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // Header SENA
-    ctx.fillStyle = '#39A900';
-    ctx.fillRect(0, 0, canvas.width, 100);
-    
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 24px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('SENA', canvas.width / 2, 40);
-    ctx.font = '14px Arial';
-    ctx.fillText('Sistema de Control de Acceso', canvas.width / 2, 65);
-
-    const continuarGenerandoCarnet = () => {
-      if (!ctx) return;
-
-      // Información del perfil
-      ctx.fillStyle = '#000000';
-      ctx.font = 'bold 18px Arial';
-      ctx.textAlign = 'center';
-      ctx.fillText(`${profile.firstName} ${profile.lastName}`, canvas.width / 2, 250);
-      
-      ctx.font = '14px Arial';
-      ctx.fillText(`${profile.documentType}: ${profile.documentNumber}`, canvas.width / 2, 275);
-      ctx.fillText(profile.type.name, canvas.width / 2, 300);
-      
-      if (profile.ficha) {
-        ctx.fillText(`Ficha: ${profile.ficha.code}`, canvas.width / 2, 320);
-      }
-
-      // QR Code
-      if (profile.qrCode) {
-        const qrImg = new Image();
-        qrImg.onload = () => {
-          if (!ctx) return;
-          ctx.drawImage(qrImg, 75, 350, 200, 200);
-          
-          canvas.toBlob((blob) => {
-            if (blob) {
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = `carnet_${profile.documentNumber}.png`;
-              a.click();
-              URL.revokeObjectURL(url);
-            }
-          });
-        };
-        qrImg.src = profile.qrCode;
-      } else {
-        canvas.toBlob((blob) => {
-          if (blob) {
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `carnet_${profile.documentNumber}.png`;
-            a.click();
-            URL.revokeObjectURL(url);
-          }
-        });
-      }
-    };
-
-    // Foto
-    if (profile.profileImage) {
-      const img = new Image();
-      img.onload = () => {
-        if (!ctx) return;
-        ctx.drawImage(img, 125, 120, 100, 100);
-        continuarGenerandoCarnet();
-      };
-      img.src = profile.profileImage;
-    } else {
-      ctx.fillStyle = '#e5e7eb';
-      ctx.fillRect(125, 120, 100, 100);
-      ctx.fillStyle = '#6b7280';
-      ctx.font = 'bold 36px Arial';
-      ctx.textAlign = 'center';
-      ctx.fillText(profile.firstName.charAt(0) + profile.lastName.charAt(0), 175, 180);
-      continuarGenerandoCarnet();
-    }
-  };
+  downloadLearnerCarnet(profile);
+};
 
   if (loading) {
     return (

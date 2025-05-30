@@ -2,6 +2,7 @@
 import { useState, useRef } from 'react';
 import { profileService } from '../../services/profileService';
 import type { Profile, UpdateProfileRequest } from '../../services/profileService';
+import { downloadModernCarnet } from '../../utils/carnetGenerator.ts';
 
 interface ProfileViewProps {
   profile: Profile;
@@ -84,108 +85,8 @@ const ProfileView = ({ profile, onClose, onUpdate }: ProfileViewProps) => {
   };
 
   const downloadCarnet = () => {
-    // Crear un canvas para generar el carnet
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    
-    // Verificar que ctx no sea null
-    if (!ctx) {
-      alert('Error al generar el carnet');
-      return;
-    }
-
-    // Configurar tamaño del carnet (formato tarjeta)
-    canvas.width = 350;
-    canvas.height = 550;
-
-    // Fondo
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // Header SENA
-    ctx.fillStyle = '#39A900';
-    ctx.fillRect(0, 0, canvas.width, 100);
-    
-    // Logo SENA (texto por ahora)
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 24px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('SENA', canvas.width / 2, 40);
-    ctx.font = '14px Arial';
-    ctx.fillText('Sistema de Control de Acceso', canvas.width / 2, 65);
-
-    // Función para continuar generando el carnet después de cargar la imagen
-    const continuarGenerandoCarnet = () => {
-      if (!ctx) return; // Verificación adicional
-
-      // Información del perfil
-      ctx.fillStyle = '#000000';
-      ctx.font = 'bold 18px Arial';
-      ctx.textAlign = 'center';
-      ctx.fillText(`${profile.firstName} ${profile.lastName}`, canvas.width / 2, 250);
-      
-      ctx.font = '14px Arial';
-      ctx.fillText(`${profile.documentType}: ${profile.documentNumber}`, canvas.width / 2, 275);
-      ctx.fillText(profile.type.name, canvas.width / 2, 300);
-      ctx.fillText(profile.center.name, canvas.width / 2, 320);
-
-      // QR Code
-      if (profile.qrCode) {
-        const qrImg = new Image();
-        qrImg.onload = () => {
-          if (!ctx) return; // Verificación adicional
-          
-          ctx.drawImage(qrImg, 75, 350, 200, 200);
-          
-          // Descargar
-          canvas.toBlob((blob) => {
-            if (blob) {
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = `carnet_${profile.documentNumber}.png`;
-              a.click();
-              URL.revokeObjectURL(url);
-            }
-          });
-        };
-        qrImg.src = profile.qrCode;
-      } else {
-        // Si no hay QR, descargar el carnet sin él
-        canvas.toBlob((blob) => {
-          if (blob) {
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `carnet_${profile.documentNumber}.png`;
-            a.click();
-            URL.revokeObjectURL(url);
-          }
-        });
-      }
-    };
-
-    // Foto
-    if (profile.profileImage) {
-      const img = new Image();
-      img.onload = () => {
-        if (!ctx) return; // Verificación adicional
-        ctx.drawImage(img, 125, 120, 100, 100);
-        continuarGenerandoCarnet();
-      };
-      img.src = profile.profileImage;
-    } else {
-      // Placeholder de foto
-      ctx.fillStyle = '#e5e7eb';
-      ctx.fillRect(125, 120, 100, 100);
-      ctx.fillStyle = '#6b7280';
-      ctx.font = 'bold 36px Arial';
-      ctx.textAlign = 'center';
-      ctx.fillText(profile.firstName.charAt(0) + profile.lastName.charAt(0), 175, 180);
-      continuarGenerandoCarnet();
-    }
-  };
-
+  downloadModernCarnet(profile);
+};
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">

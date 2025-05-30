@@ -1,4 +1,4 @@
-// ⭐ GENERADOR DE CARNETS PROFESIONAL Y MINIMALISTA
+// ⭐ GENERADOR DE CARNETS PROFESIONAL Y MINIMALISTA - CORREGIDO
 // Archivo: frontend/src/utils/carnetGenerator.ts
 
 export const generateModernCarnet = (profile: any) => {
@@ -11,7 +11,7 @@ export const generateModernCarnet = (profile: any) => {
 
   // ⭐ CONFIGURACIÓN PROFESIONAL DEL CARNET (Proporción tarjeta estándar)
   canvas.width = 400;
-  canvas.height = 630;
+  canvas.height = 750; // ⭐ AUMENTADO PARA MEJOR ESPACIADO
 
   // ✨ FONDO MINIMALISTA CON GRADIENTE SUTIL
   const backgroundGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
@@ -142,16 +142,91 @@ export const generateModernCarnet = (profile: any) => {
     ctx.textAlign = 'center';
     ctx.fillText(`${profile.documentType}: ${profile.documentNumber}`, canvas.width / 2, badgeY + 70);
 
-    // ⭐ INFORMACIÓN INSTITUCIONAL
-    const institutionalY = badgeY + 100;
+    // ⭐ INFORMACIÓN PERSONAL ADICIONAL
+    const personalInfoY = badgeY + 100;
     
     // Línea separadora sutil
     ctx.strokeStyle = '#e2e8f0';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(30, institutionalY);
-    ctx.lineTo(canvas.width - 30, institutionalY);
+    ctx.moveTo(30, personalInfoY);
+    ctx.lineTo(canvas.width - 30, personalInfoY);
     ctx.stroke();
+
+    // ⭐ INFORMACIÓN PERSONAL CON TIPO DE SANGRE
+    ctx.fillStyle = '#374151';
+    ctx.font = 'bold 12px Arial, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    
+    let currentY = personalInfoY + 20;
+    
+    // Tipo de sangre (si está disponible)
+    if (profile.bloodType) {
+      ctx.fillStyle = '#dc2626';
+      ctx.font = 'bold 12px Arial, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText('TIPO DE SANGRE:', 30, currentY);
+      
+      // Destacar el tipo de sangre
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(160, currentY - 2, 40, 18);
+      ctx.strokeStyle = '#dc2626';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(160, currentY - 2, 40, 18);
+      
+      ctx.fillStyle = '#dc2626';
+      ctx.font = 'bold 14px Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(profile.bloodType, 180, currentY + 2);
+      
+      currentY += 35; // ⭐ INCREMENTAR POSICIÓN Y CON MEJOR ESPACIADO
+    }
+
+    // ⭐ INFORMACIÓN INSTITUCIONAL CORREGIDA
+    // Línea separadora para información institucional
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(30, currentY);
+    ctx.lineTo(canvas.width - 30, currentY);
+    ctx.stroke();
+
+    currentY += 20;
+
+    // CENTRO DE FORMACIÓN (Corregido)
+    const centerName = profile.center?.name || profile.center || 'Centro de Formación';
+    
+    ctx.fillStyle = '#059669';
+    ctx.font = 'bold 12px Arial, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('CENTRO:', 30, currentY);
+    
+    ctx.fillStyle = '#374151';
+    ctx.font = '11px Arial, sans-serif';
+    ctx.textAlign = 'left';
+    
+    // Manejo profesional de texto largo para centro
+    const maxWidth = canvas.width - 60;
+    const centerWords = centerName.split(' ');
+    let centerLine = '';
+    let centerLineY = currentY + 20;
+    
+    for (let i = 0; i < centerWords.length; i++) {
+      const testLine = centerLine + centerWords[i] + ' ';
+      const metrics = ctx.measureText(testLine);
+      const testWidth = metrics.width;
+      
+      if (testWidth > maxWidth && i > 0) {
+        ctx.fillText(centerLine.trim(), 30, centerLineY);
+        centerLine = centerWords[i] + ' ';
+        centerLineY += 16;
+      } else {
+        centerLine = testLine;
+      }
+    }
+    ctx.fillText(centerLine.trim(), 30, centerLineY);
+    currentY = centerLineY + 30; // ⭐ MEJOR ESPACIADO DESPUÉS DEL CENTRO
 
     // INFORMACIÓN DE FICHA (Solo para aprendices)
     if (profile.ficha && userRole === 'Aprendiz') {
@@ -159,77 +234,70 @@ export const generateModernCarnet = (profile: any) => {
       ctx.fillStyle = '#059669';
       ctx.font = 'bold 12px Arial, sans-serif';
       ctx.textAlign = 'left';
-      ctx.textBaseline = 'top';
-      ctx.fillText('FICHA:', 30, institutionalY + 20);
+      ctx.fillText('FICHA:', 30, currentY);
       
       ctx.fillStyle = '#374151';
       ctx.font = '12px Arial, sans-serif';
-      ctx.fillText(profile.ficha.code, 80, institutionalY + 20);
+      ctx.textAlign = 'left';
+      ctx.fillText(profile.ficha.code, 80, currentY);
 
-      // Programa (con manejo de texto largo)
-      ctx.fillStyle = '#059669';
-      ctx.font = 'bold 12px Arial, sans-serif';
-      ctx.fillText('PROGRAMA:', 30, institutionalY + 40);
-      
-      ctx.fillStyle = '#374151';
-      ctx.font = '11px Arial, sans-serif';
-      
-      // Manejo profesional de texto largo
-      let programName = profile.ficha.name;
-      const maxWidth = canvas.width - 60;
-      const words = programName.split(' ');
-      let line = '';
-      let y = institutionalY + 60;
-      
-      for (let i = 0; i < words.length; i++) {
-        const testLine = line + words[i] + ' ';
-        const metrics = ctx.measureText(testLine);
-        const testWidth = metrics.width;
-        
-        if (testWidth > maxWidth && i > 0) {
-          ctx.fillText(line.trim(), 30, y);
-          line = words[i] + ' ';
-          y += 16;
-        } else {
-          line = testLine;
-        }
-      }
-      ctx.fillText(line.trim(), 30, y);
-    } else {
-      // Para otros roles, mostrar centro de formación
+      currentY += 25;
+
+      // Programa (con manejo de texto largo) - ⭐ TOTALMENTE CORREGIDO
       ctx.fillStyle = '#059669';
       ctx.font = 'bold 12px Arial, sans-serif';
       ctx.textAlign = 'left';
-      ctx.fillText('CENTRO:', 30, institutionalY + 20);
+      ctx.fillText('PROGRAMA:', 30, currentY);
       
       ctx.fillStyle = '#374151';
       ctx.font = '11px Arial, sans-serif';
+      ctx.textAlign = 'left';
       
-      const centerName = profile.center?.name || 'Centro de Formación';
-      const maxWidth = canvas.width - 60;
-      const words = centerName.split(' ');
-      let line = '';
-      let y = institutionalY + 40;
+      // ⭐ MANEJO CORREGIDO DEL TEXTO DEL PROGRAMA
+      const programName = profile.ficha.name || 'Programa no especificado';
+      const programWords = programName.split(' ');
+      let programLine = '';
+      let programLineY = currentY + 20;
+      const programStartX = 30;
+      const programMaxWidth = canvas.width - 60;
+      let maxProgramLineY = programLineY; // ⭐ RASTREAR LA LÍNEA MÁS BAJA
       
-      for (let i = 0; i < words.length; i++) {
-        const testLine = line + words[i] + ' ';
-        const metrics = ctx.measureText(testLine);
-        const testWidth = metrics.width;
+      for (let i = 0; i < programWords.length; i++) {
+        const testProgramLine = programLine + programWords[i] + ' ';
+        ctx.font = '11px Arial, sans-serif';
+        const programMetrics = ctx.measureText(testProgramLine);
+        const testProgramWidth = programMetrics.width;
         
-        if (testWidth > maxWidth && i > 0) {
-          ctx.fillText(line.trim(), 30, y);
-          line = words[i] + ' ';
-          y += 16;
+        if (testProgramWidth > programMaxWidth && i > 0) {
+          ctx.fillText(programLine.trim(), programStartX, programLineY);
+          programLine = programWords[i] + ' ';
+          programLineY += 16;
+          maxProgramLineY = programLineY; // ⭐ ACTUALIZAR LA POSICIÓN MÁS BAJA
         } else {
-          line = testLine;
+          programLine = testProgramLine;
         }
       }
-      ctx.fillText(line.trim(), 30, y);
+      
+      // Dibujar la última línea y actualizar posición
+      if (programLine.trim()) {
+        ctx.fillText(programLine.trim(), programStartX, programLineY);
+        maxProgramLineY = programLineY;
+      }
+      
+      // ⭐ ACTUALIZAR currentY CORRECTAMENTE BASADO EN LA ÚLTIMA LÍNEA DIBUJADA
+      currentY = maxProgramLineY + 40; // ESPACIADO GENEROSO DESPUÉS DEL PROGRAMA
     }
 
-    // ⭐ CÓDIGO QR - SECCIÓN PROFESIONAL
-    const qrSectionY = canvas.height - 180;
+    // ⭐ ASEGURAR ESPACIO MÍNIMO ANTES DEL QR
+    const minSpaceBeforeQR = 40;
+    const qrSectionHeight = 180;
+    const calculatedQrY = currentY + minSpaceBeforeQR;
+    const maxAllowedQrY = canvas.height - qrSectionHeight;
     
+    // ⭐ USAR LA POSICIÓN CALCULADA O AJUSTAR SI ES NECESARIO
+    const qrSectionY = Math.min(calculatedQrY, maxAllowedQrY);
+    
+    // ⭐ CÓDIGO QR - SECCIÓN PROFESIONAL CON POSICIONAMIENTO DINÁMICO
     // Línea separadora antes del QR
     ctx.strokeStyle = '#e2e8f0';
     ctx.lineWidth = 1;
@@ -277,18 +345,19 @@ export const generateModernCarnet = (profile: any) => {
       qrImg.src = profile.qrCode;
     } else {
       // Sin QR - Diseño profesional
+      const noQrY = qrSectionY + 20;
       ctx.fillStyle = '#fef2f2';
-      ctx.fillRect(30, qrSectionY + 20, canvas.width - 60, 60);
+      ctx.fillRect(30, noQrY, canvas.width - 60, 60);
       
       ctx.strokeStyle = '#fecaca';
       ctx.lineWidth = 1;
-      ctx.strokeRect(30, qrSectionY + 20, canvas.width - 60, 60);
+      ctx.strokeRect(30, noQrY, canvas.width - 60, 60);
       
       ctx.fillStyle = '#dc2626';
       ctx.font = 'bold 12px Arial, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('CÓDIGO QR NO DISPONIBLE', canvas.width / 2, qrSectionY + 50);
+      ctx.fillText('CÓDIGO QR NO DISPONIBLE', canvas.width / 2, noQrY + 30);
       
       finalizarCarnet();
     }
@@ -332,7 +401,7 @@ export const generateModernCarnet = (profile: any) => {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
       }
-    }, 'image/png', 1.0); // Máxima calidad
+    }, 'image/png', 1.0);
   };
 
   // ⭐ CARGAR FOTO DE PERFIL CON MARCO PROFESIONAL
@@ -411,48 +480,60 @@ export const generateModernCarnet = (profile: any) => {
   }
 };
 
-// ⭐ FUNCIONES EXPORTADAS (Sin cambios en la interfaz)
+// ⭐ FUNCIONES EXPORTADAS CORREGIDAS
 export const downloadModernCarnet = (profile: any) => {
+  console.log('🎨 Generando carnet para:', profile);
+  
   generateModernCarnet({
     firstName: profile.firstName,
     lastName: profile.lastName,
     documentType: profile.documentType,
     documentNumber: profile.documentNumber,
+    bloodType: profile.bloodType,
     profileImage: profile.profileImage,
     qrCode: profile.qrCode,
     role: { name: profile.type?.name || 'Usuario' },
     type: profile.type,
     center: profile.center,
+    regional: profile.regional,
     ficha: profile.ficha
   });
 };
 
 export const downloadUserCarnet = (user: any) => {
+  console.log('🎨 Generando carnet para usuario:', user);
+  
   generateModernCarnet({
     firstName: user.profile.firstName,
     lastName: user.profile.lastName,
     documentType: user.profile.documentType,
     documentNumber: user.profile.documentNumber,
+    bloodType: user.profile.bloodType,
     profileImage: user.profile.profileImage,
     qrCode: user.profile.qrCode,
     role: user.role,
     type: user.profile.type,
     center: user.profile.center,
+    regional: user.profile.regional,
     ficha: user.profile.ficha
   });
 };
 
 export const downloadLearnerCarnet = (profile: any) => {
+  console.log('🎨 Generando carnet para aprendiz:', profile);
+  
   generateModernCarnet({
     firstName: profile.firstName,
     lastName: profile.lastName,
     documentType: profile.documentType,
     documentNumber: profile.documentNumber,
+    bloodType: profile.bloodType,
     profileImage: profile.profileImage,
     qrCode: profile.qrCode,
     role: { name: 'Aprendiz' },
     type: profile.type,
     center: profile.center,
+    regional: profile.regional,
     ficha: profile.ficha
   });
 };

@@ -1,6 +1,8 @@
-// frontend/src/components/import/ImportLearners.tsx
-import { useState, useRef } from 'react';
+// frontend/src/components/import/ImportLearners.tsx - ACTUALIZADO CON SELECCIÓN DE CENTRO Y REGIONAL
+import { useState, useRef, useEffect } from 'react';
 import { importService } from '../../services/importService.ts';
+import { configService } from '../../services/configService.ts';
+import type { Regional, Center } from '../../services/configService.ts';
 
 interface ImportResult {
   success: boolean;
@@ -37,20 +39,70 @@ const ImportLearners = ({ onImportComplete }: ImportLearnersProps) => {
   const [step, setStep] = useState<'form' | 'upload' | 'result'>('form');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Estado del formulario de ficha
+  // ⭐ NUEVOS ESTADOS PARA REGIONALES Y CENTROS
+  const [regionales, setRegionales] = useState<Regional[]>([]);
+  const [centers, setCenters] = useState<Center[]>([]);
+  const [loadingConfig, setLoadingConfig] = useState(true);
+
+  // Estado del formulario de ficha ACTUALIZADO
   const [fichaForm, setFichaForm] = useState({
     codigo: '',
     nombre: '',
     estado: 'EN EJECUCIÓN',
-    fecha: new Date().toISOString().split('T')[0] // Fecha actual por defecto
+    fecha: new Date().toISOString().split('T')[0], // Fecha actual por defecto
+    regionalId: '', // ⭐ NUEVO CAMPO
+    centerId: ''    // ⭐ NUEVO CAMPO
   });
+
+  // ⭐ CARGAR REGIONALES Y CENTROS AL MONTAR EL COMPONENTE
+  useEffect(() => {
+    loadConfigData();
+  }, []);
+
+  // ⭐ CARGAR CENTROS CUANDO CAMBIE LA REGIONAL
+  useEffect(() => {
+    if (fichaForm.regionalId) {
+      loadCentersByRegional(parseInt(fichaForm.regionalId));
+    } else {
+      setCenters([]);
+      setFichaForm(prev => ({ ...prev, centerId: '' }));
+    }
+  }, [fichaForm.regionalId]);
+
+  const loadConfigData = async () => {
+    try {
+      setLoadingConfig(true);
+      const regionalesData = await configService.getRegionales();
+      setRegionales(regionalesData);
+    } catch (error) {
+      console.error('Error al cargar configuración:', error);
+      alert('Error al cargar la configuración del sistema');
+    } finally {
+      setLoadingConfig(false);
+    }
+  };
+
+  const loadCentersByRegional = async (regionalId: number) => {
+    try {
+      const centersData = await configService.getCentersByRegional(regionalId);
+      setCenters(centersData);
+    } catch (error) {
+      console.error('Error al cargar centros:', error);
+      setCenters([]);
+    }
+  };
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validar formulario
+    // ⭐ VALIDAR FORMULARIO INCLUYENDO REGIONAL Y CENTRO
     if (!fichaForm.codigo.trim() || !fichaForm.nombre.trim()) {
       alert('Por favor complete todos los campos obligatorios');
+      return;
+    }
+
+    if (!fichaForm.regionalId || !fichaForm.centerId) {
+      alert('Por favor seleccione una regional y un centro');
       return;
     }
     
@@ -110,7 +162,7 @@ const ImportLearners = ({ onImportComplete }: ImportLearnersProps) => {
 
     setLoading(true);
     try {
-      // Enviar archivo junto con datos del formulario
+      // ⭐ ENVIAR ARCHIVO JUNTO CON DATOS DEL FORMULARIO INCLUYENDO REGIONAL Y CENTRO
       const importResult = await importService.importLearnersWithForm(file, fichaForm);
       setResult(importResult);
       setStep('result');
@@ -141,84 +193,167 @@ const ImportLearners = ({ onImportComplete }: ImportLearnersProps) => {
       codigo: '',
       nombre: '',
       estado: 'EN EJECUCIÓN',
-      fecha: new Date().toISOString().split('T')[0]
+      fecha: new Date().toISOString().split('T')[0],
+      regionalId: '', // ⭐ RESETEAR NUEVOS CAMPOS
+      centerId: ''
     });
   };
+
+  // ⭐ OBTENER NOMBRES DE REGIONAL Y CENTRO SELECCIONADOS
+  const getSelectedRegionalName = () => {
+    const regional = regionales.find(r => r.id === parseInt(fichaForm.regionalId));
+    return regional?.name || '';
+  };
+
+  const getSelectedCenterName = () => {
+    const center = centers.find(c => c.id === parseInt(fichaForm.centerId));
+    return center?.name || '';
+  };
+
+  if (loadingConfig) {
+    return (
+      <div className="bg-white rounded-lg shadow-lg p-6">
+        <div className="flex justify-center items-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-sena-green mr-3"></div>
+          <span>Cargando configuración del sistema...</span>
+        </div>
+      </div>
+    );
+  }
 
   if (step === 'form') {
     return (
       <div className="bg-white rounded-lg shadow-lg p-6">
         <div className="mb-6">
           <h2 className="text-xl font-semibold text-gray-800 mb-2">
-            Información de la Ficha
+            Información de la Ficha y Ubicación
           </h2>
           <p className="text-gray-600">
-            Complete la información de la ficha antes de cargar el archivo Excel
+            Complete la información de la ficha y seleccione la ubicación antes de cargar el archivo Excel
           </p>
         </div>
 
         <form onSubmit={handleFormSubmit} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
+          {/* ⭐ SECCIÓN DE UBICACIÓN (NUEVA) */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <h3 className="font-medium text-blue-800 mb-4">📍 Ubicación Institucional</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Regional *
+                </label>
+                <select
+                  value={fichaForm.regionalId}
+                  onChange={(e) => setFichaForm(prev => ({ 
+                    ...prev, 
+                    regionalId: e.target.value,
+                    centerId: '' // Resetear centro cuando cambie regional
+                  }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sena-green"
+                  required
+                >
+                  <option value="">Seleccione una regional</option>
+                  {regionales.map((regional) => (
+                    <option key={regional.id} value={regional.id}>
+                      {regional.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Centro de Formación *
+                </label>
+                <select
+                  value={fichaForm.centerId}
+                  onChange={(e) => setFichaForm(prev => ({ ...prev, centerId: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sena-green"
+                  disabled={!fichaForm.regionalId}
+                  required
+                >
+                  <option value="">
+                    {!fichaForm.regionalId ? 'Primero seleccione una regional' : 'Seleccione un centro'}
+                  </option>
+                  {centers.map((center) => (
+                    <option key={center.id} value={center.id}>
+                      {center.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <p className="text-sm text-blue-600 mt-2">
+              💡 Todos los aprendices importados pertenecerán a esta regional y centro
+            </p>
+          </div>
+
+          {/* INFORMACIÓN DE LA FICHA */}
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <h3 className="font-medium text-green-800 mb-4">📋 Información de la Ficha</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Código de Ficha *
+                </label>
+                <input
+                  type="text"
+                  value={fichaForm.codigo}
+                  onChange={(e) => setFichaForm(prev => ({ ...prev, codigo: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sena-green"
+                  placeholder="Ej: 2853176"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Estado de la Ficha *
+                </label>
+                <select
+                  value={fichaForm.estado}
+                  onChange={(e) => setFichaForm(prev => ({ ...prev, estado: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sena-green"
+                >
+                  <option value="EN EJECUCIÓN">EN EJECUCIÓN</option>
+                  <option value="TERMINADA">TERMINADA</option>
+                  <option value="CANCELADA">CANCELADA</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="mt-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Código de Ficha *
+                Nombre del Programa de Formación *
               </label>
               <input
                 type="text"
-                value={fichaForm.codigo}
-                onChange={(e) => setFichaForm(prev => ({ ...prev, codigo: e.target.value }))}
+                value={fichaForm.nombre}
+                onChange={(e) => setFichaForm(prev => ({ ...prev, nombre: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sena-green"
-                placeholder="Ej: 2853176"
+                placeholder="Ej: ANÁLISIS Y DESARROLLO DE SOFTWARE"
                 required
               />
             </div>
 
-            <div>
+            <div className="mt-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Estado de la Ficha *
+                Fecha del Reporte
               </label>
-              <select
-                value={fichaForm.estado}
-                onChange={(e) => setFichaForm(prev => ({ ...prev, estado: e.target.value }))}
+              <input
+                type="date"
+                value={fichaForm.fecha}
+                onChange={(e) => setFichaForm(prev => ({ ...prev, fecha: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sena-green"
-              >
-                <option value="EN EJECUCIÓN">EN EJECUCIÓN</option>
-                <option value="TERMINADA">TERMINADA</option>
-                <option value="CANCELADA">CANCELADA</option>
-              </select>
+              />
             </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Nombre del Programa de Formación *
-            </label>
-            <input
-              type="text"
-              value={fichaForm.nombre}
-              onChange={(e) => setFichaForm(prev => ({ ...prev, nombre: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sena-green"
-              placeholder="Ej: ANÁLISIS Y DESARROLLO DE SOFTWARE"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Fecha del Reporte
-            </label>
-            <input
-              type="date"
-              value={fichaForm.fecha}
-              onChange={(e) => setFichaForm(prev => ({ ...prev, fecha: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sena-green"
-            />
           </div>
 
           <div className="flex justify-end">
             <button
               type="submit"
               className="btn-primary flex items-center space-x-2"
+              disabled={loadingConfig}
             >
               <span>Continuar</span>
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -249,19 +384,33 @@ const ImportLearners = ({ onImportComplete }: ImportLearnersProps) => {
               onClick={() => setStep('form')}
               className="text-blue-600 hover:text-blue-800 text-sm"
             >
-              ← Volver a información de ficha
+              ← Volver a configuración
             </button>
           </div>
         </div>
 
-        {/* Resumen de la ficha */}
+        {/* ⭐ RESUMEN DE LA CONFIGURACIÓN MEJORADO */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-          <h3 className="font-medium text-blue-800 mb-2">📋 Información de la Ficha:</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-blue-700">
-            <p><strong>Código:</strong> {fichaForm.codigo}</p>
-            <p><strong>Estado:</strong> {fichaForm.estado}</p>
-            <p className="md:col-span-2"><strong>Programa:</strong> {fichaForm.nombre}</p>
-            <p><strong>Fecha:</strong> {new Date(fichaForm.fecha).toLocaleDateString('es-CO')}</p>
+          <h3 className="font-medium text-blue-800 mb-3">📋 Configuración de Importación:</h3>
+          
+          {/* Ubicación */}
+          <div className="bg-white rounded-lg p-3 mb-3">
+            <h4 className="font-medium text-gray-800 mb-2">📍 Ubicación:</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-700">
+              <p><strong>Regional:</strong> {getSelectedRegionalName()}</p>
+              <p><strong>Centro:</strong> {getSelectedCenterName()}</p>
+            </div>
+          </div>
+
+          {/* Ficha */}
+          <div className="bg-white rounded-lg p-3">
+            <h4 className="font-medium text-gray-800 mb-2">📚 Ficha:</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-700">
+              <p><strong>Código:</strong> {fichaForm.codigo}</p>
+              <p><strong>Estado:</strong> {fichaForm.estado}</p>
+              <p className="md:col-span-2"><strong>Programa:</strong> {fichaForm.nombre}</p>
+              <p><strong>Fecha:</strong> {new Date(fichaForm.fecha).toLocaleDateString('es-CO')}</p>
+            </div>
           </div>
         </div>
 
@@ -381,7 +530,7 @@ const ImportLearners = ({ onImportComplete }: ImportLearnersProps) => {
     return (
       <div className="bg-white rounded-lg shadow-lg p-6">
         <div className="space-y-4">
-          {/* Información de la ficha */}
+          {/* Información de la ficha y ubicación */}
           <div className={`rounded-lg p-4 ${result.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
             <div className="flex items-center mb-3">
               {result.success ? (
@@ -398,8 +547,14 @@ const ImportLearners = ({ onImportComplete }: ImportLearnersProps) => {
               </h3>
             </div>
 
-            {/* Información de la ficha */}
+            {/* ⭐ INFORMACIÓN COMPLETA DE UBICACIÓN Y FICHA */}
             <div className="bg-white rounded-lg p-3 mb-4">
+              <h4 className="font-medium text-gray-800 mb-2">📍 Ubicación Asignada:</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm mb-3">
+                <p><strong>Regional:</strong> {getSelectedRegionalName()}</p>
+                <p><strong>Centro:</strong> {getSelectedCenterName()}</p>
+              </div>
+              
               <h4 className="font-medium text-gray-800 mb-2">📋 Información de la Ficha:</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
                 <p><strong>Código:</strong> {result.fichaInfo.code}</p>

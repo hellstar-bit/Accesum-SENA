@@ -498,64 +498,48 @@ const UserList = ({
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Usuario
-              </th>
-              <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Rol y Tipo
-              </th>
-              <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Estado
-              </th>
+              {/* Aquí van los encabezados de la tabla */}
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rol</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
               {filters.role === 'Aprendiz' && (
-                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Ficha
-                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ficha</th>
               )}
-              <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Ubicación
-              </th>
-              <th className="px-6 py-4 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Acciones
-              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Regional / Centro</th>
+              <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {users?.data.map((user) => (
-              <tr key={user.id} className="hover:bg-gray-50 transition-colors">
+              <tr key={user.id}>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">
-                    <div className="h-12 w-12 rounded-full bg-gradient-to-br from-sena-green to-sena-dark flex items-center justify-center text-white font-bold text-lg shadow-md">
-                      {user.profile.firstName.charAt(0)}{user.profile.lastName.charAt(0)}
-                    </div>
-                    <div className="ml-4">
+                    <div>
                       <div className="text-sm font-medium text-gray-900">
                         {user.profile.firstName} {user.profile.lastName}
                       </div>
-                      <div className="text-sm text-gray-500">
-                        {user.profile.documentType} {user.profile.documentNumber}
-                      </div>
-                      <div className="text-xs text-gray-400">
-                        {user.email}
-                      </div>
+                      <div className="text-xs text-gray-500">{user.profile.documentType}: {user.profile.documentNumber}</div>
                     </div>
                   </div>
                 </td>
-                
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="space-y-1">
-                    <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${
-                      user.role.name === 'Aprendiz' ? 'bg-green-100 text-green-800' :
-                      user.role.name === 'Instructor' ? 'bg-blue-100 text-blue-800' :
-                      user.role.name === 'Administrador' ? 'bg-purple-100 text-purple-800' :
-                      'bg-gray-100 text-gray-800'
-                    }`}>
-                      {user.role.name}
-                    </span>
-                    <div className="text-xs text-gray-500">
-                      {user.profile.type.name}
-                    </div>
-                  </div>
+                  <div className="text-sm text-gray-900">{user.email}</div>
+                </td>
+                {/* ⭐ COLUMNA ROL SIMPLIFICADA - Solo mostrar el rol del usuario */}
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${
+                    user.role.name === 'Aprendiz' ? 'bg-green-100 text-green-800' :
+                    user.role.name === 'Instructor' ? 'bg-blue-100 text-blue-800' :
+                    user.role.name === 'Administrador' ? 'bg-purple-100 text-purple-800' :
+                    user.role.name === 'Funcionario' ? 'bg-indigo-100 text-indigo-800' :
+                    user.role.name === 'Contratista' ? 'bg-orange-100 text-orange-800' :
+                    user.role.name === 'Visitante' ? 'bg-gray-100 text-gray-800' :
+                    user.role.name === 'Escaner' ? 'bg-yellow-100 text-yellow-800' :
+                    'bg-gray-100 text-gray-800'
+                  }`}>
+                    {user.role.name}
+                  </span>
                 </td>
 
                 <td className="px-6 py-4 whitespace-nowrap">

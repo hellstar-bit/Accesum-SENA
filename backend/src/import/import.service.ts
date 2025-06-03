@@ -1,4 +1,4 @@
-// backend/src/import/import.service.ts
+// backend/src/import/import.service.ts - ACTUALIZADO CON REGIONAL Y CENTRO
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -28,12 +28,14 @@ interface UploadedFile {
   path?: string;
 }
 
-// DTO para los datos del formulario de ficha
+// ⭐ DTO ACTUALIZADO PARA LOS DATOS DEL FORMULARIO DE FICHA
 interface FichaFormData {
   codigo: string;
   nombre: string;
   estado: string;
   fecha: string;
+  regionalId: string; // ⭐ NUEVO CAMPO
+  centerId: string;   // ⭐ NUEVO CAMPO
 }
 
 // DTO para datos de aprendiz extraídos del Excel
@@ -68,7 +70,7 @@ export class ImportService {
     private programRepository: Repository<Program>,
   ) {}
 
-  // ⭐ MÉTODO PRINCIPAL - Importar con datos de formulario
+  // ⭐ MÉTODO PRINCIPAL - Importar con datos de formulario ACTUALIZADO
   async importLearnersWithFormData(
     file: UploadedFile, 
     fichaData: FichaFormData
@@ -112,8 +114,8 @@ export class ImportService {
 
       console.log(`📋 Ficha ${isNew ? 'creada' : 'actualizada'}:`, ficha.code);
 
-      // ✅ OBTENER DATOS DE REFERENCIA
-      const referenceData = await this.getReferenceData();
+      // ✅ OBTENER DATOS DE REFERENCIA INCLUYENDO REGIONAL Y CENTRO
+      const referenceData = await this.getReferenceDataWithLocation(fichaData);
 
       // ✅ PROCESAR FILAS DE APRENDICES
       const dataStartRow = this.findDataStartRow(worksheet);
@@ -141,13 +143,13 @@ export class ImportService {
           });
 
           if (existingProfile) {
-            // ✅ ACTUALIZAR USUARIO EXISTENTE
-            await this.updateExistingLearner(existingProfile, learnerData, ficha);
+            // ✅ ACTUALIZAR USUARIO EXISTENTE CON NUEVA UBICACIÓN
+            await this.updateExistingLearner(existingProfile, learnerData, ficha, referenceData);
             result.updatedRows++;
             result.summary.actualizados++;
             console.log(`🔄 Actualizado: ${learnerData.nombre} ${learnerData.apellidos}`);
           } else {
-            // ✅ CREAR NUEVO USUARIO
+            // ✅ CREAR NUEVO USUARIO CON UBICACIÓN
             await this.createNewLearner(learnerData, ficha, referenceData);
             result.importedRows++;
             result.summary.nuevos++;
@@ -255,20 +257,50 @@ export class ImportService {
     }
   }
 
-  // ✅ OBTENER DATOS DE REFERENCIA
-  private async getReferenceData() {
-    const [aprendizRole, aprendizType, defaultRegional, defaultCenter] = await Promise.all([
-      this.roleRepository.findOne({ where: { name: 'Aprendiz' } }),
-      this.personnelTypeRepository.findOne({ where: { name: 'Aprendiz' } }),
-      this.regionalRepository.findOne({ where: { name: 'Regional por Defecto' } }),
-      this.centerRepository.findOne({ where: { name: 'Centro por Defecto' } }),
-    ]);
+  // ⭐ NUEVA FUNCIÓN - Obtener datos de referencia CON ubicación específica
+  private async getReferenceDataWithLocation(fichaData: FichaFormData) {
+    try {
+      const [aprendizRole, aprendizType, selectedRegional, selectedCenter] = await Promise.all([
+        this.roleRepository.findOne({ where: { name: 'Aprendiz' } }),
+        this.personnelTypeRepository.findOne({ where: { name: 'Aprendiz' } }),
+        this.regionalRepository.findOne({ where: { id: parseInt(fichaData.regionalId) } }),
+        this.centerRepository.findOne({ where: { id: parseInt(fichaData.centerId) } }),
+      ]);
 
-    if (!aprendizRole || !aprendizType || !defaultRegional || !defaultCenter) {
-      throw new BadRequestException('Faltan datos de referencia básicos del sistema');
+      if (!aprendizRole || !aprendizType) {
+        throw new BadRequestException('No se encontraron los tipos básicos de aprendiz en el sistema');
+      }
+
+      if (!selectedRegional) {
+        throw new BadRequestException(`Regional con ID ${fichaData.regionalId} no encontrada`);
+      }
+
+      if (!selectedCenter) {
+        throw new BadRequestException(`Centro con ID ${fichaData.centerId} no encontrado`);
+      }
+
+      // ⭐ VALIDAR QUE EL CENTRO PERTENEZCA A LA REGIONAL
+      if (selectedCenter.regionalId !== selectedRegional.id) {
+        throw new BadRequestException(
+          `El centro ${selectedCenter.name} no pertenece a la regional ${selectedRegional.name}`
+        );
+      }
+
+      console.log('📍 Ubicación configurada:', {
+        regional: selectedRegional.name,
+        center: selectedCenter.name
+      });
+
+      return { 
+        aprendizRole, 
+        aprendizType, 
+        selectedRegional, 
+        selectedCenter 
+      };
+    } catch (error: any) {
+      console.error('❌ Error en getReferenceDataWithLocation:', error);
+      throw error;
     }
-
-    return { aprendizRole, aprendizType, defaultRegional, defaultCenter };
   }
 
   // ✅ ENCONTRAR FILA DONDE EMPIEZAN LOS DATOS
@@ -345,7 +377,7 @@ export class ImportService {
     }
   }
 
-  // ✅ CREAR NUEVO APRENDIZ
+  // ⭐ CREAR NUEVO APRENDIZ CON UBICACIÓN ESPECÍFICA
   private async createNewLearner(
     learnerData: ExcelLearnerData,
     ficha: Ficha,
@@ -363,7 +395,7 @@ export class ImportService {
       isActive: learnerData.estado === 'EN FORMACION',
     });
 
-    // Crear perfil
+    // ⭐ CREAR PERFIL CON UBICACIÓN ESPECÍFICA
     const profileData: Partial<Profile> = {
       documentType: learnerData.tipoDocumento,
       documentNumber: learnerData.numeroDocumento,
@@ -373,33 +405,50 @@ export class ImportService {
       learnerStatus: learnerData.estado,
       userId: newUser.id,
       typeId: referenceData.aprendizType.id,
-      regionalId: referenceData.defaultRegional.id,
-      centerId: referenceData.defaultCenter.id,
+      regionalId: referenceData.selectedRegional.id, // ⭐ USAR REGIONAL SELECCIONADA
+      centerId: referenceData.selectedCenter.id,     // ⭐ USAR CENTRO SELECCIONADO
       fichaId: ficha.id,
     };
 
     const profile = await this.profileRepository.save(profileData);
 
+    console.log('📍 Aprendiz creado en:', {
+      regional: referenceData.selectedRegional.name,
+      center: referenceData.selectedCenter.name,
+      student: `${learnerData.nombre} ${learnerData.apellidos}`
+    });
+
     // ✅ GENERAR QR AUTOMÁTICAMENTE
     await this.generateQRForProfile(profile);
   }
 
-  // ✅ ACTUALIZAR APRENDIZ EXISTENTE
+  // ⭐ ACTUALIZAR APRENDIZ EXISTENTE CON NUEVA UBICACIÓN
   private async updateExistingLearner(
     existingProfile: Profile,
     learnerData: ExcelLearnerData,
     ficha: Ficha,
+    referenceData: any,
   ) {
     // Actualizar datos que pueden cambiar
     existingProfile.phoneNumber = learnerData.celular || existingProfile.phoneNumber;
     existingProfile.learnerStatus = learnerData.estado;
     existingProfile.fichaId = ficha.id;
+    
+    // ⭐ ACTUALIZAR UBICACIÓN CON LOS DATOS SELECCIONADOS
+    existingProfile.regionalId = referenceData.selectedRegional.id;
+    existingProfile.centerId = referenceData.selectedCenter.id;
 
     // Actualizar estado del usuario
     existingProfile.user.isActive = learnerData.estado === 'EN FORMACION';
     
     await this.userRepository.save(existingProfile.user);
     await this.profileRepository.save(existingProfile);
+
+    console.log('📍 Aprendiz actualizado en:', {
+      regional: referenceData.selectedRegional.name,
+      center: referenceData.selectedCenter.name,
+      student: `${learnerData.nombre} ${learnerData.apellidos}`
+    });
 
     // Generar QR si no tiene
     if (!existingProfile.qrCode) {

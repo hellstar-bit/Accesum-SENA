@@ -4,6 +4,12 @@ import { learnerService } from '../services/learnerService.ts';
 import { useAuth } from '../context/AuthContext';
 import type { LearnerProfile } from '../services/learnerService.ts';
 import { downloadLearnerCarnet } from '../utils/carnetGenerator';
+import SweetAlertUtils, { 
+  showProcessingAlert, 
+  hideProcessingAlert, 
+  showQuickToast, 
+  handleApiError 
+} from '../utils/sweetAlertUtils';
 
 const LearnerProfilePage = () => {
   const { user } = useAuth();
@@ -11,6 +17,7 @@ const LearnerProfilePage = () => {
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [imageError, setImageError] = useState(false);
   const [formData, setFormData] = useState({
     phoneNumber: '',
     address: '',
@@ -30,8 +37,8 @@ const LearnerProfilePage = () => {
       setLoading(true);
       const profileData = await learnerService.getMyProfile();
       setProfile(profileData);
+      setImageError(false);
       
-      // Cargar datos editables en el formulario
       setFormData({
         phoneNumber: profileData.phoneNumber || '',
         address: profileData.address || '',
@@ -42,6 +49,7 @@ const LearnerProfilePage = () => {
       });
     } catch (error) {
       console.error('Error al cargar perfil:', error);
+      handleApiError(error, 'No se pudo cargar la información de tu perfil');
     } finally {
       setLoading(false);
     }
@@ -54,22 +62,60 @@ const LearnerProfilePage = () => {
   const handleSave = async () => {
     try {
       setSaving(true);
+      showProcessingAlert('Actualizando perfil', 'Guardando tu información personal...');
+      
       await learnerService.updateMyProfile(formData);
       await fetchProfile();
       setIsEditing(false);
+      
+      hideProcessingAlert();
+      await SweetAlertUtils.general.showSuccess(
+        '¡Perfil actualizado!',
+        'Tu información personal ha sido actualizada correctamente.'
+      );
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Error al actualizar perfil');
+      hideProcessingAlert();
+      handleApiError(error, 'No se pudo actualizar tu perfil');
     } finally {
       setSaving(false);
     }
+  };
+
+  const isValidImageUrl = (url: string | undefined): boolean => {
+    if (!url) return false;
+    const base64Regex = /^data:image\/(jpeg|jpg|png|gif|webp);base64,[A-Za-z0-9+/]*={0,2}$/;
+    return base64Regex.test(url);
+  };
+
+  const handleImageError = () => {
+    setImageError(true);
+    console.error('Error al cargar imagen de perfil');
+  };
+
+  const handleImageLoad = () => {
+    setImageError(false);
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Validar tipo de archivo
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      await SweetAlertUtils.general.showError(
+        'Formato no válido',
+        'Solo se permiten archivos de imagen (JPEG, PNG, GIF, WebP)'
+      );
+      return;
+    }
+
+    // Validar tamaño
     if (file.size > 2 * 1024 * 1024) {
-      alert('La imagen no debe superar los 2MB');
+      await SweetAlertUtils.general.showError(
+        'Archivo muy grande',
+        'La imagen no debe superar los 2MB'
+      );
       return;
     }
 
@@ -77,34 +123,87 @@ const LearnerProfilePage = () => {
     reader.onloadend = async () => {
       try {
         setSaving(true);
-        await learnerService.uploadImage(reader.result as string);
+        showProcessingAlert('Subiendo imagen', 'Procesando tu foto de perfil...');
+        
+        const result = reader.result as string;
+        
+        if (!result || !result.startsWith('data:image/')) {
+          throw new Error('Error al procesar la imagen');
+        }
+
+        await learnerService.uploadImage(result);
         await fetchProfile();
+        
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+        
+        hideProcessingAlert();
+        showQuickToast('¡Imagen subida correctamente!', 'success');
+        
       } catch (error: any) {
-        alert(error.response?.data?.message || 'Error al subir imagen');
+        hideProcessingAlert();
+        handleApiError(error, 'No se pudo subir la imagen');
       } finally {
         setSaving(false);
       }
     };
+
+    reader.onerror = () => {
+      SweetAlertUtils.general.showError(
+        'Error al leer archivo', 
+        'No se pudo procesar el archivo seleccionado.'
+      );
+      setSaving(false);
+    };
+
     reader.readAsDataURL(file);
   };
 
   const handleRegenerateQR = async () => {
-    if (!confirm('¿Estás seguro de regenerar tu código QR?')) return;
+    // Usar la confirmación específica para QR que ya tienes
+    const userData = {
+      firstName: profile?.firstName || '',
+      lastName: profile?.lastName || '',
+      documentType: profile?.documentType || '',
+      documentNumber: profile?.documentNumber || '',
+      email: profile?.user?.email,
+      profileImage: profile?.profileImage,
+      role: profile?.type?.name || ''
+    };
+
+    const confirmed = await SweetAlertUtils.user.confirmRegenerateQR(userData, !!profile?.qrCode);
+    
+    if (!confirmed) return;
     
     try {
       setSaving(true);
+      showProcessingAlert('Generando código QR', 'Creando tu nuevo código QR...');
+      
       await learnerService.regenerateQR();
       await fetchProfile();
+      
+      hideProcessingAlert();
+      await SweetAlertUtils.user.showQRGenerated(userData);
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Error al regenerar QR');
+      hideProcessingAlert();
+      handleApiError(error, 'No se pudo regenerar el código QR');
     } finally {
       setSaving(false);
     }
   };
 
   const downloadCarnet = () => {
-  downloadLearnerCarnet(profile);
-};
+    try {
+      downloadLearnerCarnet(profile);
+      showQuickToast('¡Carnet descargado!', 'success');
+    } catch (error) {
+      SweetAlertUtils.general.showError(
+        'Error al descargar',
+        'No se pudo descargar el carnet. Verifica que tengas imagen y código QR.'
+      );
+    }
+  };
 
   if (loading) {
     return (
@@ -167,48 +266,65 @@ const LearnerProfilePage = () => {
           <div className="bg-white rounded-lg shadow p-6 text-center">
             <h3 className="font-medium text-gray-700 mb-4">Foto de Perfil</h3>
             <div className="relative inline-block">
-              <div className="w-32 h-32 rounded-full overflow-hidden bg-gray-200 mx-auto">
-                {profile.profileImage ? (
+              <div className="w-32 h-32 rounded-full overflow-hidden bg-gray-200 mx-auto border-4 border-gray-100">
+                {profile.profileImage && isValidImageUrl(profile.profileImage) && !imageError ? (
                   <img 
                     src={profile.profileImage} 
                     alt="Foto de perfil"
                     className="w-full h-full object-cover"
+                    onError={handleImageError}
+                    onLoad={handleImageLoad}
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-gray-500 text-3xl font-bold">
+                  <div className="w-full h-full flex items-center justify-center text-gray-500 text-2xl font-bold bg-gradient-to-br from-gray-200 to-gray-300">
                     {profile.firstName.charAt(0)}{profile.lastName.charAt(0)}
                   </div>
                 )}
               </div>
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="absolute bottom-0 right-0 bg-sena-green text-white p-2 rounded-full hover:bg-sena-dark"
+                className="absolute bottom-0 right-0 bg-sena-green text-white p-2 rounded-full hover:bg-sena-dark transition-colors shadow-lg"
                 disabled={saving}
+                title="Cambiar foto de perfil"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
+                {saving ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                )}
               </button>
             </div>
+            
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
               onChange={handleImageUpload}
               className="hidden"
             />
+            
+            <p className="text-xs text-gray-500 mt-3">
+              Formatos: JPEG, PNG, GIF, WebP<br />
+              Tamaño máximo: 2MB
+            </p>
           </div>
 
           {/* Código QR */}
           <div className="bg-white rounded-lg shadow p-6 text-center">
             <h3 className="font-medium text-gray-700 mb-4">Código QR</h3>
-            {profile.qrCode ? (
+            {profile.qrCode && isValidImageUrl(profile.qrCode) ? (
               <div className="inline-block p-4 bg-white border-2 border-gray-300 rounded-lg">
                 <img 
                   src={profile.qrCode} 
                   alt="Código QR"
                   className="w-48 h-48"
+                  onError={(e) => {
+                    console.error('Error al cargar QR code');
+                    e.currentTarget.style.display = 'none';
+                  }}
                 />
               </div>
             ) : (
@@ -445,6 +561,7 @@ const LearnerProfilePage = () => {
           <li>• El código QR es único y se usa para el control de acceso</li>
           <li>• Mantén actualizada tu información de contacto</li>
           <li>• Descarga tu carnet para tenerlo siempre disponible</li>
+          <li>• Las imágenes deben ser menores a 2MB y en formato JPEG, PNG, GIF o WebP</li>
         </ul>
       </div>
     </div>

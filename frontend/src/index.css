@@ -435,3 +435,469 @@ body {
 .role-escaner {
   @apply bg-yellow-100 text-yellow-800;
 }
+/* frontend/src/index.css - Agregar al final del archivo */
+
+/* Estilos para SweetAlert2 - Tema SENA */
+.sena-theme {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  border-radius: 16px !important;
+}
+
+.sena-theme .swal2-title {
+  color: #1f2937 !important;
+  font-weight: 600 !important;
+  font-size: 1.5rem !important;
+}
+
+.sena-theme .swal2-content {
+  color: #4b5563 !important;
+  font-size: 0.95rem !important;
+}
+
+/* Avatares de usuario en alertas */
+.user-avatar {
+  width: 4rem;
+  height: 4rem;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid #e5e7eb;
+}
+
+.user-avatar:not(img) {
+  background: linear-gradient(135deg, #39B54A, #2d8f3a);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 1.2rem;
+}
+
+/* Cajas de información en alertas */
+.info-box {
+  background-color: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  padding: 0.75rem;
+  margin: 0.5rem 0;
+}
+
+/* Botones personalizados */
+.swal2-confirm {
+  background-color: #39B54A !important;
+  border: none !important;
+  border-radius: 8px !important;
+  padding: 10px 24px !important;
+  font-weight: 500 !important;
+  font-size: 0.9rem !important;
+  transition: all 0.2s ease !important;
+  box-shadow: 0 2px 4px rgba(57, 181, 74, 0.2) !important;
+}
+
+.swal2-confirm:hover {
+  background-color: #2d8f3a !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 12px rgba(57, 181, 74, 0.3) !important;
+}
+
+.swal2-cancel {
+  background-color: #6b7280 !important;
+  border: none !important;
+  border-radius: 8px !important;
+  padding: 10px 24px !important;
+  font-weight: 500 !important;
+  font-size: 0.9rem !important;
+  transition: all 0.2s ease !important;
+  box-shadow: 0 2px 4px rgba(107, 114, 128, 0.2) !important;
+}
+
+.swal2-cancel:hover {
+  background-color: #4b5563 !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 12px rgba(107, 114, 128, 0.3) !important;
+}
+
+/* Botones de confirmación con colores específicos */
+.swal2-confirm.swal2-styled.swal2-danger {
+  background-color: #dc2626 !important;
+}
+
+.swal2-confirm.swal2-styled.swal2-danger:hover {
+  background-color: #b91c1c !important;
+}
+
+/* Iconos personalizados */
+.swal2-success .swal2-success-ring {
+  border-color: #39B54A !important;
+}
+
+.swal2-success .swal2-success-fix {
+  background-color: #39B54A !important;
+}
+
+.swal2-success [class^='swal2-success-line'] {
+  background-color: #39B54A !important;
+}
+
+/* Progress bar */
+.swal2-timer-progress-bar {
+  background-color: #39B54A !important;
+}
+
+/* Loading spinner */
+.swal2-loader {
+  border-color: #39B54A transparent #39B54A transparent !important;
+}
+
+/* Toast notifications */
+.swal2-toast {
+  border-radius: 12px !important;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1) !important;
+}
+
+.swal2-toast .swal2-title {
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  margin: 0 !important;
+}
+
+/* Animaciones personalizadas */
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -100%, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes bounceIn {
+  0% {
+    opacity: 0;
+    transform: scale3d(0.3, 0.3, 0.3);
+  }
+  20% {
+    transform: scale3d(1.1, 1.1, 1.1);
+  }
+  40% {
+    transform: scale3d(0.9, 0.9, 0.9);
+  }
+  60% {
+    opacity: 1;
+    transform: scale3d(1.03, 1.03, 1.03);
+  }
+  80% {
+    transform: scale3d(0.97, 0.97, 0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale3d(1, 1, 1);
+  }
+}
+
+@keyframes shakeX {
+  0%, 100% {
+    transform: translate3d(0, 0, 0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translate3d(-10px, 0, 0);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translate3d(10px, 0, 0);
+  }
+}
+
+.animate__animated {
+  animation-duration: 0.5s;
+  animation-fill-mode: both;
+}
+
+.animate__fadeInDown {
+  animation-name: fadeInDown;
+}
+
+.animate__bounceIn {
+  animation-name: bounceIn;
+}
+
+.animate__shakeX {
+  animation-name: shakeX;
+}
+
+/* Colores de texto específicos para alertas */
+.text-green-700 {
+  color: #15803d !important;
+}
+
+.text-red-700 {
+  color: #b91c1c !important;
+}
+
+/* Grids responsivos en alertas */
+.swal2-html-container .grid {
+  display: grid;
+}
+
+.swal2-html-container .grid-cols-1 {
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+}
+
+.swal2-html-container .grid-cols-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.swal2-html-container .grid-cols-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.swal2-html-container .gap-2 {
+  gap: 0.5rem;
+}
+
+.swal2-html-container .gap-4 {
+  gap: 1rem;
+}
+
+@media (min-width: 768px) {
+  .swal2-html-container .md\\:grid-cols-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  
+  .swal2-html-container .md\\:grid-cols-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  
+  .swal2-html-container .md\\:col-span-2 {
+    grid-column: span 2 / span 2;
+  }
+}
+
+/* Estilos para elementos específicos dentro de alertas */
+.swal2-html-container .border {
+  border-width: 1px;
+}
+
+.swal2-html-container .rounded-lg {
+  border-radius: 0.5rem;
+}
+
+.swal2-html-container .p-3 {
+  padding: 0.75rem;
+}
+
+.swal2-html-container .mb-2 {
+  margin-bottom: 0.5rem;
+}
+
+.swal2-html-container .mb-3 {
+  margin-bottom: 0.75rem;
+}
+
+.swal2-html-container .mb-4 {
+  margin-bottom: 1rem;
+}
+
+.swal2-html-container .text-center {
+  text-align: center;
+}
+
+.swal2-html-container .text-lg {
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+}
+
+.swal2-html-container .text-sm {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.swal2-html-container .text-xs {
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+.swal2-html-container .font-semibold {
+  font-weight: 600;
+}
+
+.swal2-html-container .font-bold {
+  font-weight: 700;
+}
+
+.swal2-html-container .font-medium {
+  font-weight: 500;
+}
+
+/* Colores de fondo para elementos */
+.swal2-html-container .bg-green-50 {
+  background-color: #f0fdf4;
+}
+
+.swal2-html-container .bg-green-100 {
+  background-color: #dcfce7;
+}
+
+.swal2-html-container .bg-red-50 {
+  background-color: #fef2f2;
+}
+
+.swal2-html-container .bg-red-100 {
+  background-color: #fee2e2;
+}
+
+.swal2-html-container .bg-yellow-50 {
+  background-color: #fefce8;
+}
+
+.swal2-html-container .bg-yellow-100 {
+  background-color: #fef3c7;
+}
+
+.swal2-html-container .bg-purple-50 {
+  background-color: #faf5ff;
+}
+
+.swal2-html-container .bg-purple-100 {
+  background-color: #f3e8ff;
+}
+
+.swal2-html-container .bg-white {
+  background-color: #ffffff;
+}
+
+/* Colores de borde */
+.swal2-html-container .border-green-200 {
+  border-color: #bbf7d0;
+}
+
+.swal2-html-container .border-red-200 {
+  border-color: #fecaca;
+}
+
+.swal2-html-container .border-yellow-200 {
+  border-color: #fde68a;
+}
+
+.swal2-html-container .border-purple-200 {
+  border-color: #e9d5ff;
+}
+
+.swal2-html-container .border-green-400 {
+  border-color: #4ade80;
+}
+
+.swal2-html-container .border-red-400 {
+  border-color: #f87171;
+}
+
+/* Colores de texto */
+.swal2-html-container .text-gray-800 {
+  color: #1f2937;
+}
+
+.swal2-html-container .text-gray-600 {
+  color: #4b5563;
+}
+
+.swal2-html-container .text-gray-700 {
+  color: #374151;
+}
+
+.swal2-html-container .text-gray-500 {
+  color: #6b7280;
+}
+
+.swal2-html-container .text-gray-400 {
+  color: #9ca3af;
+}
+
+.swal2-html-container .text-green-600 {
+  color: #16a34a;
+}
+
+.swal2-html-container .text-green-700 {
+  color: #15803d;
+}
+
+.swal2-html-container .text-green-800 {
+  color: #166534;
+}
+
+.swal2-html-container .text-red-600 {
+  color: #dc2626;
+}
+
+.swal2-html-container .text-red-700 {
+  color: #b91c1c;
+}
+
+.swal2-html-container .text-red-800 {
+  color: #991b1b;
+}
+
+.swal2-html-container .text-purple-700 {
+  color: #7c2d92;
+}
+
+/* Utilidades adicionales */
+.swal2-html-container .w-16 {
+  width: 4rem;
+}
+
+.swal2-html-container .h-16 {
+  height: 4rem;
+}
+
+.swal2-html-container .w-20 {
+  width: 5rem;
+}
+
+.swal2-html-container .h-20 {
+  height: 5rem;
+}
+
+.swal2-html-container .rounded-full {
+  border-radius: 9999px;
+}
+
+.swal2-html-container .mx-auto {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.swal2-html-container .flex {
+  display: flex;
+}
+
+.swal2-html-container .items-center {
+  align-items: center;
+}
+
+.swal2-html-container .justify-center {
+  justify-content: center;
+}
+
+.swal2-html-container .inline-flex {
+  display: inline-flex;
+}
+
+.swal2-html-container .px-3 {
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+}
+
+.swal2-html-container .py-1 {
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+}
+
+.swal2-html-container .object-cover {
+  object-fit: cover;
+}
+
+.swal2-html-container .border-4 {
+  border-width: 4px;
+}

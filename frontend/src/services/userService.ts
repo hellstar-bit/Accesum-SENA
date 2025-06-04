@@ -107,15 +107,17 @@ export const userService = {
   // ========== USUARIOS CON FILTROS MEJORADOS ==========
   
   async getUsers(
-    page: number = 1, 
-    limit: number = 10, 
-    filters?: UserFilters
-  ): Promise<UsersResponse> {
+  page: number = 1, 
+  limit: number = 10, 
+  filters?: UserFilters
+): Promise<UsersResponse> {
+  try {
     const params = new URLSearchParams({
       page: page.toString(),
       limit: limit.toString(),
     });
     
+    // Solo agregar filtros que tengan valor
     if (filters) {
       Object.entries(filters).forEach(([key, value]) => {
         if (value !== undefined && value !== null && value !== '') {
@@ -124,16 +126,53 @@ export const userService = {
       });
     }
 
+    console.log('📡 Enviando request con params:', params.toString());
+
     const response = await api.get<UsersResponse>(`/users?${params}`);
+    
+    console.log('✅ Response recibido:', response.data);
+    
     return response.data;
-  },
+  } catch (error: any) {
+    console.error('❌ Error en getUsers:', error);
+    
+    // Mejorar el manejo de errores
+    if (error.response) {
+      console.error('Error response:', error.response.data);
+      throw new Error(error.response.data?.message || 'Error del servidor');
+    } else if (error.request) {
+      console.error('Error request:', error.request);
+      throw new Error('Error de conexión con el servidor');
+    } else {
+      console.error('Error message:', error.message);
+      throw new Error(error.message || 'Error desconocido');
+    }
+  }
+},
 
   // ⭐ NUEVO MÉTODO - Obtener fichas para filtros
   async getFichas(): Promise<Ficha[]> {
-    const response = await api.get<Ficha[]>('/users/fichas');
-    return response.data;
-  },
-
+  try {
+    console.log('📡 Obteniendo fichas...');
+    
+    const response = await api.get('/users/fichas');
+    
+    console.log('✅ Fichas response:', response.data);
+    
+    // Manejar diferentes formatos de respuesta
+    const fichasData = Array.isArray(response.data) ? response.data : response.data?.data || [];
+    
+    if (!Array.isArray(fichasData)) {
+      console.warn('⚠️ getFichas: respuesta no es un array:', fichasData);
+      return [];
+    }
+    
+    return fichasData;
+  } catch (error: any) {
+    console.error('❌ Error en getFichas:', error);
+    return [];
+  }
+},
   async getUserById(id: number): Promise<User> {
     const response = await api.get<User>(`/users/${id}`);
     return response.data;

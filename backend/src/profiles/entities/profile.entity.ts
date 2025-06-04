@@ -46,10 +46,12 @@ export class Profile {
   @Column({ length: 3, nullable: true })
   vaccine: string;
 
-  @Column({ type: 'text', nullable: true })
+  // 🔧 CAMBIO CRÍTICO: Usar tipo LONGTEXT para imágenes grandes
+  @Column({ type: 'longtext', nullable: true })
   profileImage: string;
 
-  @Column({ type: 'text', nullable: true })
+  // 🔧 CAMBIO CRÍTICO: Usar tipo LONGTEXT para QR codes
+  @Column({ type: 'longtext', nullable: true })
   qrCode: string;
 
   // ⭐ NUEVO CAMPO - Estado del aprendiz

@@ -33,8 +33,6 @@ const UserList = ({
   const [fichaFilter, setFichaFilter] = useState('');
   
   // Estados de UI
-  const [searchFocused, setSearchFocused] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
 
   useEffect(() => {
@@ -195,6 +193,7 @@ const UserList = ({
       try {
         SweetAlertUtils.general.showLoading('Generando código QR...', 'Creando nuevo código');
 
+
         await SweetAlertUtils.user.showQRGenerated({
           firstName: user.profile.firstName,
           lastName: user.profile.lastName,
@@ -348,52 +347,18 @@ const UserList = ({
 
           {/* Filtros Mejorados */}
           <div className="mt-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold flex items-center space-x-2">
-                <span>🔍</span>
-                <span>Filtros de Búsqueda</span>
-              </h3>
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className="lg:hidden bg-white bg-opacity-10 px-4 py-2 rounded-lg text-sm hover:bg-opacity-20 transition-colors"
-              >
-                {showFilters ? 'Ocultar' : 'Mostrar'} Filtros
-              </button>
-            </div>
-
-            <div className={`grid grid-cols-1 lg:grid-cols-12 gap-4 transition-all duration-300 ${showFilters || 'lg:block hidden'}`}>
-              {/* Búsqueda Principal */}
-              <div className="lg:col-span-4 relative">
-                <div className={`relative transition-all duration-200 ${searchFocused ? 'transform scale-105' : ''}`}>
-                  <input
-                    type="text"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    onFocus={() => setSearchFocused(true)}
-                    onBlur={() => setSearchFocused(false)}
-                    placeholder="🔍 Buscar por nombre, documento o email..."
-                    className="w-full px-4 py-3 border-0 rounded-xl text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-4 focus:ring-white focus:ring-opacity-30 shadow-lg"
-                  />
-                  {search && (
-                    <button
-                      onClick={() => setSearch('')}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 text-lg transition-colors"
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
-              </div>
-              
-              {/* Filtro por Rol */}
-              <div className="lg:col-span-2">
+            {/* Sección de Filtros */}
+            <div className="flex flex-col space-y-4">
+              {/* Contenedor de filtros en línea */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Filtro por Rol */}
                 <select
                   value={roleFilter}
                   onChange={(e) => setRoleFilter(e.target.value)}
-                  className="w-full px-4 py-3 border-0 rounded-xl text-gray-900 focus:outline-none focus:ring-4 focus:ring-white focus:ring-opacity-30 shadow-lg"
+                  className="w-full px-4 py-2.5 rounded-lg border border-gray-200 bg-white text-gray-700 focus:border-sena-green focus:ring-2 focus:ring-sena-green focus:ring-opacity-20 transition-all text-sm"
                 >
                   <option value="">Todos los roles</option>
-                  <option value="Administrador">👑 Administrador</option>
+                  <option value="Administrador">👑 Admin</option>
                   <option value="Instructor">👨‍🏫 Instructor</option>
                   <option value="Aprendiz">🎓 Aprendiz</option>
                   <option value="Funcionario">👔 Funcionario</option>
@@ -401,85 +366,83 @@ const UserList = ({
                   <option value="Visitante">👤 Visitante</option>
                   <option value="Escaner">📱 Escáner</option>
                 </select>
-              </div>
 
-              {/* Filtro por Estado */}
-              <div className="lg:col-span-2">
+                {/* Filtro por Estado */}
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="w-full px-4 py-3 border-0 rounded-xl text-gray-900 focus:outline-none focus:ring-4 focus:ring-white focus:ring-opacity-30 shadow-lg"
+                  className="w-full px-4 py-2.5 rounded-lg border border-gray-200 bg-white text-gray-700 focus:border-sena-green focus:ring-2 focus:ring-sena-green focus:ring-opacity-20 transition-all text-sm"
                 >
                   <option value="">Todos los estados</option>
                   <option value="active">✅ Activos</option>
                   <option value="inactive">🚫 Inactivos</option>
                 </select>
-              </div>
 
-              {/* Filtro por Ficha */}
-              <div className="lg:col-span-2">
+                {/* Filtro por Ficha */}
                 <select
                   value={fichaFilter}
                   onChange={(e) => setFichaFilter(e.target.value)}
-                  className="w-full px-4 py-3 border-0 rounded-xl text-gray-900 focus:outline-none focus:ring-4 focus:ring-white focus:ring-opacity-30 shadow-lg"
+                  className="w-full px-4 py-2.5 rounded-lg border border-gray-200 bg-white text-gray-700 focus:border-sena-green focus:ring-2 focus:ring-sena-green focus:ring-opacity-20 transition-all text-sm"
                 >
                   <option value="">Todas las fichas</option>
                   {fichas.map((ficha) => (
-                    <option key={ficha.id} value={ficha.id}>
-                      📋 {ficha.code} - {ficha.name.length > 30 ? `${ficha.name.substring(0, 30)}...` : ficha.name}
+                    <option key={ficha.id} value={ficha.id} className="text-gray-700">
+                      {ficha.code} - {ficha.name.length > 25 ? `${ficha.name.substring(0, 25)}...` : ficha.name}
                     </option>
                   ))}
                 </select>
+
+                {/* Barra de búsqueda principal */}
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="🔍 Buscar por nombre, documento o email..."
+                  className="w-full px-4 py-3 rounded-lg border border-gray-200 bg-white text-gray-700 placeholder-gray-500 focus:border-sena-green focus:ring-2 focus:ring-sena-green focus:ring-opacity-20 transition-all"
+                />
               </div>
 
-              {/* Botones de Acción */}
-              <div className="lg:col-span-2 flex space-x-2">
+              {/* Botones de acción */}
+              <div className="flex space-x-2">
                 <button
                   onClick={handleApplyFilters}
                   disabled={loading}
-                  className="flex-1 bg-white text-sena-green px-4 py-3 rounded-xl hover:bg-gray-50 font-semibold transition-all disabled:opacity-50 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                  className="flex-1 px-4 py-2.5 bg-sena-green text-white rounded-lg hover:bg-sena-dark transition-all text-sm font-medium"
                 >
                   🔍 Buscar
                 </button>
                 <button
                   onClick={handleClearFilters}
                   disabled={loading}
-                  className="flex-1 bg-sena-light bg-opacity-20 text-white px-4 py-3 rounded-xl hover:bg-opacity-30 font-semibold transition-all disabled:opacity-50"
+                  className="px-4 py-2.5 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-all text-sm font-medium"
                 >
-                  🗑️ Limpiar
+                  🗑️
                 </button>
               </div>
             </div>
 
-            {/* Info de Resultados Mejorada */}
-            {users && (
-              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 pt-4 border-t border-sena-light border-opacity-30">
-                <div className="flex items-center space-x-4">
-                  <span className="text-sena-light text-sm flex items-center space-x-2">
-                    <span>📊</span>
-                    <span>
-                      Mostrando {users.data.length} de {users.total} usuarios
-                      {users.totalPages > 1 && ` (página ${users.page} de ${users.totalPages})`}
-                    </span>
+            {/* Indicadores de filtros activos */}
+            {hasActiveFilters && (
+              <div className="flex flex-wrap gap-2 mt-3">
+                {search && (
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-sena-green text-white">
+                    🔍 Búsqueda: {search}
                   </span>
-                  {loading && (
-                    <div className="flex items-center space-x-2 text-sena-light text-sm">
-                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                      <span>Actualizando...</span>
-                    </div>
-                  )}
-                </div>
-                
-                {hasActiveFilters && (
-                  <div className="flex items-center space-x-2">
-                    <span className="text-sena-light text-sm">Filtros activos:</span>
-                    <div className="flex space-x-1">
-                      {search && <span className="bg-white bg-opacity-20 px-2 py-1 rounded text-xs">Búsqueda</span>}
-                      {roleFilter && <span className="bg-white bg-opacity-20 px-2 py-1 rounded text-xs">Rol</span>}
-                      {statusFilter && <span className="bg-white bg-opacity-20 px-2 py-1 rounded text-xs">Estado</span>}
-                      {fichaFilter && <span className="bg-white bg-opacity-20 px-2 py-1 rounded text-xs">Ficha</span>}
-                    </div>
-                  </div>
+                )}
+                {roleFilter && (
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-sena-green text-white">
+                    👤 Rol: {roleFilter}
+                  </span>
+                )}
+                {statusFilter && (
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-sena-green text-white">
+                    ⚡ Estado: {statusFilter === 'active' ? 'Activo' : 'Inactivo'}
+                  </span>
+                )}
+                {fichaFilter && (
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-sena-green text-white">
+                    📋 Ficha: {fichas.find(f => f.id.toString() === fichaFilter)?.code || fichaFilter}
+                  </span>
                 )}
               </div>
             )}

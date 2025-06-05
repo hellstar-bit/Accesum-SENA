@@ -7,12 +7,20 @@ interface SidebarProps {
   setIsOpen: (open: boolean) => void;
 }
 
+interface MenuItem {
+  name: string;
+  path: string;
+  icon: string;
+  roles: string[];
+  description?: string;
+}
+
 const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
   const { user } = useAuth();
 
   // Menús por rol actualizados
-  const getMenuItemsByRole = () => {
-    const baseItems = [
+  const getMenuItemsByRole = (): MenuItem[] => {
+    const baseItems: MenuItem[] = [
       { 
         name: 'Dashboard', 
         path: '/dashboard', 

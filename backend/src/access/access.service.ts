@@ -1,5 +1,5 @@
-// backend/src/access/access.service.ts - CORREGIDO
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+// backend/src/access/access.service.ts - COMPLETO con integración de asistencia
+import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, IsNull, Not } from 'typeorm';
 import { AccessRecord } from './entities/access-record.entity';
@@ -39,6 +39,13 @@ export class AccessService {
     private accessRecordRepository: Repository<AccessRecord>,
     @InjectRepository(Profile)
     private profileRepository: Repository<Profile>,
+    
+    // ⭐ NUEVA IMPORTACIÓN PARA ASISTENCIA
+    @Inject(forwardRef(() => {
+      // Importación lazy para evitar dependencia circular
+      return require('../attendance/attendance.service').AttendanceService;
+    }))
+    private attendanceService: any,
   ) {}
 
   async createAccessRecord(dto: CreateAccessRecordDto): Promise<AccessRecordResponse> {
@@ -97,6 +104,17 @@ export class AccessService {
 
       newRecord = await this.accessRecordRepository.save(newRecord);
       console.log('✅ Entrada registrada:', newRecord.id);
+
+      // ⭐ NUEVA FUNCIONALIDAD: PROCESAR ASISTENCIA AUTOMÁTICA
+      try {
+        if (this.attendanceService && this.attendanceService.processAccessForAttendance) {
+          await this.attendanceService.processAccessForAttendance(newRecord);
+          console.log('✅ Asistencia automática procesada');
+        }
+      } catch (error) {
+        console.error('❌ Error al procesar asistencia automática:', error);
+        // No lanzar error, solo registrar - el acceso debe continuar
+      }
 
     } else {
       // ⭐ REGISTRAR SALIDA

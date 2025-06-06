@@ -1,52 +1,49 @@
-// backend/src/import/import.service.ts - ACTUALIZADO CON REGIONAL Y CENTRO
+// backend/src/import/import.service.ts - COMPLETO
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import * as ExcelJS from 'exceljs';
-import * as bcrypt from 'bcrypt';
-import * as QRCode from 'qrcode';
 import { User } from '../users/entities/user.entity';
 import { Profile } from '../profiles/entities/profile.entity';
 import { Role } from '../users/entities/role.entity';
 import { PersonnelType } from '../config/entities/personnel-type.entity';
 import { Regional } from '../config/entities/regional.entity';
 import { Center } from '../config/entities/center.entity';
-import { Ficha } from '../config/entities/ficha.entity';
 import { Program } from '../config/entities/program.entity';
-import { ImportLearnersResultDto } from './import-learners.dto';
+import { Ficha } from '../config/entities/ficha.entity';
+import * as XLSX from 'xlsx';
+import * as bcrypt from 'bcrypt';
+import * as QRCode from 'qrcode';
 
-// Tipo para archivos subidos
-interface UploadedFile {
-  fieldname: string;
-  originalname: string;
-  encoding: string;
-  mimetype: string;
-  size: number;
-  buffer: Buffer;
-  destination?: string;
-  filename?: string;
-  path?: string;
+export interface ImportOptions {
+  generateQR?: boolean;
+  createUsers?: boolean;
+  updateExisting?: boolean;
 }
 
-// ⭐ DTO ACTUALIZADO PARA LOS DATOS DEL FORMULARIO DE FICHA
-interface FichaFormData {
-  codigo: string;
-  nombre: string;
-  estado: string;
-  fecha: string;
-  regionalId: string; // ⭐ NUEVO CAMPO
-  centerId: string;   // ⭐ NUEVO CAMPO
+export interface ImportResult {
+  success: boolean;
+  totalProcessed: number;
+  successful: number;
+  failed: number;
+  errors: Array<{
+    row: number;
+    field: string;
+    message: string;
+  }>;
+  summary: {
+    usersCreated: number;
+    profilesCreated: number;
+    qrCodesGenerated: number;
+    fichasCreated: number;
+  };
 }
 
-// DTO para datos de aprendiz extraídos del Excel
-interface ExcelLearnerData {
-  tipoDocumento: string;
-  numeroDocumento: string;
-  nombre: string;
-  apellidos: string;
-  celular?: string;
-  correoElectronico: string;
-  estado: string;
+export interface ValidationResult {
+  isValid: boolean;
+  headers: string[];
+  rowCount: number;
+  errors: string[];
+  warnings: string[];
 }
 
 @Injectable()
@@ -64,502 +61,388 @@ export class ImportService {
     private regionalRepository: Repository<Regional>,
     @InjectRepository(Center)
     private centerRepository: Repository<Center>,
-    @InjectRepository(Ficha)
-    private fichaRepository: Repository<Ficha>,
     @InjectRepository(Program)
     private programRepository: Repository<Program>,
+    @InjectRepository(Ficha)
+    private fichaRepository: Repository<Ficha>,
   ) {}
 
-  // ⭐ MÉTODO PRINCIPAL - Importar con datos de formulario ACTUALIZADO
-  async importLearnersWithFormData(
-    file: UploadedFile, 
-    fichaData: FichaFormData
-  ): Promise<ImportLearnersResultDto> {
-    const result: ImportLearnersResultDto = {
-      success: false,
-      totalRows: 0,
-      importedRows: 0,
-      updatedRows: 0,
-      fichaInfo: {
-        code: fichaData.codigo,
-        name: fichaData.nombre,
-        status: fichaData.estado,
-        isNew: false,
-      },
-      errors: [],
-      summary: {
-        nuevos: 0,
-        actualizados: 0,
-        errores: 0,
-      },
-    };
-
+  // ⭐ IMPORTAR DESDE EXCEL GENERAL
+  async importFromExcel(file: Express.Multer['File']): Promise<ImportResult> {
     try {
-      console.log('🚀 Iniciando importación con datos del formulario...');
-      console.log('📋 Datos de ficha:', fichaData);
+      const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const data = XLSX.utils.sheet_to_json(worksheet);
 
-      // ✅ PROCESAR ARCHIVO EXCEL
-      const workbook = await this.loadExcelFile(file);
-      const worksheet = workbook.worksheets[0];
+      const result: ImportResult = {
+        success: true,
+        totalProcessed: data.length,
+        successful: 0,
+        failed: 0,
+        errors: [],
+        summary: {
+          usersCreated: 0,
+          profilesCreated: 0,
+          qrCodesGenerated: 0,
+          fichasCreated: 0
+        }
+      };
 
-      if (!worksheet) {
-        throw new BadRequestException('No se encontró hoja de trabajo en el archivo');
-      }
-
-      console.log('📊 Excel cargado - Filas:', worksheet.rowCount, 'Columnas:', worksheet.columnCount);
-
-      // ✅ CREAR O ACTUALIZAR FICHA con datos del formulario
-      const { ficha, isNew } = await this.createOrUpdateFichaFromForm(fichaData);
-      result.fichaInfo.isNew = isNew;
-
-      console.log(`📋 Ficha ${isNew ? 'creada' : 'actualizada'}:`, ficha.code);
-
-      // ✅ OBTENER DATOS DE REFERENCIA INCLUYENDO REGIONAL Y CENTRO
-      const referenceData = await this.getReferenceDataWithLocation(fichaData);
-
-      // ✅ PROCESAR FILAS DE APRENDICES
-      const dataStartRow = this.findDataStartRow(worksheet);
-      console.log(`📊 Datos de aprendices empiezan en fila ${dataStartRow}`);
-
-      let processedRows = 0;
-
-      for (let rowNumber = dataStartRow; rowNumber <= worksheet.rowCount; rowNumber++) {
-        const row = worksheet.getRow(rowNumber);
-
-        if (this.isEmptyRow(row)) continue;
-
-        processedRows++;
-
+      for (let i = 0; i < data.length; i++) {
         try {
-          const learnerData = this.extractLearnerDataFromRow(row, rowNumber);
-          
-          // Validar datos mínimos
-          this.validateLearnerData(learnerData, rowNumber);
-          
-          // Verificar si el usuario ya existe
-          const existingProfile = await this.profileRepository.findOne({
-            where: { documentNumber: learnerData.numeroDocumento },
-            relations: ['user'],
-          });
-
-          if (existingProfile) {
-            // ✅ ACTUALIZAR USUARIO EXISTENTE CON NUEVA UBICACIÓN
-            await this.updateExistingLearner(existingProfile, learnerData, ficha, referenceData);
-            result.updatedRows++;
-            result.summary.actualizados++;
-            console.log(`🔄 Actualizado: ${learnerData.nombre} ${learnerData.apellidos}`);
-          } else {
-            // ✅ CREAR NUEVO USUARIO CON UBICACIÓN
-            await this.createNewLearner(learnerData, ficha, referenceData);
-            result.importedRows++;
-            result.summary.nuevos++;
-            console.log(`✅ Creado: ${learnerData.nombre} ${learnerData.apellidos}`);
-          }
-
-        } catch (error: any) {
-          console.error(`❌ Error en fila ${rowNumber}:`, error.message);
+          const row = data[i] as any;
+          await this.processGeneralRow(row, result);
+          result.successful++;
+        } catch (error) {
+          result.failed++;
           result.errors.push({
-            row: rowNumber,
-            error: error.message,
-            data: this.getRowValues(row),
+            row: i + 2, // +2 porque Excel empieza en 1 y hay header
+            field: 'general',
+            message: error.message
           });
-          result.summary.errores++;
         }
       }
 
-      result.totalRows = processedRows;
-      result.success = (result.importedRows + result.updatedRows) > 0;
-
-      console.log('🎉 Importación completada:', {
-        total: result.totalRows,
-        nuevos: result.summary.nuevos,
-        actualizados: result.summary.actualizados,
-        errores: result.summary.errores
-      });
-
       return result;
-
-    } catch (error: any) {
-      console.error('❌ Error general en importación:', error);
-      result.errors.push({
-        row: 0,
-        error: `Error general: ${error.message}`,
-      });
-      return result;
+    } catch (error) {
+      throw new BadRequestException(`Error al procesar archivo Excel: ${error.message}`);
     }
   }
 
-  // ✅ CARGAR ARCHIVO EXCEL
-  private async loadExcelFile(file: UploadedFile): Promise<ExcelJS.Workbook> {
+  // ⭐ IMPORTAR APRENDICES ESPECÍFICAMENTE
+  async importLearners(file: Express.Multer['File'], options: ImportOptions): Promise<ImportResult> {
     try {
-      const workbook = new ExcelJS.Workbook();
-      
-      if (!file.buffer || file.buffer.length === 0) {
-        throw new BadRequestException('El archivo está vacío');
+      const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const data = XLSX.utils.sheet_to_json(worksheet);
+
+      const result: ImportResult = {
+        success: true,
+        totalProcessed: data.length,
+        successful: 0,
+        failed: 0,
+        errors: [],
+        summary: {
+          usersCreated: 0,
+          profilesCreated: 0,
+          qrCodesGenerated: 0,
+          fichasCreated: 0
+        }
+      };
+
+      for (let i = 0; i < data.length; i++) {
+        try {
+          const row = data[i] as any;
+          await this.processLearnerRow(row, options, result);
+          result.successful++;
+        } catch (error) {
+          result.failed++;
+          result.errors.push({
+            row: i + 2,
+            field: 'learner',
+            message: error.message
+          });
+        }
       }
 
-      // Convertir Buffer a ArrayBuffer para ExcelJS
-      const arrayBuffer = file.buffer.buffer.slice(
-        file.buffer.byteOffset,
-        file.buffer.byteOffset + file.buffer.byteLength
-      );
-      
-      await workbook.xlsx.load(arrayBuffer);
-      return workbook;
-    } catch (error: any) {
-      console.error('❌ Error al cargar Excel:', error);
-      throw new BadRequestException('Error al leer el archivo Excel. Verifique que sea un archivo válido.');
+      return result;
+    } catch (error) {
+      throw new BadRequestException(`Error al procesar archivo de aprendices: ${error.message}`);
     }
   }
 
-  // ✅ CREAR O ACTUALIZAR FICHA CON DATOS DEL FORMULARIO
-  private async createOrUpdateFichaFromForm(fichaData: FichaFormData): Promise<{ ficha: Ficha; isNew: boolean }> {
+  // ⭐ VALIDAR ARCHIVO ANTES DE IMPORTAR
+  async validateImportFile(file: Express.Multer['File']): Promise<ValidationResult> {
     try {
-      // Buscar ficha existente
-      let ficha = await this.fichaRepository.findOne({
-        where: { code: fichaData.codigo },
+      const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const data = XLSX.utils.sheet_to_json(worksheet);
+
+      const headers = Object.keys(data[0] || {});
+      const errors: string[] = [];
+      const warnings: string[] = [];
+
+      // Validar headers requeridos
+      const requiredHeaders = [
+        'firstName', 'lastName', 'documentNumber', 'email'
+      ];
+
+      for (const header of requiredHeaders) {
+        if (!headers.includes(header)) {
+          errors.push(`Header requerido faltante: ${header}`);
+        }
+      }
+
+      // Validar datos
+      if (data.length === 0) {
+        errors.push('El archivo no contiene datos');
+      }
+
+      if (data.length > 1000) {
+        warnings.push('El archivo contiene más de 1000 filas, el procesamiento puede ser lento');
+      }
+
+      return {
+        isValid: errors.length === 0,
+        headers,
+        rowCount: data.length,
+        errors,
+        warnings
+      };
+    } catch (error) {
+      return {
+        isValid: false,
+        headers: [],
+        rowCount: 0,
+        errors: [`Error al leer archivo: ${error.message}`],
+        warnings: []
+      };
+    }
+  }
+
+  // ⭐ GENERAR PLANTILLA DE IMPORTACIÓN
+  async generateTemplate(type: 'learners' | 'general'): Promise<{ filename: string; data: any[] }> {
+    const templates = {
+      learners: [
+        {
+          firstName: 'Juan',
+          lastName: 'Pérez',
+          documentType: 'CC',
+          documentNumber: '12345678',
+          email: 'juan.perez@example.com',
+          phoneNumber: '3001234567',
+          bloodType: 'O+',
+          fichaCode: '2856502',
+          fichaName: 'GESTIÓN DE REDES DE DATOS',
+          programName: 'TECNOLOGÍA EN REDES DE DATOS',
+          centerName: 'Centro de Biotecnología Industrial'
+        }
+      ],
+      general: [
+        {
+          firstName: 'María',
+          lastName: 'García',
+          documentType: 'CC',
+          documentNumber: '87654321',
+          email: 'maria.garcia@example.com',
+          phoneNumber: '3009876543',
+          roleName: 'Funcionario',
+          personnelType: 'Funcionario',
+          centerName: 'Centro de Biotecnología Industrial'
+        }
+      ]
+    };
+
+    return {
+      filename: `template_${type}.xlsx`,
+      data: templates[type]
+    };
+  }
+
+  // ⭐ PROCESAR FILA GENERAL
+  private async processGeneralRow(row: any, result: ImportResult): Promise<void> {
+    // Validar datos básicos
+    if (!row.firstName || !row.lastName || !row.documentNumber || !row.email) {
+      throw new Error('Campos requeridos faltantes: firstName, lastName, documentNumber, email');
+    }
+
+    // Buscar o crear usuario
+    let user = await this.userRepository.findOne({
+      where: { email: row.email }
+    });
+
+    if (!user) {
+      // Buscar rol
+      const role = await this.roleRepository.findOne({
+        where: { name: row.roleName || 'Funcionario' }
       });
 
-      let isNew = false;
+      if (!role) {
+        throw new Error(`Rol no encontrado: ${row.roleName || 'Funcionario'}`);
+      }
 
+      // Crear usuario
+      const hashedPassword = await bcrypt.hash(`sena${row.documentNumber}`, 10);
+      user = this.userRepository.create({
+        email: row.email,
+        password: hashedPassword,
+        roleId: role.id,
+        isActive: true
+      });
+
+      user = await this.userRepository.save(user);
+      result.summary.usersCreated++;
+    }
+
+    // Crear perfil si no existe
+    let profile = await this.profileRepository.findOne({
+      where: { userId: user.id }
+    });
+
+    if (!profile) {
+      // Buscar entidades relacionadas
+      const personnelType = await this.findOrCreatePersonnelType(row.personnelType || 'Funcionario');
+      const center = await this.findOrCreateCenter(row.centerName);
+
+      profile = this.profileRepository.create({
+        userId: user.id,
+        documentType: row.documentType || 'CC',
+        documentNumber: row.documentNumber,
+        firstName: row.firstName,
+        lastName: row.lastName,
+        phoneNumber: row.phoneNumber,
+        bloodType: row.bloodType,
+        typeId: personnelType.id,
+        centerId: center.id,
+        regionalId: center.regionalId
+      });
+
+      profile = await this.profileRepository.save(profile);
+      result.summary.profilesCreated++;
+    }
+  }
+
+  // ⭐ PROCESAR FILA DE APRENDIZ
+  private async processLearnerRow(row: any, options: ImportOptions, result: ImportResult): Promise<void> {
+    // Validar datos básicos
+    if (!row.firstName || !row.lastName || !row.documentNumber) {
+      throw new Error('Campos requeridos faltantes para aprendiz');
+    }
+
+    // Buscar o crear ficha
+    let ficha: Ficha | null = null;
+    if (row.fichaCode) {
+      ficha = await this.findOrCreateFicha(row.fichaCode, row.fichaName, row.programName);
       if (ficha) {
-        // Actualizar ficha existente
-        ficha.name = fichaData.nombre;
-        ficha.status = fichaData.estado;
-        if (fichaData.fecha) {
-          ficha.reportDate = new Date(fichaData.fecha);
-        }
-        ficha = await this.fichaRepository.save(ficha);
-        console.log('🔄 Ficha actualizada:', ficha.code);
-      } else {
-        // Crear nueva ficha
-        isNew = true;
-        const defaultProgram = await this.programRepository.findOne({
-          where: { name: 'Programa por Defecto' },
-        });
-
-        ficha = this.fichaRepository.create({
-          code: fichaData.codigo,
-          name: fichaData.nombre,
-          status: fichaData.estado,
-          reportDate: fichaData.fecha ? new Date(fichaData.fecha) : new Date(),
-          programId: defaultProgram?.id || 1,
-        });
-
-        ficha = await this.fichaRepository.save(ficha);
-        console.log('🆕 Nueva ficha creada:', ficha.code);
+        result.summary.fichasCreated++;
       }
-
-      return { ficha, isNew };
-    } catch (error: any) {
-      console.error('❌ Error en createOrUpdateFichaFromForm:', error);
-      throw new Error(`Error al procesar ficha ${fichaData.codigo}: ${error.message}`);
     }
-  }
 
-  // ⭐ NUEVA FUNCIÓN - Obtener datos de referencia CON ubicación específica
-  private async getReferenceDataWithLocation(fichaData: FichaFormData) {
-    try {
-      const [aprendizRole, aprendizType, selectedRegional, selectedCenter] = await Promise.all([
-        this.roleRepository.findOne({ where: { name: 'Aprendiz' } }),
-        this.personnelTypeRepository.findOne({ where: { name: 'Aprendiz' } }),
-        this.regionalRepository.findOne({ where: { id: parseInt(fichaData.regionalId) } }),
-        this.centerRepository.findOne({ where: { id: parseInt(fichaData.centerId) } }),
-      ]);
+    // Crear usuario si se solicita
+    let user: User | null = null;
+    if (options.createUsers) {
+      const email = row.email || `${row.documentNumber}@aprendiz.sena.edu.co`;
+      user = await this.userRepository.findOne({ where: { email } });
 
-      if (!aprendizRole || !aprendizType) {
-        throw new BadRequestException('No se encontraron los tipos básicos de aprendiz en el sistema');
+      if (!user) {
+        const learnerRole = await this.roleRepository.findOne({
+          where: { name: 'Aprendiz' }
+        });
+
+        if (!learnerRole) {
+          throw new Error('Rol "Aprendiz" no encontrado');
+        }
+
+        const hashedPassword = await bcrypt.hash(`sena${row.documentNumber}`, 10);
+        user = this.userRepository.create({
+          email,
+          password: hashedPassword,
+          roleId: learnerRole.id,
+          isActive: true
+        });
+
+        user = await this.userRepository.save(user);
+        result.summary.usersCreated++;
       }
+    }
 
-      if (!selectedRegional) {
-        throw new BadRequestException(`Regional con ID ${fichaData.regionalId} no encontrada`);
-      }
+    // Crear perfil
+    if (user) {
+      const personnelType = await this.findOrCreatePersonnelType('Aprendiz');
+      const center = await this.findOrCreateCenter(row.centerName || 'Centro de Biotecnología Industrial');
 
-      if (!selectedCenter) {
-        throw new BadRequestException(`Centro con ID ${fichaData.centerId} no encontrado`);
-      }
-
-      // ⭐ VALIDAR QUE EL CENTRO PERTENEZCA A LA REGIONAL
-      if (selectedCenter.regionalId !== selectedRegional.id) {
-        throw new BadRequestException(
-          `El centro ${selectedCenter.name} no pertenece a la regional ${selectedRegional.name}`
-        );
-      }
-
-      console.log('📍 Ubicación configurada:', {
-        regional: selectedRegional.name,
-        center: selectedCenter.name
+      const profile = this.profileRepository.create({
+        userId: user.id,
+        documentType: row.documentType || 'CC',
+        documentNumber: row.documentNumber,
+        firstName: row.firstName,
+        lastName: row.lastName,
+        phoneNumber: row.phoneNumber,
+        bloodType: row.bloodType,
+        learnerStatus: 'EN FORMACION',
+        typeId: personnelType.id,
+        centerId: center.id,
+        regionalId: center.regionalId,
+        fichaId: ficha?.id
       });
 
-      return { 
-        aprendizRole, 
-        aprendizType, 
-        selectedRegional, 
-        selectedCenter 
-      };
-    } catch (error: any) {
-      console.error('❌ Error en getReferenceDataWithLocation:', error);
-      throw error;
+      const savedProfile = await this.profileRepository.save(profile);
+      result.summary.profilesCreated++;
+
+      // Generar QR si se solicita
+      if (options.generateQR) {
+        const qrData = {
+          id: savedProfile.id,
+          doc: savedProfile.documentNumber,
+          type: 'ACCESUM_SENA_LEARNER',
+          timestamp: Date.now()
+        };
+
+        const qrCodeDataURL = await QRCode.toDataURL(JSON.stringify(qrData), {
+          width: 300,
+          margin: 2
+        });
+
+        savedProfile.qrCode = qrCodeDataURL;
+        await this.profileRepository.save(savedProfile);
+        result.summary.qrCodesGenerated++;
+      }
     }
   }
 
-  // ✅ ENCONTRAR FILA DONDE EMPIEZAN LOS DATOS
-  private findDataStartRow(worksheet: ExcelJS.Worksheet): number {
-    // Buscar la fila con headers de tabla
-    for (let rowIndex = 1; rowIndex <= 15; rowIndex++) {
-      const row = worksheet.getRow(rowIndex);
-      const cellA = this.getCellValue(row, 1)?.toString()?.toLowerCase() || '';
-      const cellB = this.getCellValue(row, 2)?.toString()?.toLowerCase() || '';
-      const cellC = this.getCellValue(row, 3)?.toString()?.toLowerCase() || '';
+  // ⭐ MÉTODOS AUXILIARES
+  private async findOrCreatePersonnelType(name: string): Promise<PersonnelType> {
+    let type = await this.personnelTypeRepository.findOne({ where: { name } });
+    if (!type) {
+      type = this.personnelTypeRepository.create({ name });
+      type = await this.personnelTypeRepository.save(type);
+    }
+    return type;
+  }
+
+  private async findOrCreateCenter(name: string): Promise<Center> {
+    let center = await this.centerRepository.findOne({ 
+      where: { name },
+      relations: ['regional']
+    });
+    
+    if (!center) {
+      // Buscar o crear regional por defecto
+      let regional = await this.regionalRepository.findOne({
+        where: { name: 'Regional Cundinamarca' }
+      });
       
-      // Buscar headers típicos basados en la captura
-      if (
-        cellA.includes('tipo') && cellA.includes('documento') ||
-        cellB.includes('numero') && cellB.includes('documento') ||
-        cellC.includes('nombre')
-      ) {
-        console.log(`📊 Headers encontrados en fila ${rowIndex}`);
-        return rowIndex + 1; // Los datos empiezan en la siguiente fila
+      if (!regional) {
+        regional = this.regionalRepository.create({ name: 'Regional Cundinamarca' });
+        regional = await this.regionalRepository.save(regional);
       }
-    }
-    
-    // Fallback: asumir que empiezan en la fila 6 (basado en la captura)
-    console.log('⚠️ Headers no encontrados, usando fila 6 por defecto');
-    return 6;
-  }
 
-  // ✅ EXTRAER DATOS DE APRENDIZ DE UNA FILA
-  private extractLearnerDataFromRow(row: ExcelJS.Row, rowNumber: number): ExcelLearnerData {
-    // Basado en la captura del Excel:
-    // A: Tipo de Documento, B: Número, C: Nombre, D: Apellidos, E: Celular, F: Correo, G: Estado
-    
-    const rawData = {
-      tipoDocumento: this.getCellValue(row, 1)?.toString()?.trim() || '',
-      numeroDocumento: this.getCellValue(row, 2)?.toString()?.trim() || '',
-      nombre: this.getCellValue(row, 3)?.toString()?.trim() || '',
-      apellidos: this.getCellValue(row, 4)?.toString()?.trim() || '',
-      celular: this.getCellValue(row, 5)?.toString()?.trim() || '',
-      correoElectronico: this.getCellValue(row, 6)?.toString()?.trim() || '',
-      estado: this.getCellValue(row, 7)?.toString()?.trim() || '',
-    };
-
-    // Normalizar datos
-    const result: ExcelLearnerData = {
-      tipoDocumento: this.normalizeDocumentType(rawData.tipoDocumento),
-      numeroDocumento: rawData.numeroDocumento,
-      nombre: rawData.nombre,
-      apellidos: rawData.apellidos,
-      celular: rawData.celular || undefined,
-      correoElectronico: rawData.correoElectronico,
-      estado: this.normalizeLearnerStatus(rawData.estado),
-    };
-
-    console.log(`📝 Fila ${rowNumber}:`, result);
-    return result;
-  }
-
-  // ✅ VALIDAR DATOS DE APRENDIZ
-  private validateLearnerData(data: ExcelLearnerData, rowNumber: number) {
-    if (!data.numeroDocumento) {
-      throw new Error(`Número de documento requerido en fila ${rowNumber}`);
-    }
-    if (!data.nombre) {
-      throw new Error(`Nombre requerido en fila ${rowNumber}`);
-    }
-    if (!data.apellidos) {
-      throw new Error(`Apellidos requeridos en fila ${rowNumber}`);
-    }
-    if (!data.correoElectronico) {
-      throw new Error(`Correo electrónico requerido en fila ${rowNumber}`);
-    }
-    if (!data.correoElectronico.includes('@')) {
-      throw new Error(`Correo electrónico inválido en fila ${rowNumber}`);
-    }
-  }
-
-  // ⭐ CREAR NUEVO APRENDIZ CON UBICACIÓN ESPECÍFICA
-  private async createNewLearner(
-    learnerData: ExcelLearnerData,
-    ficha: Ficha,
-    referenceData: any,
-  ) {
-    // Generar contraseña temporal: sena + número de documento
-    const tempPassword = `sena${learnerData.numeroDocumento}`;
-    const hashedPassword = await bcrypt.hash(tempPassword, 10);
-
-    // Crear usuario
-    const newUser = await this.userRepository.save({
-      email: learnerData.correoElectronico,
-      password: hashedPassword,
-      roleId: referenceData.aprendizRole.id,
-      isActive: learnerData.estado === 'EN FORMACION',
-    });
-
-    // ⭐ CREAR PERFIL CON UBICACIÓN ESPECÍFICA
-    const profileData: Partial<Profile> = {
-      documentType: learnerData.tipoDocumento,
-      documentNumber: learnerData.numeroDocumento,
-      firstName: learnerData.nombre,
-      lastName: learnerData.apellidos,
-      phoneNumber: learnerData.celular,
-      learnerStatus: learnerData.estado,
-      userId: newUser.id,
-      typeId: referenceData.aprendizType.id,
-      regionalId: referenceData.selectedRegional.id, // ⭐ USAR REGIONAL SELECCIONADA
-      centerId: referenceData.selectedCenter.id,     // ⭐ USAR CENTRO SELECCIONADO
-      fichaId: ficha.id,
-    };
-
-    const profile = await this.profileRepository.save(profileData);
-
-    console.log('📍 Aprendiz creado en:', {
-      regional: referenceData.selectedRegional.name,
-      center: referenceData.selectedCenter.name,
-      student: `${learnerData.nombre} ${learnerData.apellidos}`
-    });
-
-    // ✅ GENERAR QR AUTOMÁTICAMENTE
-    await this.generateQRForProfile(profile);
-  }
-
-  // ⭐ ACTUALIZAR APRENDIZ EXISTENTE CON NUEVA UBICACIÓN
-  private async updateExistingLearner(
-    existingProfile: Profile,
-    learnerData: ExcelLearnerData,
-    ficha: Ficha,
-    referenceData: any,
-  ) {
-    // Actualizar datos que pueden cambiar
-    existingProfile.phoneNumber = learnerData.celular || existingProfile.phoneNumber;
-    existingProfile.learnerStatus = learnerData.estado;
-    existingProfile.fichaId = ficha.id;
-    
-    // ⭐ ACTUALIZAR UBICACIÓN CON LOS DATOS SELECCIONADOS
-    existingProfile.regionalId = referenceData.selectedRegional.id;
-    existingProfile.centerId = referenceData.selectedCenter.id;
-
-    // Actualizar estado del usuario
-    existingProfile.user.isActive = learnerData.estado === 'EN FORMACION';
-    
-    await this.userRepository.save(existingProfile.user);
-    await this.profileRepository.save(existingProfile);
-
-    console.log('📍 Aprendiz actualizado en:', {
-      regional: referenceData.selectedRegional.name,
-      center: referenceData.selectedCenter.name,
-      student: `${learnerData.nombre} ${learnerData.apellidos}`
-    });
-
-    // Generar QR si no tiene
-    if (!existingProfile.qrCode) {
-      await this.generateQRForProfile(existingProfile);
-    }
-  }
-
-  // ✅ GENERAR CÓDIGO QR PARA PERFIL
-  private async generateQRForProfile(profile: Profile) {
-    try {
-      const qrData = {
-        id: profile.id,
-        doc: profile.documentNumber,
-        type: 'ACCESUM_SENA',
-        timestamp: Date.now()
-      };
-
-      const qrCodeBase64 = await QRCode.toDataURL(JSON.stringify(qrData), {
-        errorCorrectionLevel: 'M',
-        type: 'image/png',
-        width: 300,
-        margin: 1,
+      center = this.centerRepository.create({
+        name,
+        regionalId: regional.id
       });
-
-      profile.qrCode = qrCodeBase64;
-      await this.profileRepository.save(profile);
-    } catch (error) {
-      console.error('Error generando QR para perfil', profile.id, ':', error);
-    }
-  }
-
-  // ✅ MÉTODOS UTILITARIOS
-
-  private getCellValue(row: ExcelJS.Row, columnNumber: number): any {
-    try {
-      const cell = row.getCell(columnNumber);
-      if (cell && cell.value !== null && cell.value !== undefined) {
-        if (cell.value instanceof Date) {
-          return cell.value.toLocaleDateString('es-CO');
-        }
-        if (typeof cell.value === 'object' && cell.value !== null) {
-          if ('text' in cell.value) return (cell.value as any).text;
-          if ('result' in cell.value) return (cell.value as any).result;
-          if ('richText' in cell.value) {
-            const richText = (cell.value as any).richText;
-            return richText.map((rt: any) => rt.text || '').join('');
-          }
-          return cell.value.toString();
-        }
-        return cell.value;
-      }
-      return '';
-    } catch (error) {
-      return '';
-    }
-  }
-
-  private isEmptyRow(row: ExcelJS.Row): boolean {
-    const cellA = this.getCellValue(row, 1)?.toString()?.trim() || '';
-    const cellB = this.getCellValue(row, 2)?.toString()?.trim() || '';
-    const cellC = this.getCellValue(row, 3)?.toString()?.trim() || '';
-    
-    return !cellA && !cellB && !cellC;
-  }
-
-  private normalizeDocumentType(tipo: string): string {
-    const tipoUpper = tipo?.toUpperCase().trim() || '';
-    const tiposValidos = ['CC', 'CE', 'TI', 'PA', 'RC', 'PEP'];
-    
-    if (tiposValidos.includes(tipoUpper)) {
-      return tipoUpper;
+      center = await this.centerRepository.save(center);
     }
     
-    // Mapeos comunes
-    const mapeo: { [key: string]: string } = {
-      'CEDULA': 'CC',
-      'CÉDULA': 'CC',
-      'CEDULA DE CIUDADANIA': 'CC',
-      'CÉDULA DE CIUDADANÍA': 'CC',
-    };
-
-    return mapeo[tipoUpper] || 'CC';
+    return center;
   }
 
-  private normalizeLearnerStatus(status: string): string {
-    const statusUpper = status?.toUpperCase().trim() || '';
+  private async findOrCreateFicha(code: string, name?: string, programName?: string): Promise<Ficha | null> {
+    let ficha: Ficha | null = await this.fichaRepository.findOne({ where: { code } });
     
-    const statusMap: { [key: string]: string } = {
-      'EN FORMACION': 'EN FORMACION',
-      'EN FORMACIÓN': 'EN FORMACION',
-      'CANCELADO': 'CANCELADO',
-      'RETIRO VOLUNTARIO': 'RETIRO VOLUNTARIO',
-      'APLAZADO': 'APLAZADO',
-    };
-
-    return statusMap[statusUpper] || 'EN FORMACION';
-  }
-
-  private getRowValues(row: ExcelJS.Row): string[] {
-    const values: string[] = [];
-    for (let i = 1; i <= 7; i++) {
-      const cellValue = this.getCellValue(row, i);
-      values.push(cellValue?.toString() || '');
+    if (!ficha && name) {
+      ficha = this.fichaRepository.create({
+        code,
+        name,
+        status: 'EN EJECUCIÓN',
+        startDate: new Date()
+      });
+      ficha = await this.fichaRepository.save(ficha);
     }
-    return values;
-  }
-
-  // ✅ MÉTODO EXISTENTE - Mantener para compatibilidad
-  async importLearnersFromExcel(file: UploadedFile): Promise<ImportLearnersResultDto> {
-    // Este método extrae los datos de la ficha desde el Excel (método original)
-    // Lo mantenemos para compatibilidad, pero usaremos el método principal arriba
-    throw new BadRequestException('Usar el método importLearnersWithFormData para nuevas importaciones');
+    
+    return ficha;
   }
 }

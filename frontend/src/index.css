@@ -1,903 +1,156 @@
-/* frontend/src/index.css - ACTUALIZADO con SweetAlert2 optimizado */
+/* frontend/src/index.css - ESTILOS GLOBALES COMPLETOS */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+/* Reset básico */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Configuración global */
+html, body, #root {
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  font-family: 'Inter', 'system-ui', 'Avenir', 'Helvetica', 'Arial', sans-serif;
 }
 
 body {
-  margin: 0;
-  min-width: 320px;
-  min-height: 100vh;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
+/* Clases personalizadas para SENA */
+@layer utilities {
+  .bg-sena-green {
+    background-color: #2d5a2e !important;
+  }
+  
+  .text-sena-green {
+    color: #2d5a2e !important;
+  }
+  
+  .bg-sena-light {
+    background-color: #f0f7f0 !important;
+  }
+  
+  .text-sena-light {
+    color: #a7d1a9 !important;
+  }
+  
+  .bg-sena-dark {
+    background-color: #1f3f20 !important;
+  }
+  
+  .border-sena-green {
+    border-color: #2d5a2e !important;
+  }
+}
+
+/* Componentes personalizados */
 @layer components {
   .btn-primary {
-    @apply bg-sena-green text-white font-semibold py-2 px-4 rounded-lg hover:bg-sena-dark focus:outline-none focus:ring-2 focus:ring-sena-green focus:ring-opacity-50 transition-all duration-200 shadow-md hover:shadow-lg;
+    @apply bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors;
   }
   
   .btn-secondary {
-    @apply bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-opacity-50 transition-all duration-200 shadow-sm hover:shadow-md;
+    @apply bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors;
   }
   
   .input-field {
-    @apply w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sena-green focus:border-transparent transition-all duration-200;
-  }
-
-  /* Estilos para los botones de acción en la tabla */
-  .action-btn {
-    @apply inline-flex items-center px-2 py-1 text-xs font-medium rounded transition-all duration-200 transform hover:scale-105;
-  }
-
-  .action-btn-primary {
-    @apply action-btn text-blue-600 bg-blue-100 hover:bg-blue-200 hover:text-blue-700;
-  }
-
-  .action-btn-success {
-    @apply action-btn text-green-600 bg-green-100 hover:bg-green-200 hover:text-green-700;
-  }
-
-  .action-btn-warning {
-    @apply action-btn text-yellow-600 bg-yellow-100 hover:bg-yellow-200 hover:text-yellow-700;
-  }
-
-  .action-btn-danger {
-    @apply action-btn text-red-600 bg-red-100 hover:bg-red-200 hover:text-red-700;
-  }
-
-  .action-btn-purple {
-    @apply action-btn text-purple-600 bg-purple-100 hover:bg-purple-200 hover:text-purple-700;
-  }
-
-  .action-btn-indigo {
-    @apply action-btn text-indigo-600 bg-indigo-100 hover:bg-indigo-200 hover:text-indigo-700;
-  }
-}
-
-/* ⭐ ANIMACIONES PERSONALIZADAS PARA SWEETALERT2 */
-@keyframes bounceIn {
-  0%, 20%, 40%, 60%, 80% {
-    transform: translate3d(0, 0, 0);
-  }
-  40% {
-    transform: translate3d(0, -30px, 0) scaleY(1.1);
-  }
-  60% {
-    transform: translate3d(0, -15px, 0) scaleY(1.05);
-  }
-  80% {
-    transform: translate3d(0, 0, 0) scaleY(1);
-  }
-  to {
-    transform: translate3d(0, 0, 0);
-  }
-}
-
-@keyframes fadeInDown {
-  0% {
-    opacity: 0;
-    transform: translate3d(0, -100%, 0);
-  }
-  to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0);
-  }
-}
-
-@keyframes shakeX {
-  0%, 100% {
-    transform: translate3d(0, 0, 0);
-  }
-  10%, 30%, 50%, 70%, 90% {
-    transform: translate3d(-10px, 0, 0);
-  }
-  20%, 40%, 60%, 80% {
-    transform: translate3d(10px, 0, 0);
-  }
-}
-
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
-}
-
-.animate__animated {
-  animation-duration: 0.6s;
-  animation-fill-mode: both;
-}
-
-.animate__bounceIn {
-  animation-name: bounceIn;
-}
-
-.animate__fadeInDown {
-  animation-name: fadeInDown;
-  animation-duration: 0.5s;
-}
-
-.animate__shakeX {
-  animation-name: shakeX;
-  animation-duration: 0.8s;
-}
-
-.animate__pulse {
-  animation-name: pulse;
-  animation-duration: 1s;
-  animation-iteration-count: infinite;
-}
-
-/* ⭐ PERSONALIZACIÓN AVANZADA DE SWEETALERT2 */
-.swal2-popup {
-  border-radius: 1rem !important;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important;
-  border: 2px solid #e5e7eb !important;
-  font-family: Inter, system-ui, sans-serif !important;
-}
-
-.swal2-title {
-  font-size: 1.5rem !important;
-  font-weight: 700 !important;
-  margin-bottom: 1rem !important;
-  color: #374151 !important;
-}
-
-.swal2-html-container {
-  font-size: 1rem !important;
-  line-height: 1.6 !important;
-  color: #4b5563 !important;
-}
-
-.swal2-confirm {
-  border-radius: 0.75rem !important;
-  font-weight: 600 !important;
-  padding: 0.75rem 1.5rem !important;
-  font-size: 1rem !important;
-  transition: all 0.2s ease !important;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
-}
-
-.swal2-confirm:hover {
-  transform: translateY(-1px) !important;
-  box-shadow: 0 8px 15px -3px rgba(0, 0, 0, 0.2) !important;
-}
-
-.swal2-cancel {
-  border-radius: 0.75rem !important;
-  font-weight: 600 !important;
-  padding: 0.75rem 1.5rem !important;
-  font-size: 1rem !important;
-  transition: all 0.2s ease !important;
-  box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.1) !important;
-}
-
-.swal2-cancel:hover {
-  transform: translateY(-1px) !important;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.15) !important;
-}
-
-.swal2-timer-progress-bar {
-  background-color: rgba(255, 255, 255, 0.9) !important;
-  height: 4px !important;
-}
-
-/* Estilos específicos para diferentes tipos de alertas */
-.swal2-popup.swal2-success {
-  border-color: #10b981 !important;
-}
-
-.swal2-popup.swal2-success .swal2-success-ring {
-  border-color: #10b981 !important;
-}
-
-.swal2-popup.swal2-success .swal2-success-fix {
-  background-color: #10b981 !important;
-}
-
-.swal2-popup.swal2-success [class^=swal2-success-line] {
-  background-color: #10b981 !important;
-}
-
-.swal2-popup.swal2-error {
-  border-color: #ef4444 !important;
-}
-
-.swal2-popup.swal2-error .swal2-x-mark {
-  border-color: #ef4444 !important;
-}
-
-.swal2-popup.swal2-error [class^=swal2-x-mark-line] {
-  background-color: #ef4444 !important;
-}
-
-.swal2-popup.swal2-warning {
-  border-color: #f59e0b !important;
-}
-
-.swal2-popup.swal2-info {
-  border-color: #3b82f6 !important;
-}
-
-.swal2-popup.swal2-question {
-  border-color: #8b5cf6 !important;
-}
-
-/* Mejoras para el contenido HTML personalizado */
-.swal2-html-container img {
-  border: 3px solid #e5e7eb !important;
-  transition: all 0.3s ease !important;
-  border-radius: 0.75rem !important;
-}
-
-.swal2-html-container img:hover {
-  border-color: #39A900 !important;
-  transform: scale(1.02) !important;
-}
-
-/* Estilos para los avatares en las alertas */
-.swal2-html-container .user-avatar {
-  width: 4rem !important;
-  height: 4rem !important;
-  border-radius: 50% !important;
-  border: 3px solid #e5e7eb !important;
-  transition: all 0.3s ease !important;
-}
-
-.swal2-html-container .status-badge {
-  display: inline-flex !important;
-  align-items: center !important;
-  padding: 0.5rem 1rem !important;
-  border-radius: 0.75rem !important;
-  font-size: 0.875rem !important;
-  font-weight: 600 !important;
-  margin: 0.5rem 0 !important;
-}
-
-.swal2-html-container .info-box {
-  background-color: #f3f4f6 !important;
-  border: 1px solid #d1d5db !important;
-  border-radius: 0.75rem !important;
-  padding: 1rem !important;
-  margin: 1rem 0 !important;
-}
-
-/* Responsividad mejorada */
-@media (max-width: 768px) {
-  .swal2-popup {
-    width: 90% !important;
-    margin: 1rem !important;
-    font-size: 0.9rem !important;
+    @apply w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent;
   }
   
-  .swal2-title {
-    font-size: 1.25rem !important;
+  .card {
+    @apply bg-white rounded-lg shadow-md p-6 border border-gray-200;
   }
   
-  .swal2-html-container {
-    font-size: 0.875rem !important;
-  }
-
-  .swal2-confirm, .swal2-cancel {
-    font-size: 0.9rem !important;
-    padding: 0.6rem 1.2rem !important;
+  .stat-card {
+    @apply bg-white rounded-lg shadow-sm p-6 border border-gray-200 hover:shadow-md transition-shadow;
   }
 }
 
-@media (max-width: 480px) {
-  .swal2-popup {
-    width: 95% !important;
-    margin: 0.5rem !important;
-  }
-
-  .swal2-actions {
-    flex-direction: column !important;
-    gap: 0.5rem !important;
-  }
-
-  .swal2-confirm, .swal2-cancel {
-    width: 100% !important;
-    margin: 0 !important;
-  }
+/* Scrollbar personalizado */
+::-webkit-scrollbar {
+  width: 6px;
 }
 
-/* ⭐ TEMA ESPECÍFICO PARA SENA */
-.swal2-popup.sena-theme {
-  border: 3px solid #39A900 !important;
-  background: linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%) !important;
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
 }
 
-.swal2-popup.sena-theme .swal2-title {
-  color: #39A900 !important;
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
 }
 
-.swal2-popup.sena-theme .swal2-icon {
-  border-color: #39A900 !important;
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
 }
 
-/* Estilos para estados de loading en la tabla */
-.table-loading-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(255, 255, 255, 0.8);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 50;
-}
-
-.loading-spinner {
-  width: 2rem;
-  height: 2rem;
-  border: 2px solid #e5e7eb;
-  border-top: 2px solid #39A900;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-/* Mejoras para los filtros activos */
-.filter-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  background-color: rgba(255, 255, 255, 0.2);
-  color: white;
-  transition: all 0.2s ease;
-}
-
-.filter-badge:hover {
-  background-color: rgba(255, 255, 255, 0.3);
-  transform: scale(1.05);
-}
-
-/* Estilos para los estados en la tabla */
-.status-active {
-  @apply inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800;
-}
-
-.status-inactive {
-  @apply inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800;
-}
-
-.status-qr-available {
-  @apply inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-700;
-}
-
-.status-qr-missing {
-  @apply inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-yellow-100 text-yellow-700;
-}
-
-/* Mejoras para el hover de las filas de la tabla */
-.table-row-hover {
-  transition: all 0.2s ease;
-}
-
-.table-row-hover:hover {
-  background-color: #f9fafb;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
-  transform: translateY(-1px);
-}
-
-/* Estilos para los avatares de usuarios */
-.user-avatar {
-  @apply h-12 w-12 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md;
-  background: linear-gradient(135deg, #39A900 0%, #2d7a00 100%);
-  transition: all 0.3s ease;
-}
-
-.user-avatar:hover {
-  transform: scale(1.1);
-  box-shadow: 0 8px 16px rgba(57, 169, 0, 0.3);
-}
-
-/* Estilos para los badges de rol */
-.role-admin {
-  @apply bg-purple-100 text-purple-800;
-}
-
-.role-instructor {
-  @apply bg-blue-100 text-blue-800;
-}
-
-.role-aprendiz {
-  @apply bg-green-100 text-green-800;
-}
-
-.role-funcionario {
-  @apply bg-indigo-100 text-indigo-800;
-}
-
-.role-contratista {
-  @apply bg-orange-100 text-orange-800;
-}
-
-.role-visitante {
-  @apply bg-gray-100 text-gray-800;
-}
-
-.role-escaner {
-  @apply bg-yellow-100 text-yellow-800;
-}
-/* frontend/src/index.css - Agregar al final del archivo */
-
-/* Estilos para SweetAlert2 - Tema SENA */
-.sena-theme {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  border-radius: 16px !important;
-}
-
-.sena-theme .swal2-title {
-  color: #1f2937 !important;
-  font-weight: 600 !important;
-  font-size: 1.5rem !important;
-}
-
-.sena-theme .swal2-content {
-  color: #4b5563 !important;
-  font-size: 0.95rem !important;
-}
-
-/* Avatares de usuario en alertas */
-.user-avatar {
-  width: 4rem;
-  height: 4rem;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 3px solid #e5e7eb;
-}
-
-.user-avatar:not(img) {
-  background: linear-gradient(135deg, #39B54A, #2d8f3a);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: bold;
-  font-size: 1.2rem;
-}
-
-/* Cajas de información en alertas */
-.info-box {
-  background-color: #eff6ff;
-  border: 1px solid #bfdbfe;
-  border-radius: 8px;
-  padding: 0.75rem;
-  margin: 0.5rem 0;
-}
-
-/* Botones personalizados */
-.swal2-confirm {
-  background-color: #39B54A !important;
-  border: none !important;
-  border-radius: 8px !important;
-  padding: 10px 24px !important;
-  font-weight: 500 !important;
-  font-size: 0.9rem !important;
-  transition: all 0.2s ease !important;
-  box-shadow: 0 2px 4px rgba(57, 181, 74, 0.2) !important;
-}
-
-.swal2-confirm:hover {
-  background-color: #2d8f3a !important;
-  transform: translateY(-1px) !important;
-  box-shadow: 0 4px 12px rgba(57, 181, 74, 0.3) !important;
-}
-
-.swal2-cancel {
-  background-color: #6b7280 !important;
-  border: none !important;
-  border-radius: 8px !important;
-  padding: 10px 24px !important;
-  font-weight: 500 !important;
-  font-size: 0.9rem !important;
-  transition: all 0.2s ease !important;
-  box-shadow: 0 2px 4px rgba(107, 114, 128, 0.2) !important;
-}
-
-.swal2-cancel:hover {
-  background-color: #4b5563 !important;
-  transform: translateY(-1px) !important;
-  box-shadow: 0 4px 12px rgba(107, 114, 128, 0.3) !important;
-}
-
-/* Botones de confirmación con colores específicos */
-.swal2-confirm.swal2-styled.swal2-danger {
-  background-color: #dc2626 !important;
-}
-
-.swal2-confirm.swal2-styled.swal2-danger:hover {
-  background-color: #b91c1c !important;
-}
-
-/* Iconos personalizados */
-.swal2-success .swal2-success-ring {
-  border-color: #39B54A !important;
-}
-
-.swal2-success .swal2-success-fix {
-  background-color: #39B54A !important;
-}
-
-.swal2-success [class^='swal2-success-line'] {
-  background-color: #39B54A !important;
-}
-
-/* Progress bar */
-.swal2-timer-progress-bar {
-  background-color: #39B54A !important;
-}
-
-/* Loading spinner */
-.swal2-loader {
-  border-color: #39B54A transparent #39B54A transparent !important;
-}
-
-/* Toast notifications */
-.swal2-toast {
-  border-radius: 12px !important;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1) !important;
-}
-
-.swal2-toast .swal2-title {
-  font-size: 14px !important;
-  font-weight: 500 !important;
-  margin: 0 !important;
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #c1c1c1 #f1f1f1;
 }
 
 /* Animaciones personalizadas */
-@keyframes fadeInDown {
+@keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translate3d(0, -100%, 0);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
-    transform: translate3d(0, 0, 0);
+    transform: translateY(0);
   }
 }
 
-@keyframes bounceIn {
+.fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Estados de carga */
+.loading-skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
   0% {
-    opacity: 0;
-    transform: scale3d(0.3, 0.3, 0.3);
+    background-position: 200% 0;
   }
-  20% {
-    transform: scale3d(1.1, 1.1, 1.1);
-  }
-  40% {
-    transform: scale3d(0.9, 0.9, 0.9);
-  }
-  60% {
-    opacity: 1;
-    transform: scale3d(1.03, 1.03, 1.03);
-  }
-  80% {
-    transform: scale3d(0.97, 0.97, 0.97);
-  }
-  to {
-    opacity: 1;
-    transform: scale3d(1, 1, 1);
+  100% {
+    background-position: -200% 0;
   }
 }
 
-@keyframes shakeX {
-  0%, 100% {
-    transform: translate3d(0, 0, 0);
-  }
-  10%, 30%, 50%, 70%, 90% {
-    transform: translate3d(-10px, 0, 0);
-  }
-  20%, 40%, 60%, 80% {
-    transform: translate3d(10px, 0, 0);
-  }
-}
-
-.animate__animated {
-  animation-duration: 0.5s;
-  animation-fill-mode: both;
-}
-
-.animate__fadeInDown {
-  animation-name: fadeInDown;
-}
-
-.animate__bounceIn {
-  animation-name: bounceIn;
-}
-
-.animate__shakeX {
-  animation-name: shakeX;
-}
-
-/* Colores de texto específicos para alertas */
-.text-green-700 {
-  color: #15803d !important;
-}
-
-.text-red-700 {
-  color: #b91c1c !important;
-}
-
-/* Grids responsivos en alertas */
-.swal2-html-container .grid {
-  display: grid;
-}
-
-.swal2-html-container .grid-cols-1 {
-  grid-template-columns: repeat(1, minmax(0, 1fr));
-}
-
-.swal2-html-container .grid-cols-2 {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.swal2-html-container .grid-cols-4 {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.swal2-html-container .gap-2 {
-  gap: 0.5rem;
-}
-
-.swal2-html-container .gap-4 {
-  gap: 1rem;
-}
-
-@media (min-width: 768px) {
-  .swal2-html-container .md\\:grid-cols-2 {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  
-  .swal2-html-container .md\\:grid-cols-4 {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-  
-  .swal2-html-container .md\\:col-span-2 {
-    grid-column: span 2 / span 2;
+/* Mejoras de accesibilidad */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 
-/* Estilos para elementos específicos dentro de alertas */
-.swal2-html-container .border {
-  border-width: 1px;
+/* Focus visible para navegación por teclado */
+.focus-visible:focus {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
 }
 
-.swal2-html-container .rounded-lg {
-  border-radius: 0.5rem;
-}
-
-.swal2-html-container .p-3 {
-  padding: 0.75rem;
-}
-
-.swal2-html-container .mb-2 {
-  margin-bottom: 0.5rem;
-}
-
-.swal2-html-container .mb-3 {
-  margin-bottom: 0.75rem;
-}
-
-.swal2-html-container .mb-4 {
-  margin-bottom: 1rem;
-}
-
-.swal2-html-container .text-center {
-  text-align: center;
-}
-
-.swal2-html-container .text-lg {
-  font-size: 1.125rem;
-  line-height: 1.75rem;
-}
-
-.swal2-html-container .text-sm {
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-}
-
-.swal2-html-container .text-xs {
-  font-size: 0.75rem;
-  line-height: 1rem;
-}
-
-.swal2-html-container .font-semibold {
-  font-weight: 600;
-}
-
-.swal2-html-container .font-bold {
-  font-weight: 700;
-}
-
-.swal2-html-container .font-medium {
-  font-weight: 500;
-}
-
-/* Colores de fondo para elementos */
-.swal2-html-container .bg-green-50 {
-  background-color: #f0fdf4;
-}
-
-.swal2-html-container .bg-green-100 {
-  background-color: #dcfce7;
-}
-
-.swal2-html-container .bg-red-50 {
-  background-color: #fef2f2;
-}
-
-.swal2-html-container .bg-red-100 {
-  background-color: #fee2e2;
-}
-
-.swal2-html-container .bg-yellow-50 {
-  background-color: #fefce8;
-}
-
-.swal2-html-container .bg-yellow-100 {
-  background-color: #fef3c7;
-}
-
-.swal2-html-container .bg-purple-50 {
-  background-color: #faf5ff;
-}
-
-.swal2-html-container .bg-purple-100 {
-  background-color: #f3e8ff;
-}
-
-.swal2-html-container .bg-white {
-  background-color: #ffffff;
-}
-
-/* Colores de borde */
-.swal2-html-container .border-green-200 {
-  border-color: #bbf7d0;
-}
-
-.swal2-html-container .border-red-200 {
-  border-color: #fecaca;
-}
-
-.swal2-html-container .border-yellow-200 {
-  border-color: #fde68a;
-}
-
-.swal2-html-container .border-purple-200 {
-  border-color: #e9d5ff;
-}
-
-.swal2-html-container .border-green-400 {
-  border-color: #4ade80;
-}
-
-.swal2-html-container .border-red-400 {
-  border-color: #f87171;
-}
-
-/* Colores de texto */
-.swal2-html-container .text-gray-800 {
-  color: #1f2937;
-}
-
-.swal2-html-container .text-gray-600 {
-  color: #4b5563;
-}
-
-.swal2-html-container .text-gray-700 {
-  color: #374151;
-}
-
-.swal2-html-container .text-gray-500 {
-  color: #6b7280;
-}
-
-.swal2-html-container .text-gray-400 {
-  color: #9ca3af;
-}
-
-.swal2-html-container .text-green-600 {
-  color: #16a34a;
-}
-
-.swal2-html-container .text-green-700 {
-  color: #15803d;
-}
-
-.swal2-html-container .text-green-800 {
-  color: #166534;
-}
-
-.swal2-html-container .text-red-600 {
-  color: #dc2626;
-}
-
-.swal2-html-container .text-red-700 {
-  color: #b91c1c;
-}
-
-.swal2-html-container .text-red-800 {
-  color: #991b1b;
-}
-
-.swal2-html-container .text-purple-700 {
-  color: #7c2d92;
-}
-
-/* Utilidades adicionales */
-.swal2-html-container .w-16 {
-  width: 4rem;
-}
-
-.swal2-html-container .h-16 {
-  height: 4rem;
-}
-
-.swal2-html-container .w-20 {
-  width: 5rem;
-}
-
-.swal2-html-container .h-20 {
-  height: 5rem;
-}
-
-.swal2-html-container .rounded-full {
-  border-radius: 9999px;
-}
-
-.swal2-html-container .mx-auto {
-  margin-left: auto;
-  margin-right: auto;
-}
-
-.swal2-html-container .flex {
-  display: flex;
-}
-
-.swal2-html-container .items-center {
-  align-items: center;
-}
-
-.swal2-html-container .justify-center {
-  justify-content: center;
-}
-
-.swal2-html-container .inline-flex {
-  display: inline-flex;
-}
-
-.swal2-html-container .px-3 {
-  padding-left: 0.75rem;
-  padding-right: 0.75rem;
-}
-
-.swal2-html-container .py-1 {
-  padding-top: 0.25rem;
-  padding-bottom: 0.25rem;
-}
-
-.swal2-html-container .object-cover {
-  object-fit: cover;
-}
-
-.swal2-html-container .border-4 {
-  border-width: 4px;
+/* Print styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
 }

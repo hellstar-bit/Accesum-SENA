@@ -1,7 +1,8 @@
 // src/users/entities/user.entity.ts
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToOne, OneToMany, JoinColumn } from 'typeorm';
 import { Role } from './role.entity';
 import { Profile } from '../../profiles/entities/profile.entity';
+import { InstructorAssignment } from '../../attendance/entities/instructor-assignment.entity';
 
 @Entity('users')
 export class User {
@@ -32,4 +33,8 @@ export class User {
 
     @OneToOne(() => Profile, profile => profile.user)
     profile: Profile;
+
+    @OneToMany(() => InstructorAssignment, assignment => assignment.instructor)
+    instructorAssignments: InstructorAssignment[];
+
 }

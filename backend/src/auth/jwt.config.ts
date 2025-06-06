@@ -1,9 +1,14 @@
-// src/auth/jwt.config.ts
-import * as dotenv from 'dotenv';
+// backend/src/auth/jwt.config.ts - CONFIGURACIÓN JWT
+import { JwtModuleOptions } from '@nestjs/jwt';
 
-dotenv.config();
-
-export const jwtConfig = {
-  secret: process.env.JWT_SECRET || 'accesum_secret_key',
-  expiresIn: process.env.JWT_EXPIRATION || '1d',
+export const jwtConfig: JwtModuleOptions = {
+  secret: process.env.JWT_SECRET || 'your-secret-key',
+  signOptions: {
+    expiresIn: '24h', // Token válido por 24 horas
+  },
 };
+
+console.log('🔑 JWT Config cargada:', {
+  secret: (process.env.JWT_SECRET || 'your-secret-key').substring(0, 10) + '...',
+  expiresIn: '24h'
+});

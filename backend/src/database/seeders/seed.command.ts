@@ -1,23 +1,24 @@
-// src/database/seeders/seed.command.ts
-import { NestFactory } from '@nestjs/core';
-import { AppModule } from '../../app.module';
-import { DataSource } from 'typeorm';
-import { seedInitialData } from './initial-data.seeder';
+// // backend/src/database/seeders/seed-simple.command.ts - CORREGIDO
+// import { AppDataSource } from '../../config/datasource.config';
+// import { simpleSeed } from './simple-seed';
 
-async function bootstrap() {
-  const app = await NestFactory.createApplicationContext(AppModule);
-  const dataSource = app.get(DataSource);
+// async function runSeed() {
+//   try {
+//     console.log('🔌 Conectando a la base de datos...');
+//     await AppDataSource.initialize();
+    
+//     console.log('🌱 Ejecutando seed...');
+//     await simpleSeed(AppDataSource);
+    
+//     console.log('🎉 Seed completado exitosamente!');
+//   } catch (error) {
+//     console.error('❌ Error ejecutando seed:', error);
+//     process.exit(1);
+//   } finally {
+//     await AppDataSource.destroy();
+//     console.log('🔌 Conexión cerrada');
+//     process.exit(0);
+//   }
+// }
 
-  try {
-    console.log('🌱 Iniciando seeder...');
-    await seedInitialData(dataSource);
-    console.log('✅ Seeder completado exitosamente');
-  } catch (error) {
-    console.error('❌ Error en el seeder:', error);
-    process.exit(1);
-  } finally {
-    await app.close();
-  }
-}
-
-bootstrap();
+// runSeed();

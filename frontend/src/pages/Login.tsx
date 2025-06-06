@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const Login = () => {
@@ -6,24 +7,78 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const { login, loading } = useAuth();
+  const { login, loading, isAuthenticated, user } = useAuth();
+  const navigate = useNavigate();
+
+  // ✅ REDIRECCIÓN AUTOMÁTICA SI YA ESTÁ AUTENTICADO
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      console.log('👤 Usuario ya autenticado, redirigiendo...');
+      redirectUserByRole(user);
+    }
+  }, [isAuthenticated, user]);
+
+  // ✅ FUNCIÓN PARA REDIRIGIR SEGÚN EL ROL
+  const redirectUserByRole = (userData: any) => {
+    const role = userData?.role?.name;
+    console.log('🎯 Redirigiendo usuario con rol:', role);
+    
+    switch (role) {
+      case 'Administrador':
+        navigate('/dashboard', { replace: true });
+        break;
+      case 'Instructor':
+        navigate('/instructor-dashboard', { replace: true });
+        break;
+      case 'Aprendiz':
+        navigate('/learner-profile', { replace: true });
+        break;
+      default:
+        console.warn('Rol no reconocido:', role);
+        navigate('/dashboard', { replace: true }); // Fallback
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
     
     try {
+      console.log('🚀 Iniciando proceso de login...');
       await login(email, password);
-    } catch (err) {
-      setError('Credenciales incorrectas. Por favor, inténtelo de nuevo.');
+      console.log('✅ Login completado exitosamente');
+      
+      // La redirección se manejará en useEffect cuando cambie isAuthenticated
+      
+    } catch (err: any) {
+      console.error('❌ Error en login:', err);
+      
+      // Mostrar mensaje de error más específico
+      const errorMessage = err?.response?.data?.message || 
+                          err?.message || 
+                          'Credenciales incorrectas. Por favor, inténtelo de nuevo.';
+      
+      setError(errorMessage);
     }
   };
 
+  // ✅ NO RENDERIZAR EL FORMULARIO SI YA ESTÁ AUTENTICADO
+  if (isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-green-600 flex items-center justify-center p-4">
+        <div className="bg-white p-8 rounded-lg shadow-md max-w-md w-full text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Redirigiendo...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-sena-light flex items-center justify-center p-4">
-      <div className="bg-white p-8 rounded-lg shadow-md max-w-md w-full">
+    <div className="min-h-screen bg-green-600 flex items-center justify-center p-4">
+      <div className="bg-white p-8 rounded-lg shadow-xl max-w-md w-full">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-sena-green">ACCESUM</h1>
+          <h1 className="text-3xl font-bold text-green-600">ACCESUM</h1>
           <p className="text-gray-600 mt-2">Sistema de control de acceso a las instalaciones del SENA</p>
         </div>
 
@@ -41,7 +96,7 @@ const Login = () => {
             <input
               type="email"
               id="email"
-              className="input-field"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
               placeholder="correo@ejemplo.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -57,7 +112,7 @@ const Login = () => {
               <input
                 type={showPassword ? "text" : "password"}
                 id="password"
-                className="input-field pr-10"
+                className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -84,7 +139,7 @@ const Login = () => {
 
           <button
             type="submit"
-            className="btn-primary w-full flex justify-center"
+            className="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors flex justify-center items-center"
             disabled={loading}
           >
             {loading ? (
@@ -98,7 +153,7 @@ const Login = () => {
           </button>
 
           <div className="mt-4 text-center">
-            <a href="#" className="text-sm text-sena-green hover:underline">
+            <a href="#" className="text-sm text-green-600 hover:underline">
               ¿Olvidaste tu contraseña?
             </a>
           </div>

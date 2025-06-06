@@ -1,4 +1,4 @@
-// frontend/src/components/users/UserList.tsx - VERSIÓN MEJORADA COMPLETA
+// frontend/src/components/users/UserList.tsx - VERSIÓN CORREGIDA
 import { useState, useEffect } from 'react';
 import { userService } from '../../services/userService';
 import { SweetAlertUtils } from '../../utils/sweetAlertUtils';
@@ -37,34 +37,66 @@ const UserList = ({
 
   useEffect(() => {
     console.log('🔄 useEffect disparado por:', { currentPage, refreshTrigger });
-    fetchUsers();
-    loadFichas();
+    
+    // Crear AbortController para cancelar requests si el componente se desmonta
+    const abortController = new AbortController();
+    
+    fetchUsers(abortController);
+    loadFichas(abortController);
+
+    // Cleanup function para cancelar requests pendientes
+    return () => {
+      abortController.abort();
+    };
   }, [currentPage, refreshTrigger]);
 
-  const loadFichas = async () => {
+  const loadFichas = async (abortController?: AbortController) => {
     try {
       const fichasData = await userService.getFichas();
-      setFichas(fichasData);
-    } catch (error) {
+      
+      // Solo actualizar estado si no se canceló la petición
+      if (!abortController?.signal.aborted) {
+        setFichas(fichasData);
+      }
+    } catch (error: any) {
+      // Ignorar errores de cancelación
+      if (error.name === 'AbortError' || error.message === 'canceled') {
+        console.log('🚫 getFichas - Petición cancelada');
+        return;
+      }
       console.error('Error al cargar fichas:', error);
     }
   };
 
-  const fetchUsers = async () => {
+  const fetchUsers = async (abortController?: AbortController) => {
     try {
       console.log('🚀 Iniciando fetchUsers...');
       setLoading(true);
       setError(null);
       
       const response = await userService.getUsers(currentPage, 10);
-      console.log('✅ Respuesta recibida:', response);
-      setUsers(response);
+      
+      // Solo actualizar estado si no se canceló la petición
+      if (!abortController?.signal.aborted) {
+        console.log('✅ Respuesta recibida:', response);
+        setUsers(response);
+      }
       
     } catch (err: any) {
+      // Ignorar errores de cancelación
+      if (err.name === 'AbortError' || err.message === 'canceled') {
+        console.log('🚫 getUsers - Petición cancelada');
+        return;
+      }
+      
       console.error('❌ Error completo:', err);
-      setError(err.message || 'Error al cargar usuarios');
+      if (!abortController?.signal.aborted) {
+        setError(err.message || 'Error al cargar usuarios');
+      }
     } finally {
-      setLoading(false);
+      if (!abortController?.signal.aborted) {
+        setLoading(false);
+      }
     }
   };
 
@@ -139,6 +171,11 @@ const UserList = ({
   };
 
   const handleToggleUserStatus = async (user: User) => {
+    if (!user.profile) {
+      SweetAlertUtils.general.showError('Error', 'El usuario no tiene un perfil asociado');
+      return;
+    }
+
     const isActivating = !user.isActive;
     
     const confirmed = await SweetAlertUtils.user.confirmToggleStatus({
@@ -180,6 +217,11 @@ const UserList = ({
   };
 
   const handleRegenerateQR = async (user: User) => {
+    if (!user.profile) {
+      SweetAlertUtils.general.showError('Error', 'El usuario no tiene un perfil asociado');
+      return;
+    }
+
     const hasQR = !!user.profile.qrCode;
     
     const confirmed = await SweetAlertUtils.user.confirmRegenerateQR({
@@ -192,7 +234,6 @@ const UserList = ({
     if (confirmed) {
       try {
         SweetAlertUtils.general.showLoading('Generando código QR...', 'Creando nuevo código');
-
 
         await SweetAlertUtils.user.showQRGenerated({
           firstName: user.profile.firstName,
@@ -214,6 +255,11 @@ const UserList = ({
   };
 
   const handleEditUser = async (user: User) => {
+    if (!user.profile) {
+      SweetAlertUtils.general.showError('Error', 'El usuario no tiene un perfil asociado');
+      return;
+    }
+
     const confirmed = await SweetAlertUtils.user.confirmEdit({
       firstName: user.profile.firstName,
       lastName: user.profile.lastName,
@@ -254,11 +300,25 @@ const UserList = ({
     }
   };
 
+  // ✅ FUNCIÓN HELPER PARA OBTENER NOMBRE COMPLETO SEGURO
+  const getUserDisplayName = (user: User) => {
+    if (!user.profile) return 'Usuario sin perfil';
+    return `${user.profile.firstName || ''} ${user.profile.lastName || ''}`.trim() || 'Sin nombre';
+  };
+
+  // ✅ FUNCIÓN HELPER PARA OBTENER INICIALES SEGURAS
+  const getUserInitials = (user: User) => {
+    if (!user.profile) return '??';
+    const firstName = user.profile.firstName || '';
+    const lastName = user.profile.lastName || '';
+    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase() || '??';
+  };
+
   if (loading && !users) {
     return (
       <div className="flex justify-center items-center py-16">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-4 border-sena-green border-t-transparent mx-auto mb-6"></div>
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-green-600 border-t-transparent mx-auto mb-6"></div>
           <p className="text-gray-600 font-medium text-lg">Cargando usuarios...</p>
           <p className="text-gray-400 text-sm mt-2">Conectando con la base de datos</p>
         </div>
@@ -278,7 +338,7 @@ const UserList = ({
           <h3 className="text-xl font-bold text-red-800 mb-2">Error al cargar usuarios</h3>
           <p className="text-red-700 mb-6">{error}</p>
           <button 
-            onClick={fetchUsers} 
+            onClick={() => fetchUsers()} 
             className="bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 transition-colors font-medium shadow-lg"
           >
             🔄 Reintentar Carga
@@ -293,7 +353,7 @@ const UserList = ({
   return (
     <div className="space-y-6">
       {/* Header Mejorado */}
-      <div className="bg-gradient-to-r from-sena-green via-sena-green to-sena-dark rounded-2xl shadow-2xl overflow-hidden">
+      <div className="bg-gradient-to-r from-green-600 via-green-600 to-green-800 rounded-2xl shadow-2xl overflow-hidden">
         <div className="px-8 py-6 text-white">
           <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4">
             <div className="flex items-center space-x-4">
@@ -304,7 +364,7 @@ const UserList = ({
                 <h2 className="text-2xl font-bold">
                   Gestión de Usuarios
                 </h2>
-                <p className="text-sena-light opacity-90">
+                <p className="text-green-100 opacity-90">
                   {users?.total || 0} usuarios registrados en el sistema
                 </p>
               </div>
@@ -317,7 +377,7 @@ const UserList = ({
                   onClick={() => setViewMode('table')}
                   className={`px-3 py-2 rounded-md text-sm transition-all ${
                     viewMode === 'table' 
-                      ? 'bg-white text-sena-green shadow-sm' 
+                      ? 'bg-white text-green-600 shadow-sm' 
                       : 'text-white hover:bg-white hover:bg-opacity-10'
                   }`}
                 >
@@ -327,7 +387,7 @@ const UserList = ({
                   onClick={() => setViewMode('cards')}
                   className={`px-3 py-2 rounded-md text-sm transition-all ${
                     viewMode === 'cards' 
-                      ? 'bg-white text-sena-green shadow-sm' 
+                      ? 'bg-white text-green-600 shadow-sm' 
                       : 'text-white hover:bg-white hover:bg-opacity-10'
                   }`}
                 >
@@ -337,7 +397,7 @@ const UserList = ({
 
               <button
                 onClick={onCreateUser}
-                className="bg-white text-sena-green px-6 py-3 rounded-xl hover:bg-gray-50 transition-all font-semibold flex items-center space-x-2 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                className="bg-white text-green-600 px-6 py-3 rounded-xl hover:bg-gray-50 transition-all font-semibold flex items-center space-x-2 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
               >
                 <span className="text-lg">+</span>
                 <span>Nuevo Usuario</span>
@@ -355,7 +415,7 @@ const UserList = ({
                 <select
                   value={roleFilter}
                   onChange={(e) => setRoleFilter(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-lg border border-gray-200 bg-white text-gray-700 focus:border-sena-green focus:ring-2 focus:ring-sena-green focus:ring-opacity-20 transition-all text-sm"
+                  className="w-full px-4 py-2.5 rounded-lg border border-gray-200 bg-white text-gray-700 focus:border-green-600 focus:ring-2 focus:ring-green-600 focus:ring-opacity-20 transition-all text-sm"
                 >
                   <option value="">Todos los roles</option>
                   <option value="Administrador">👑 Admin</option>
@@ -371,7 +431,7 @@ const UserList = ({
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-lg border border-gray-200 bg-white text-gray-700 focus:border-sena-green focus:ring-2 focus:ring-sena-green focus:ring-opacity-20 transition-all text-sm"
+                  className="w-full px-4 py-2.5 rounded-lg border border-gray-200 bg-white text-gray-700 focus:border-green-600 focus:ring-2 focus:ring-green-600 focus:ring-opacity-20 transition-all text-sm"
                 >
                   <option value="">Todos los estados</option>
                   <option value="active">✅ Activos</option>
@@ -382,7 +442,7 @@ const UserList = ({
                 <select
                   value={fichaFilter}
                   onChange={(e) => setFichaFilter(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-lg border border-gray-200 bg-white text-gray-700 focus:border-sena-green focus:ring-2 focus:ring-sena-green focus:ring-opacity-20 transition-all text-sm"
+                  className="w-full px-4 py-2.5 rounded-lg border border-gray-200 bg-white text-gray-700 focus:border-green-600 focus:ring-2 focus:ring-green-600 focus:ring-opacity-20 transition-all text-sm"
                 >
                   <option value="">Todas las fichas</option>
                   {fichas.map((ficha) => (
@@ -398,7 +458,7 @@ const UserList = ({
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="🔍 Buscar por nombre, documento o email..."
-                  className="w-full px-4 py-3 rounded-lg border border-gray-200 bg-white text-gray-700 placeholder-gray-500 focus:border-sena-green focus:ring-2 focus:ring-sena-green focus:ring-opacity-20 transition-all"
+                  className="w-full px-4 py-3 rounded-lg border border-gray-200 bg-white text-gray-700 placeholder-gray-500 focus:border-green-600 focus:ring-2 focus:ring-green-600 focus:ring-opacity-20 transition-all"
                 />
               </div>
 
@@ -407,7 +467,7 @@ const UserList = ({
                 <button
                   onClick={handleApplyFilters}
                   disabled={loading}
-                  className="flex-1 px-4 py-2.5 bg-sena-green text-white rounded-lg hover:bg-sena-dark transition-all text-sm font-medium"
+                  className="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all text-sm font-medium"
                 >
                   🔍 Buscar
                 </button>
@@ -425,22 +485,22 @@ const UserList = ({
             {hasActiveFilters && (
               <div className="flex flex-wrap gap-2 mt-3">
                 {search && (
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-sena-green text-white">
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-600 text-white">
                     🔍 Búsqueda: {search}
                   </span>
                 )}
                 {roleFilter && (
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-sena-green text-white">
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-600 text-white">
                     👤 Rol: {roleFilter}
                   </span>
                 )}
                 {statusFilter && (
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-sena-green text-white">
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-600 text-white">
                     ⚡ Estado: {statusFilter === 'active' ? 'Activo' : 'Inactivo'}
                   </span>
                 )}
                 {fichaFilter && (
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-sena-green text-white">
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-600 text-white">
                     📋 Ficha: {fichas.find(f => f.id.toString() === fichaFilter)?.code || fichaFilter}
                   </span>
                 )}
@@ -505,25 +565,25 @@ const UserList = ({
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center space-x-3">
                         <div className="flex-shrink-0">
-                          {user.profile.profileImage ? (
+                          {user.profile?.profileImage ? (
                             <img 
                               src={user.profile.profileImage} 
-                              alt={`${user.profile.firstName} ${user.profile.lastName}`}
+                              alt={getUserDisplayName(user)}
                               className="w-10 h-10 rounded-full object-cover border-2 border-gray-200"
                             />
                           ) : (
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-sena-green to-sena-dark flex items-center justify-center text-white font-bold text-sm">
-                              {user.profile.firstName.charAt(0)}{user.profile.lastName.charAt(0)}
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-600 to-green-800 flex items-center justify-center text-white font-bold text-sm">
+                              {getUserInitials(user)}
                             </div>
                           )}
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="text-sm font-semibold text-gray-900 truncate">
-                            {user.profile.firstName} {user.profile.lastName}
+                            {getUserDisplayName(user)}
                           </div>
                           <div className="text-xs text-gray-500 flex items-center space-x-1">
-                            <span>{user.profile.documentType}:</span>
-                            <span className="font-mono">{user.profile.documentNumber}</span>
+                            <span>{user.profile?.documentType || 'N/A'}:</span>
+                            <span className="font-mono">{user.profile?.documentNumber || 'N/A'}</span>
                           </div>
                         </div>
                       </div>
@@ -532,9 +592,9 @@ const UserList = ({
                       <div className="text-sm text-gray-900 font-medium">{user.email}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-3 py-1 text-xs font-semibold rounded-full border ${getRoleBadgeColor(user.role.name)}`}>
-                        <span className="mr-1">{getRoleIcon(user.role.name)}</span>
-                        {user.role.name}
+                      <span className={`inline-flex items-center px-3 py-1 text-xs font-semibold rounded-full border ${getRoleBadgeColor(user.role?.name || 'Desconocido')}`}>
+                        <span className="mr-1">{getRoleIcon(user.role?.name || 'Desconocido')}</span>
+                        {user.role?.name || 'Sin rol'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -560,7 +620,7 @@ const UserList = ({
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {user.profile.ficha ? (
+                      {user.profile?.ficha ? (
                         <div className="text-xs">
                           <div className="font-semibold text-gray-900">{user.profile.ficha.code}</div>
                           <div className="text-gray-500 truncate max-w-32" title={user.profile.ficha.name}>
@@ -610,30 +670,30 @@ const UserList = ({
           {users?.data.map((user) => (
             <div 
               key={user.id} 
-              className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100 hover:border-sena-green group"
+              className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100 hover:border-green-600 group"
             >
               {/* Header de la Card */}
-              <div className="bg-gradient-to-r from-sena-green to-sena-dark p-4 text-white">
+              <div className="bg-gradient-to-r from-green-600 to-green-800 p-4 text-white">
                 <div className="flex items-center space-x-3">
                   <div className="flex-shrink-0">
-                    {user.profile.profileImage ? (
+                    {user.profile?.profileImage ? (
                       <img 
                         src={user.profile.profileImage} 
-                        alt={`${user.profile.firstName} ${user.profile.lastName}`}
+                        alt={getUserDisplayName(user)}
                         className="w-12 h-12 rounded-full object-cover border-2 border-white"
                       />
                     ) : (
                       <div className="w-12 h-12 rounded-full bg-white bg-opacity-20 flex items-center justify-center text-white font-bold">
-                        {user.profile.firstName.charAt(0)}{user.profile.lastName.charAt(0)}
+                        {getUserInitials(user)}
                       </div>
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
                     <h3 className="font-bold text-sm truncate">
-                      {user.profile.firstName} {user.profile.lastName}
+                      {getUserDisplayName(user)}
                     </h3>
-                    <p className="text-sena-light text-xs opacity-90">
-                      {user.profile.documentType}: {user.profile.documentNumber}
+                    <p className="text-green-100 text-xs opacity-90">
+                      {user.profile?.documentType || 'N/A'}: {user.profile?.documentNumber || 'N/A'}
                     </p>
                   </div>
                   <div className="flex-shrink-0">
@@ -653,9 +713,9 @@ const UserList = ({
                   <div>
                     <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Rol</label>
                     <div className="mt-1">
-                      <span className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${getRoleBadgeColor(user.role.name)}`}>
-                        <span className="mr-1">{getRoleIcon(user.role.name)}</span>
-                        {user.role.name}
+                      <span className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${getRoleBadgeColor(user.role?.name || 'Desconocido')}`}>
+                        <span className="mr-1">{getRoleIcon(user.role?.name || 'Desconocido')}</span>
+                        {user.role?.name || 'Sin rol'}
                       </span>
                     </div>
                   </div>
@@ -673,7 +733,7 @@ const UserList = ({
                   </div>
                 </div>
 
-                {user.profile.ficha && (
+                {user.profile?.ficha && (
                   <div>
                     <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Ficha</label>
                     <div className="mt-1">
@@ -685,7 +745,7 @@ const UserList = ({
                   </div>
                 )}
 
-                {user.profile.qrCode && (
+                {user.profile?.qrCode && (
                   <div className="flex items-center justify-center">
                     <span className="inline-flex items-center px-2 py-1 text-xs font-medium text-purple-700 bg-purple-100 rounded-full">
                       📱 QR Generado
@@ -742,7 +802,7 @@ const UserList = ({
       {/* Estado Vacío Mejorado */}
       {users?.data.length === 0 && !loading && (
         <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-12 text-center shadow-lg border border-gray-200">
-          <div className="w-24 h-24 rounded-full bg-gradient-to-br from-sena-green to-sena-dark flex items-center justify-center mx-auto mb-6 shadow-lg">
+          <div className="w-24 h-24 rounded-full bg-gradient-to-br from-green-600 to-green-800 flex items-center justify-center mx-auto mb-6 shadow-lg">
             <span className="text-4xl text-white">🔍</span>
           </div>
           <h3 className="text-2xl font-bold text-gray-900 mb-3">
@@ -764,7 +824,7 @@ const UserList = ({
             )}
             <button 
               onClick={onCreateUser} 
-              className="bg-gradient-to-r from-sena-green to-sena-dark text-white px-8 py-3 rounded-xl hover:from-sena-dark hover:to-sena-green transition-all font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+              className="bg-gradient-to-r from-green-600 to-green-800 text-white px-8 py-3 rounded-xl hover:from-green-700 hover:to-green-900 transition-all font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
             >
               ➕ Crear Primer Usuario
             </button>
@@ -813,7 +873,7 @@ const UserList = ({
                       disabled={loading}
                       className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                         pageNum === currentPage
-                          ? 'bg-gradient-to-r from-sena-green to-sena-dark text-white shadow-lg'
+                          ? 'bg-gradient-to-r from-green-600 to-green-800 text-white shadow-lg'
                           : 'border hover:bg-gray-50 disabled:opacity-50'
                       }`}
                     >

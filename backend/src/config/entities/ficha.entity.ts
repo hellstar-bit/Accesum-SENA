@@ -1,7 +1,9 @@
-// backend/src/config/entities/ficha.entity.ts
+// backend/src/config/entities/.ts
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
 import { Program } from './program.entity';
 import { Profile } from '../../profiles/entities/profile.entity';
+import { InstructorAssignment } from '../../attendance/entities/instructor-assignment.entity';
+
 
 @Entity('fichas')
 export class Ficha {
@@ -41,4 +43,8 @@ export class Ficha {
 
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP', onUpdate: 'CURRENT_TIMESTAMP' })
   updatedAt: Date;
+
+  @OneToMany(() => InstructorAssignment, assignment => assignment.ficha)
+  instructorAssignments: InstructorAssignment[];
+
 }

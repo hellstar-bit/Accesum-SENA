@@ -1,39 +1,49 @@
-// src/auth/strategies/jwt.strategy.ts
+// backend/src/auth/strategies/jwt.strategy.ts - CON JWT_SECRET DEL .ENV
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { jwtConfig } from '../jwt.config';
-import { User } from '../../users/entities/user.entity';
+import { AuthService } from '../auth.service';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(
-    @InjectRepository(User)
-    private userRepository: Repository<User>,
-  ) {
+  constructor(private authService: AuthService) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: jwtConfig.secret,
+      secretOrKey: process.env.JWT_SECRET || 'accesum_secret_key', // ✅ USAR EL DEL .ENV
     });
+    
+    console.log('🔑 JWT Strategy inicializada con secret del .env:', process.env.JWT_SECRET || 'accesum_secret_key');
   }
 
   async validate(payload: any) {
-    const user = await this.userRepository.findOne({
-      where: { id: payload.sub },
-      relations: ['role'],
+    console.log('🔍 JWT Strategy - validando payload:', {
+      sub: payload.sub,
+      email: payload.email,
+      role: payload.role,
+      iat: payload.iat,
+      exp: payload.exp
     });
 
-    if (!user || !user.isActive) {
-      throw new UnauthorizedException();
-    }
+    try {
+      const user = await this.authService.validateUser(payload.sub);
+      
+      if (!user) {
+        console.log('❌ Usuario no encontrado para ID:', payload.sub);
+        throw new UnauthorizedException('Usuario no válido');
+      }
 
-    return {
-      id: user.id,
-      email: user.email,
-      role: user.role,
-    };
+      console.log('✅ Usuario validado correctamente:', {
+        id: user.id,
+        email: user.email,
+        role: user.role?.name
+      });
+
+      return user;
+      
+    } catch (error) {
+      console.error('❌ Error en JWT validation:', error);
+      throw new UnauthorizedException('Token inválido');
+    }
   }
 }

@@ -19,10 +19,28 @@ Accesum-SENA
 │  │  ├─ app.controller.ts
 │  │  ├─ app.module.ts
 │  │  ├─ app.service.ts
+│  │  ├─ attendance
+│  │  │  ├─ attendance.controller.ts
+│  │  │  ├─ attendance.module.ts
+│  │  │  ├─ attendance.service.ts
+│  │  │  ├─ class-schedule.controller.ts
+│  │  │  ├─ dto
+│  │  │  │  ├─ create-assignment.dto.ts
+│  │  │  │  ├─ create-schedule.dto.ts
+│  │  │  │  ├─ mark-attendance.dto.ts
+│  │  │  │  └─ update-instructor-profile.dto.ts
+│  │  │  ├─ entities
+│  │  │  │  ├─ attendance-record.entity.ts
+│  │  │  │  ├─ class-schedule.entity.ts
+│  │  │  │  └─ instructor-assignment.entity.ts
+│  │  │  ├─ instructor-assignment.controller.ts
+│  │  │  └─ instructor-profile.controller.ts
 │  │  ├─ auth
 │  │  │  ├─ auth.controller.ts
 │  │  │  ├─ auth.module.ts
 │  │  │  ├─ auth.service.ts
+│  │  │  ├─ constants
+│  │  │  │  └─ roles.constant.ts
 │  │  │  ├─ decorators
 │  │  │  │  └─ roles.decorator.ts
 │  │  │  ├─ dto
@@ -31,12 +49,16 @@ Accesum-SENA
 │  │  │  │  ├─ jwt-auth.guard.ts
 │  │  │  │  └─ roles.guard.ts
 │  │  │  ├─ jwt.config.ts
-│  │  │  └─ strategies
-│  │  │     └─ jwt.strategy.ts
+│  │  │  ├─ strategies
+│  │  │  │  └─ jwt.strategy.ts
+│  │  │  └─ types
+│  │  │     └─ user-role.type.ts
 │  │  ├─ config
 │  │  │  ├─ config.controller.ts
 │  │  │  ├─ config.module.ts
+│  │  │  ├─ config.service.ts
 │  │  │  ├─ database.config.ts
+│  │  │  ├─ datasource.config.ts
 │  │  │  └─ entities
 │  │  │     ├─ center.entity.ts
 │  │  │     ├─ coordination.entity.ts
@@ -53,7 +75,9 @@ Accesum-SENA
 │  │  ├─ database
 │  │  │  └─ seeders
 │  │  │     ├─ initial-data.seeder.ts
-│  │  │     └─ seed.command.ts
+│  │  │     ├─ seed-simple.command.ts
+│  │  │     ├─ seed.command.ts
+│  │  │     └─ simple-seed.ts
 │  │  ├─ import
 │  │  │  ├─ import-excel.dto.ts
 │  │  │  ├─ import-learners.dto.ts
@@ -86,72 +110,87 @@ Accesum-SENA
 │  ├─ test-connection.js
 │  ├─ tsconfig.build.json
 │  └─ tsconfig.json
-└─ frontend
-   ├─ eslint.config.js
-   ├─ index.html
-   ├─ package-lock.json
-   ├─ package.json
-   ├─ postcss.config.js
-   ├─ public
-   │  └─ vite.svg
-   ├─ README.md
-   ├─ src
-   │  ├─ App.css
-   │  ├─ App.tsx
-   │  ├─ assets
-   │  │  └─ react.svg
-   │  ├─ components
-   │  │  ├─ access
-   │  │  │  ├─ AccessHistory.tsx
-   │  │  │  ├─ CurrentOccupancy.tsx
-   │  │  │  └─ QRScanner.tsx
-   │  │  ├─ auth
-   │  │  │  └─ PrivateRoute.tsx
-   │  │  ├─ import
-   │  │  │  ├─ ExcelImport.tsx
-   │  │  │  └─ ImportLearners.tsx
-   │  │  ├─ layout
-   │  │  │  ├─ Header.tsx
-   │  │  │  ├─ Layout.tsx
-   │  │  │  └─ Sidebar.tsx
-   │  │  ├─ profiles
-   │  │  │  ├─ ProfileList.tsx
-   │  │  │  └─ ProfileView.tsx
-   │  │  └─ users
-   │  │     ├─ UserForm.tsx
-   │  │     ├─ UserList.tsx
-   │  │     └─ UserView.tsx
-   │  ├─ context
-   │  │  └─ AuthContext.tsx
-   │  ├─ index.css
-   │  ├─ main.tsx
-   │  ├─ pages
-   │  │  ├─ AccessControl.tsx
-   │  │  ├─ Configuration.tsx
-   │  │  ├─ Dashboard.tsx
-   │  │  ├─ ImportPage.tsx
-   │  │  ├─ LearnerProfile.tsx
-   │  │  ├─ Login.tsx
-   │  │  ├─ ProfileManagement.tsx
-   │  │  └─ UserManagement.tsx
-   │  ├─ services
-   │  │  ├─ accessService.ts
-   │  │  ├─ api.ts
-   │  │  ├─ authService.ts
-   │  │  ├─ configService.ts
-   │  │  ├─ dashboardService.ts
-   │  │  ├─ importService.ts
-   │  │  ├─ learnerService.ts
-   │  │  ├─ profileService.ts
-   │  │  └─ userService.ts
-   │  ├─ utils
-   │  │  ├─ carnetGenerator.ts
-   │  │  └─ sweetAlertUtils.ts
-   │  └─ vite-env.d.ts
-   ├─ tailwind.config.js
-   ├─ tsconfig.app.json
-   ├─ tsconfig.json
-   ├─ tsconfig.node.json
-   └─ vite.config.ts
+├─ frontend
+│  ├─ eslint.config.js
+│  ├─ index.html
+│  ├─ package-lock.json
+│  ├─ package.json
+│  ├─ postcss.config.js
+│  ├─ public
+│  │  └─ vite.svg
+│  ├─ README.md
+│  ├─ src
+│  │  ├─ App.css
+│  │  ├─ App.tsx
+│  │  ├─ assets
+│  │  │  └─ react.svg
+│  │  ├─ components
+│  │  │  ├─ access
+│  │  │  │  ├─ AccessHistory.tsx
+│  │  │  │  ├─ CurrentOccupancy.tsx
+│  │  │  │  └─ QRScanner.tsx
+│  │  │  ├─ auth
+│  │  │  │  └─ PrivateRoute.tsx
+│  │  │  ├─ import
+│  │  │  │  ├─ ExcelImport.tsx
+│  │  │  │  └─ ImportLearners.tsx
+│  │  │  ├─ layout
+│  │  │  │  ├─ Header.tsx
+│  │  │  │  ├─ Layout.tsx
+│  │  │  │  └─ Sidebar.tsx
+│  │  │  ├─ profiles
+│  │  │  │  ├─ ProfileList.tsx
+│  │  │  │  └─ ProfileView.tsx
+│  │  │  └─ users
+│  │  │     ├─ UserForm.tsx
+│  │  │     ├─ UserList.tsx
+│  │  │     └─ UserView.tsx
+│  │  ├─ context
+│  │  │  └─ AuthContext.tsx
+│  │  ├─ hooks
+│  │  ├─ index.css
+│  │  ├─ main.tsx
+│  │  ├─ pages
+│  │  │  ├─ AccessControl.tsx
+│  │  │  ├─ Configuration.tsx
+│  │  │  ├─ Dashboard.tsx
+│  │  │  ├─ ImportPage.tsx
+│  │  │  ├─ InstructorAttendance.tsx
+│  │  │  ├─ InstructorDashboard.tsx
+│  │  │  ├─ InstructorManagement.tsx
+│  │  │  ├─ InstructorProfile.tsx
+│  │  │  ├─ LearnerProfile.tsx
+│  │  │  ├─ Login.tsx
+│  │  │  ├─ MyClasses.tsx
+│  │  │  ├─ ProfileManagement.tsx
+│  │  │  └─ UserManagement.tsx
+│  │  ├─ services
+│  │  │  ├─ accessService.ts
+│  │  │  ├─ api.ts
+│  │  │  ├─ attendanceService.ts
+│  │  │  ├─ authService.ts
+│  │  │  ├─ configService.ts
+│  │  │  ├─ dashboardService.ts
+│  │  │  ├─ importService.ts
+│  │  │  ├─ instructorService.ts
+│  │  │  ├─ learnerService.ts
+│  │  │  ├─ profileService.ts
+│  │  │  └─ userService.ts
+│  │  ├─ styles
+│  │  │  └─ enhanced-userlist.css
+│  │  ├─ types
+│  │  │  └─ user.types.ts
+│  │  ├─ utils
+│  │  │  ├─ carnetGenerator.ts
+│  │  │  └─ sweetAlertUtils.ts
+│  │  └─ vite-env.d.ts
+│  ├─ tailwind.config.js
+│  ├─ tsconfig.app.json
+│  ├─ tsconfig.json
+│  ├─ tsconfig.node.json
+│  └─ vite.config.ts
+├─ package-lock.json
+├─ package.json
+└─ README.md
 
 ```

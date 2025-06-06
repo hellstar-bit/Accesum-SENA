@@ -1,9 +1,8 @@
 
       // frontend/src/services/userService.ts - Optimizado para búsqueda en vivo
 import api from './api';
-
 // ============= INTERFACES =============
-
+export type { Role } from '../types/user.types';
 export interface User {
   id: number;
   email: string;
@@ -78,6 +77,7 @@ export interface UserFilters {
 }
 
 export interface UsersResponse {
+  filter(arg0: (user: { role: { name: string; }; }) => boolean): unknown;
   data: User[];
   total: number;
   page: number;

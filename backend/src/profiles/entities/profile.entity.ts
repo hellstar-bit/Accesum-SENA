@@ -1,5 +1,5 @@
 // backend/src/profiles/entities/profile.entity.ts
-import { Entity, PrimaryGeneratedColumn, Column, OneToOne, JoinColumn, ManyToOne } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, OneToOne, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Regional } from '../../config/entities/regional.entity';
 import { Center } from '../../config/entities/center.entity';
@@ -7,6 +7,8 @@ import { Coordination } from '../../config/entities/coordination.entity';
 import { Program } from '../../config/entities/program.entity';
 import { Ficha } from '../../config/entities/ficha.entity';
 import { PersonnelType } from '../../config/entities/personnel-type.entity';
+import { AttendanceRecord } from '../../attendance/entities/attendance-record.entity';
+
 
 @Entity('profiles')
 export class Profile {
@@ -104,6 +106,9 @@ export class Profile {
   @JoinColumn({ name: 'fichaId' })
   ficha: Ficha;
 
+  @OneToMany(() => AttendanceRecord, record => record.learner)
+  attendanceRecords: AttendanceRecord[];
+
   @Column({ nullable: true })
   fichaId: number;
 
@@ -113,4 +118,5 @@ export class Profile {
 
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP', onUpdate: 'CURRENT_TIMESTAMP' })
   updatedAt: Date;
+  
 }

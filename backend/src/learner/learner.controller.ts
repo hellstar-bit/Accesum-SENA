@@ -1,57 +1,65 @@
-// backend/src/learner/learner.controller.ts
-import { 
-  Controller, 
-  Get, 
-  Patch, 
-  Body, 
-  UseGuards, 
-  Request,
-  Post,
-  BadRequestException
-} from '@nestjs/common';
+// backend/src/learner/learner.controller.ts - CORREGIDO
+import { Controller, Get, Put, Post, Body, UseGuards, Request } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard, UserRole } from '../auth/guards/roles.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { ROLES } from 'src/auth/constants/roles.constant';// ✅ Importar constantes
 import { LearnerService } from './learner.service';
+
 
 @Controller('learner')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.APRENDIZ) // 🎓 Solo aprendices
 export class LearnerController {
   constructor(private readonly learnerService: LearnerService) {}
 
+  // ⭐ VER MI PERFIL (APRENDIZ)
   @Get('profile')
+  @Roles(ROLES.LEARNER) // ✅ Usar constante en lugar de string
   async getMyProfile(@Request() req: any) {
-    // Obtener perfil del aprendiz logueado
-    return this.learnerService.getProfileByUserId(req.user.id);
+    return await this.learnerService.getMyProfile(req.user.id);
   }
 
-  @Patch('profile')
-  async updateMyProfile(@Request() req: any, @Body() updateData: any) {
-    // Actualizar solo campos editables
-    return this.learnerService.updateLearnerProfile(req.user.id, updateData);
-  }
-
-  @Post('regenerate-qr')
-  async regenerateMyQR(@Request() req: any) {
-    // Regenerar código QR
-    return this.learnerService.regenerateQRCode(req.user.id);
-  }
-
-  @Post('upload-image')
-  async uploadProfileImage(
-    @Request() req: any, 
-    @Body('image') imageBase64: string
-  ) {
-    if (!imageBase64) {
-      throw new BadRequestException('No se proporcionó imagen');
+  // ⭐ ACTUALIZAR MI PERFIL (APRENDIZ)
+  @Put('profile')
+  @Roles(ROLES.LEARNER) // ✅ Usar constante en lugar de string
+  async updateMyProfile(
+    @Request() req: any,
+    @Body() data: {
+      phoneNumber?: string;
+      address?: string;
+      city?: string;
+      bloodType?: string;
+      maritalStatus?: string;
+      vaccine?: string;
     }
-    return this.learnerService.uploadProfileImage(req.user.id, imageBase64);
+  ) {
+    return await this.learnerService.updateMyProfile(req.user.id, data);
   }
 
-  @Get('carnet')
-  async getCarnetData(@Request() req: any) {
-    // Datos para generar carnet
-    return this.learnerService.getCarnetData(req.user.id);
+  // ⭐ SUBIR IMAGEN DE PERFIL (APRENDIZ)
+  @Post('profile/image')
+  @Roles(ROLES.LEARNER) // ✅ Usar constante en lugar de string
+  async uploadImage(
+    @Request() req: any,
+    @Body() data: { profileImage: string }
+  ) {
+    return await this.learnerService.uploadImage(req.user.id, data.profileImage);
+  }
+
+  // ⭐ REGENERAR CÓDIGO QR (APRENDIZ)
+  @Post('profile/regenerate-qr')
+  @Roles(ROLES.LEARNER) // ✅ Usar constante en lugar de string
+  async regenerateQR(@Request() req: any) {
+    return await this.learnerService.regenerateQR(req.user.id);
+  }
+
+  // ⭐ OBTENER MIS CLASES (APRENDIZ)
+  @Get('my-classes')
+  @Roles(ROLES.LEARNER) // ✅ Usar constante en lugar de string
+  async getMyClasses(
+    @Request() req: any,
+    @Body() data: { date?: string }
+  ) {
+    return await this.learnerService.getMyClasses(req.user.id, data.date);
   }
 }

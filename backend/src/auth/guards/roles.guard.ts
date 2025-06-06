@@ -2,43 +2,36 @@
 import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ROLES_KEY } from '../decorators/roles.decorator';
-
-export enum UserRole {
-  ADMIN = 'Administrador',
-  INSTRUCTOR = 'Instructor', 
-  APRENDIZ = 'Aprendiz',
-  ESCANER = 'Escaner',
-  FUNCIONARIO = 'Funcionario',
-  CONTRATISTA = 'Contratista',
-  VISITANTE = 'Visitante',
-}
+import { UserRole } from '../types/user-role.type';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
   constructor(private reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const requiredRoles = this.reflector.getAllAndOverride<UserRole[]>(ROLES_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
-
-    if (!requiredRoles) {
-      return true; // Si no hay roles requeridos, permitir acceso
-    }
-
-    const { user } = context.switchToHttp().getRequest();
-    
-    if (!user || !user.role) {
-      return false;
-    }
-
-    // El admin siempre tiene acceso
-    if (user.role.name === UserRole.ADMIN) {
-      return true;
-    }
-
-    // Verificar si el usuario tiene uno de los roles requeridos
-    return requiredRoles.some((role) => user.role.name === role);
+  const requiredRoles = this.reflector.getAllAndOverride<UserRole[]>(ROLES_KEY, [
+    context.getHandler(),
+    context.getClass(),
+  ]);
+  
+  if (!requiredRoles) {
+    return true;
   }
+  
+  const { user } = context.switchToHttp().getRequest();
+  console.log('RolesGuard - user:', user);
+  console.log('RolesGuard - requiredRoles:', requiredRoles);
+
+  if (!user || !user.role) {
+    console.warn('RolesGuard - No user or user.role');
+    return false;
+  }
+  
+  const hasRole = requiredRoles.some((role) => user.role.name === role);
+  if (!hasRole) {
+    console.warn(`RolesGuard - User role "${user.role.name}" not in requiredRoles:`, requiredRoles);
+  }
+  return hasRole;
 }
+    
+  }

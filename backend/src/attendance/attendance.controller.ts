@@ -1,5 +1,5 @@
 // backend/src/attendance/attendance.controller.ts
-import { Controller, Get, Post, Body, Param, UseGuards, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards, Query, Request } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -9,6 +9,22 @@ import { AttendanceService } from './attendance.service';
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class AttendanceController {
   constructor(private readonly attendanceService: AttendanceService) {}
+
+  // ⭐ NUEVA RUTA - OBTENER MIS CLASES Y ASISTENCIA (INSTRUCTOR)
+  @Get('my-classes')
+  @Roles('Instructor')
+  async getMyClassesAttendance(
+    @Query('date') date?: string,
+    @Request() req?: any
+  ) {
+    // Obtener el ID del instructor desde el token JWT
+    const instructorId = req.user.id;
+    
+    return await this.attendanceService.getInstructorAttendance(
+      instructorId,
+      date ? new Date(date) : new Date()
+    );
+  }
 
   // ⭐ MARCAR ASISTENCIA MANUAL
   @Post('mark')

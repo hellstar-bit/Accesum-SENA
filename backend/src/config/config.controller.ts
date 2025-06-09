@@ -1,4 +1,4 @@
-// backend/src/config/config.controller.ts - CORREGIDO
+// backend/src/config/config.controller.ts - ACTUALIZADO CON ENDPOINT PARA CENTROS POR REGIONAL
 import { 
   Controller, 
   Get, 
@@ -12,12 +12,12 @@ import {
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { ROLES } from '../auth/constants/roles.constant'; // ✅ Importar constantes
+import { ROLES } from '../auth/constants/roles.constant';
 import { ConfigService } from './config.service';
 
 @Controller('config')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(ROLES.ADMIN) // ✅ Usar constante en lugar de string
+@Roles(ROLES.ADMIN)
 export class ConfigController {
   constructor(private readonly configService: ConfigService) {}
 
@@ -43,6 +43,12 @@ export class ConfigController {
   @Delete('regionales/:id')
   async deleteRegional(@Param('id') id: number) {
     return await this.configService.deleteRegional(id);
+  }
+
+  // ⭐ NUEVO: OBTENER CENTROS POR REGIONAL
+  @Get('regionales/:regionalId/centers')
+  async getCentersByRegional(@Param('regionalId') regionalId: number) {
+    return await this.configService.getCentersByRegional(regionalId);
   }
 
   // ⭐ CENTROS

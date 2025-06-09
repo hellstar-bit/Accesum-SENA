@@ -1,4 +1,4 @@
-// backend/src/import/import.module.ts - COMPLETO
+// backend/src/import/import.module.ts - AGREGAR Coordination
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ImportController } from './import.controller';
@@ -9,6 +9,7 @@ import { Role } from '../users/entities/role.entity';
 import { PersonnelType } from '../config/entities/personnel-type.entity';
 import { Regional } from '../config/entities/regional.entity';
 import { Center } from '../config/entities/center.entity';
+import { Coordination } from '../config/entities/coordination.entity'; // ⭐ AGREGAR ESTA LÍNEA
 import { Program } from '../config/entities/program.entity';
 import { Ficha } from '../config/entities/ficha.entity';
 
@@ -21,6 +22,7 @@ import { Ficha } from '../config/entities/ficha.entity';
       PersonnelType,
       Regional,
       Center,
+      Coordination, // ⭐ AGREGAR ESTA LÍNEA
       Program,
       Ficha,
     ])

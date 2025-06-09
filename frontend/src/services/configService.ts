@@ -1,4 +1,4 @@
-// frontend/src/services/configService.ts - CON TIPOS EXPORTADOS
+// frontend/src/services/configService.ts - ACTUALIZADO CON MÉTODO getCentersByRegional
 import api from './api';
 
 // ⭐ EXPORTAR TIPOS/INTERFACES
@@ -75,6 +75,12 @@ class ConfigService {
 
   async deleteRegional(id: number): Promise<void> {
     await api.delete(`/config/regionales/${id}`);
+  }
+
+  // ⭐ NUEVO: OBTENER CENTROS POR REGIONAL
+  async getCentersByRegional(regionalId: number): Promise<Center[]> {
+    const response = await api.get(`/config/regionales/${regionalId}/centers`);
+    return response.data;
   }
 
   // ⭐ CENTROS

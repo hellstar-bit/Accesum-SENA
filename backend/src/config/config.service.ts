@@ -1,4 +1,4 @@
-// backend/src/config/config.service.ts - COMPLETO
+// backend/src/config/config.service.ts - ACTUALIZADO CON getCentersByRegional
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -87,6 +87,25 @@ export class ConfigService {
     }
 
     await this.regionalRepository.remove(regional);
+  }
+
+  // ⭐ NUEVO: OBTENER CENTROS POR REGIONAL
+  async getCentersByRegional(regionalId: number): Promise<Center[]> {
+    // Primero verificar que la regional existe
+    const regional = await this.regionalRepository.findOne({
+      where: { id: regionalId }
+    });
+
+    if (!regional) {
+      throw new NotFoundException('Regional no encontrada');
+    }
+
+    // Obtener centros filtrados por regional
+    return await this.centerRepository.find({
+      where: { regionalId: regionalId },
+      relations: ['regional'],
+      order: { name: 'ASC' }
+    });
   }
 
   // ==========================================

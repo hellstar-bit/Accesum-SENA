@@ -79,18 +79,21 @@ export const learnerService = {
   },
 
   async updateMyProfile(data: UpdateLearnerRequest): Promise<LearnerProfile> {
-    const response = await api.patch<LearnerProfile>('/learner/profile', data);
+    // ⭐ CAMBIAR PATCH por PUT
+    const response = await api.put<LearnerProfile>('/learner/profile', data);
     return response.data;
   },
 
   async regenerateQR(): Promise<LearnerProfile> {
-    const response = await api.post<LearnerProfile>('/learner/regenerate-qr');
+    // ⭐ CORREGIR ENDPOINT
+    const response = await api.post<LearnerProfile>('/learner/profile/regenerate-qr');
     return response.data;
   },
 
   async uploadImage(imageBase64: string): Promise<LearnerProfile> {
-    const response = await api.post<LearnerProfile>('/learner/upload-image', {
-      image: imageBase64,
+    // ⭐ CORREGIR ENDPOINT Y CAMPO
+    const response = await api.post<LearnerProfile>('/learner/profile/image', {
+      profileImage: imageBase64, // Cambiar 'image' por 'profileImage'
     });
     return response.data;
   },

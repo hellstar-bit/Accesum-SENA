@@ -11,6 +11,8 @@ import { Center } from '../config/entities/center.entity';
 import { IsNull, Not } from 'typeorm';
 
 export interface CreateProfileDto {
+  profileImage?: string;
+  qrCode?: string;
   userId: number;
   documentType: string;
   documentNumber: string;
@@ -23,7 +25,6 @@ export interface CreateProfileDto {
   maritalStatus?: string;
   sex?: string;
   vaccine?: string;
-  profileImage?: string;
   typeId: number;
   regionalId: number;
   centerId: number;

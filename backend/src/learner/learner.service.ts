@@ -210,4 +210,40 @@ export class LearnerService {
       ]
     });
   }
+  async getCarnetData(userId: number): Promise<any> {
+  const profile = await this.profileRepository.findOne({
+    where: { userId },
+    relations: [
+      'user',
+      'type',
+      'regional',
+      'center',
+      'ficha'
+    ]
+  });
+
+  if (!profile) {
+    throw new NotFoundException('Perfil no encontrado');
+  }
+
+  return {
+    id: profile.id,
+    fullName: `${profile.firstName} ${profile.lastName}`,
+    documentType: profile.documentType,
+    documentNumber: profile.documentNumber,
+    bloodType: profile.bloodType,
+    profileImage: profile.profileImage,
+    qrCode: profile.qrCode,
+    ficha: profile.ficha ? {
+      code: profile.ficha.code,
+      name: profile.ficha.name,
+      status: profile.ficha.status
+    } : undefined,
+    type: profile.type.name,
+    center: profile.center.name,
+    regional: profile.regional.name,
+    status: profile.learnerStatus,
+    isActive: profile.user.isActive
+  };
+  }
 }

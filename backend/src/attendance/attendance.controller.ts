@@ -83,4 +83,12 @@ export class AttendanceController {
   }) {
     return await this.attendanceService.autoMarkAttendance(data.profileId, data.entryTime);
   }
+  // ⭐ AGREGAR EN attendance.controller.ts
+  @Get('instructor-dashboard')
+  @Roles('Instructor')
+  async getInstructorDashboard(@Request() req: any) {
+    const instructorId = req.user.id;
+    return await this.attendanceService.getInstructorDashboardStats(instructorId);
+  }
+
 }

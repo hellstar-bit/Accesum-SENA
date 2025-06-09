@@ -165,9 +165,9 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
       
       // Validar que tenga la estructura esperada
       if (parsed && typeof parsed === 'object') {
-        if (parsed.id && parsed.doc && parsed.type === 'ACCESUM_SENA') {
-          return JSON.stringify(parsed);
-        }
+        if (parsed.id && parsed.doc && parsed.type && parsed.type.startsWith('ACCESUM_SENA')) {
+        return JSON.stringify(parsed);
+          }
       }
       
       throw new Error('Formato QR inválido');

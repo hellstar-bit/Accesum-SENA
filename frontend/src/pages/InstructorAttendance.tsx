@@ -1,397 +1,271 @@
-// pages/InstructorAttendance.tsx
-import { useState, useEffect } from 'react';
-import { attendanceService } from '../services/attendanceService';
-import type { ClassSchedule, AttendanceRecord } from '../services/attendanceService';
-import Swal from 'sweetalert2';
+// frontend/src/pages/InstructorAttendance.tsx
+import React, { useState, useEffect } from 'react';
+import { attendanceService, type ClassSchedule, type AttendanceRecord } from '../services/attendanceService';
 
-const InstructorAttendance = () => {
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [classes, setClasses] = useState<ClassSchedule[]>([]);
-  const [selectedClass, setSelectedClass] = useState<ClassSchedule | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
+// ⭐ Eliminar las interfaces duplicadas del componente
+// Ya no necesitas definir AttendanceRecord ni ClassSchedule aquí
+// porque las estás importando del servicio
+
+const InstructorAttendance: React.FC = () => {
+  const [schedules, setSchedules] = useState<ClassSchedule[]>([]);
+  const [selectedDate, setSelectedDate] = useState<string>(
+    new Date().toISOString().split('T')[0]
+  );
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string>('');
 
   useEffect(() => {
-    fetchAttendance();
-  }, [selectedDate, refreshTrigger]);
+    loadAttendance();
+  }, [selectedDate]);
 
-  const fetchAttendance = async () => {
+  const loadAttendance = async () => {
     try {
       setLoading(true);
-      const data = await attendanceService.getMyClassesAttendance(selectedDate);
-      setClasses(data);
+      setError('');
       
-      // Si hay una clase seleccionada, actualizarla
-      if (selectedClass) {
-        const updatedClass = data.find(c => c.id === selectedClass.id);
-        if (updatedClass) {
-          setSelectedClass(updatedClass);
-        }
-      }
-    } catch (error) {
-      console.error('Error al cargar asistencia:', error);
-      Swal.fire('Error', 'No se pudo cargar la asistencia', 'error');
+      const response = await attendanceService.getMyClassesAttendance(selectedDate);
+      setSchedules(response);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Error al cargar la asistencia');
+      console.error('Error loading attendance:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleMarkAttendance = async (
-    learnerId: number, 
-    status: 'PRESENT' | 'LATE' | 'ABSENT',
-    currentStatus?: string
-  ) => {
-    if (!selectedClass) return;
-
-    // Confirmar cambio si ya tiene asistencia marcada
-    if (currentStatus && currentStatus !== 'ABSENT') {
-      const result = await Swal.fire({
-        title: '¿Cambiar asistencia?',
-        text: `¿Desea cambiar de "${getStatusText(currentStatus)}" a "${getStatusText(status)}"?`,
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonColor: '#39A900',
-        cancelButtonColor: '#6b7280',
-        confirmButtonText: 'Sí, cambiar',
-        cancelButtonText: 'Cancelar'
-      });
-
-      if (!result.isConfirmed) return;
-    }
-
-    try {
-      await attendanceService.markAttendance({
-        scheduleId: selectedClass.id,
-        learnerId,
-        status
-      });
-
-      setRefreshTrigger(prev => prev + 1);
-      
-      Swal.fire({
-        title: '✅ Asistencia marcada',
-        text: `Estado cambiado a: ${getStatusText(status)}`,
-        icon: 'success',
-        timer: 2000,
-        showConfirmButton: false
-      });
-    } catch (error) {
-      console.error('Error al marcar asistencia:', error);
-      Swal.fire('Error', 'No se pudo marcar la asistencia', 'error');
+  const getStatusBadge = (status: string) => {
+    const baseClasses = "px-2 py-1 rounded-full text-xs font-medium";
+    
+    switch (status) {
+      case 'PRESENT':
+        return `${baseClasses} bg-green-100 text-green-800`;
+      case 'LATE':
+        return `${baseClasses} bg-yellow-100 text-yellow-800`;
+      case 'ABSENT':
+        return `${baseClasses} bg-red-100 text-red-800`;
+      default:
+        return `${baseClasses} bg-gray-100 text-gray-800`;
     }
   };
 
   const getStatusText = (status: string) => {
     switch (status) {
-      case 'PRESENT': return 'Presente';
-      case 'LATE': return 'Tarde';
-      case 'ABSENT': return 'Ausente';
-      default: return status;
+      case 'PRESENT':
+        return 'Presente';
+      case 'LATE':
+        return 'Tarde';
+      case 'ABSENT':
+        return 'Ausente';
+      default:
+        return status;
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'PRESENT': return 'bg-green-100 text-green-800';
-      case 'LATE': return 'bg-yellow-100 text-yellow-800';
-      case 'ABSENT': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const handleAddNote = async (learnerId: number) => {
-    if (!selectedClass) return;
-
-    const currentRecord = selectedClass.records.find(r => r.learner.id === learnerId);
+  const formatTime = (timeString: string | null) => {
+    if (!timeString) return 'N/A';
     
-    const { value: notes } = await Swal.fire({
-      title: 'Agregar nota',
-      input: 'textarea',
-      inputLabel: 'Observaciones sobre la asistencia',
-      inputValue: currentRecord?.notes || '',
-      inputPlaceholder: 'Escriba sus observaciones...',
-      showCancelButton: true,
-      confirmButtonText: 'Guardar',
-      cancelButtonText: 'Cancelar'
-    });
-
-    if (notes !== undefined) {
-      try {
-        await attendanceService.markAttendance({
-          scheduleId: selectedClass.id,
-          learnerId,
-          status: currentRecord?.status || 'ABSENT',
-          notes
-        });
-
-        setRefreshTrigger(prev => prev + 1);
-        
-        Swal.fire({
-          title: '✅ Nota guardada',
-          icon: 'success',
-          timer: 1500,
-          showConfirmButton: false
-        });
-      } catch (error) {
-        Swal.fire('Error', 'No se pudo guardar la nota', 'error');
-      }
+    try {
+      return new Date(timeString).toLocaleTimeString('es-CO', {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return 'N/A';
     }
   };
+
+  // ⭐ Actualizar función para usar la nueva estructura
+  const calculateAttendanceStats = (records: AttendanceRecord[]) => {
+    const total = records.length;
+    const present = records.filter(a => a.status === 'PRESENT').length;
+    const late = records.filter(a => a.status === 'LATE').length;
+    const absent = records.filter(a => a.status === 'ABSENT').length;
+    
+    return { total, present, late, absent };
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-800">📊 Gestión de Asistencia</h1>
-          <p className="text-gray-600 mt-1">Controla la asistencia de tus aprendices</p>
+    <div className="p-6 bg-gray-50 min-h-screen">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            Control de Asistencia
+          </h1>
+          <p className="text-gray-600">
+            Gestiona la asistencia de tus clases y aprendices
+          </p>
         </div>
-        
-        <div className="flex items-center space-x-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Fecha</label>
+
+        {/* Selector de fecha */}
+        <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
+          <div className="flex items-center gap-4">
+            <label htmlFor="date" className="text-sm font-medium text-gray-700">
+              Fecha:
+            </label>
             <input
               type="date"
+              id="date"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
-              className="input-field"
+              className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
+            <button
+              onClick={loadAttendance}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium"
+            >
+              Actualizar
+            </button>
           </div>
-          <button
-            onClick={fetchAttendance}
-            disabled={loading}
-            className="btn-primary"
-          >
-            {loading ? 'Cargando...' : 'Actualizar'}
-          </button>
         </div>
-      </div>
 
-      {/* Lista de Clases */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Panel izquierdo - Lista de clases */}
-        <div className="lg:col-span-1">
-          <div className="bg-white rounded-lg shadow">
-            <div className="px-6 py-4 border-b">
-              <h3 className="text-lg font-semibold text-gray-800">
-                🗓️ Clases del {new Date(selectedDate).toLocaleDateString('es-CO')}
-              </h3>
+        {/* Error Message */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-6">
+            <div className="flex">
+              <div className="text-red-800">
+                <p className="text-sm font-medium">Error:</p>
+                <p className="text-sm">{error}</p>
+              </div>
             </div>
-            <div className="divide-y">
-              {loading ? (
-                <div className="p-6 text-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-sena-green mx-auto"></div>
-                  <p className="text-gray-500 mt-2">Cargando...</p>
-                </div>
-              ) : classes.length === 0 ? (
-                <div className="p-6 text-center">
-                  <p className="text-gray-500">No hay clases programadas para esta fecha</p>
-                </div>
-              ) : (
-                classes.map((classItem) => (
-                  <div
-                    key={classItem.id}
-                    onClick={() => setSelectedClass(classItem)}
-                    className={`p-4 cursor-pointer hover:bg-gray-50 transition-colors ${
-                      selectedClass?.id === classItem.id ? 'bg-blue-50 border-r-4 border-blue-500' : ''
-                    }`}
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <span className="font-medium text-gray-900">{classItem.subject}</span>
-                      <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                        {classItem.ficha.code}
-                      </span>
-                    </div>
-                    
-                    <div className="text-sm text-gray-600 mb-2">
-                      🕒 {classItem.startTime} - {classItem.endTime}
-                      {classItem.classroom && (
-                        <span className="ml-2">📍 {classItem.classroom}</span>
-                      )}
-                    </div>
-                    
+          </div>
+        )}
+
+        {/* Lista de clases */}
+        {schedules.length === 0 ? (
+          <div className="bg-white rounded-lg shadow-sm p-8 text-center">
+            <div className="text-gray-400 mb-4">
+              <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              No hay clases programadas
+            </h3>
+            <p className="text-gray-500">
+              No se encontraron clases para la fecha seleccionada.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {schedules.map((schedule) => {
+              // ⭐ Usar records en lugar de attendance
+              const stats = calculateAttendanceStats(schedule.records);
+              
+              return (
+                <div key={schedule.scheduleId} className="bg-white rounded-lg shadow-sm overflow-hidden">
+                  {/* Header de la clase */}
+                  <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
                     <div className="flex justify-between items-center">
-                      <div className="text-xs text-gray-500">
-                        {classItem.attendance.present + classItem.attendance.late}/{classItem.attendance.total} presentes
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900">
+                          {schedule.subject} - {schedule.startTime} a {schedule.endTime}
+                        </h3>
+                        <p className="text-sm text-gray-600">
+                          {schedule.classroom && `Aula: ${schedule.classroom}`}
+                          {schedule.ficha?.name && ` | Ficha: ${schedule.ficha.name}`}
+                        </p>
                       </div>
-                      <div className={`text-xs px-2 py-1 rounded ${
-                        parseFloat(classItem.attendance.percentage) >= 80 
-                          ? 'bg-green-100 text-green-800'
-                          : parseFloat(classItem.attendance.percentage) >= 60
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-red-100 text-red-800'
-                      }`}>
-                        {classItem.attendance.percentage}%
+                      <div className="flex items-center gap-4 text-sm">
+                        <span className="text-green-600 font-medium">
+                          Presentes: {stats.present}
+                        </span>
+                        <span className="text-yellow-600 font-medium">
+                          Tarde: {stats.late}
+                        </span>
+                        <span className="text-red-600 font-medium">
+                          Ausentes: {stats.absent}
+                        </span>
+                        <span className="text-gray-600 font-medium">
+                          Total: {stats.total}
+                        </span>
                       </div>
                     </div>
                   </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
 
-        {/* Panel derecho - Detalle de asistencia */}
-        <div className="lg:col-span-2">
-          {selectedClass ? (
-            <div className="bg-white rounded-lg shadow">
-              <div className="px-6 py-4 border-b">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-800">{selectedClass.subject}</h3>
-                    <p className="text-sm text-gray-600">{selectedClass.ficha.name}</p>
-                    <p className="text-sm text-gray-500 mt-1">
-                      📅 {new Date(selectedClass.date).toLocaleDateString('es-CO')} • 
-                      🕒 {selectedClass.startTime} - {selectedClass.endTime}
-                      {selectedClass.classroom && ` • 📍 ${selectedClass.classroom}`}
-                    </p>
-                  </div>
-                  <span className="bg-blue-100 text-blue-800 text-sm px-3 py-1 rounded">
-                    {selectedClass.ficha.code}
-                  </span>
-                </div>
-              </div>
-
-              {/* Estadísticas de asistencia */}
-              <div className="px-6 py-4 bg-gray-50 border-b">
-                <div className="grid grid-cols-4 gap-4 text-center">
-                  <div>
-                    <div className="text-2xl font-bold text-blue-600">{selectedClass.attendance.total}</div>
-                    <div className="text-xs text-gray-500">Total</div>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold text-green-600">{selectedClass.attendance.present}</div>
-                    <div className="text-xs text-gray-500">Presentes</div>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold text-yellow-600">{selectedClass.attendance.late}</div>
-                    <div className="text-xs text-gray-500">Tarde</div>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold text-red-600">{selectedClass.attendance.absent}</div>
-                    <div className="text-xs text-gray-500">Ausentes</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Lista de aprendices */}
-              <div className="overflow-x-auto">
-                <table className="min-w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Aprendiz
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Documento
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Estado
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Hora Marcada
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Acciones
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {selectedClass.records.map((record) => (
-                      <tr key={record.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div>
+                  {/* Tabla de asistencia */}
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Aprendiz
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Estado
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Hora de Acceso
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Marcado
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Tipo
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {/* ⭐ Usar schedule.records en lugar de schedule.attendance */}
+                        {schedule.records.map((record) => (
+                          <tr key={record.attendanceId} className="hover:bg-gray-50">
+                            <td className="px-6 py-4 whitespace-nowrap">
                               <div className="text-sm font-medium text-gray-900">
-                                {record.learner.firstName} {record.learner.lastName}
+                                {record.learnerName || 'Sin nombre'}
                               </div>
-                              {record.notes && (
-                                <div className="text-xs text-gray-500 mt-1">
-                                  📝 {record.notes}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {record.learner.documentNumber}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(record.status)}`}>
-                            {getStatusText(record.status)}
-                            {record.isManual && <span className="ml-1">👤</span>}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {record.markedAt 
-                            ? new Date(record.markedAt).toLocaleTimeString('es-CO', { 
-                                hour: '2-digit', 
-                                minute: '2-digit' 
-                              })
-                            : '-'
-                          }
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <div className="flex space-x-2">
-                            <button
-                              onClick={() => handleMarkAttendance(record.learner.id, 'PRESENT', record.status)}
-                              className="text-green-600 hover:text-green-900"
-                              title="Marcar presente"
-                            >
-                              ✅
-                            </button>
-                            <button
-                              onClick={() => handleMarkAttendance(record.learner.id, 'LATE', record.status)}
-                              className="text-yellow-600 hover:text-yellow-900"
-                              title="Marcar tarde"
-                            >
-                              ⏰
-                            </button>
-                            <button
-                              onClick={() => handleMarkAttendance(record.learner.id, 'ABSENT', record.status)}
-                              className="text-red-600 hover:text-red-900"
-                              title="Marcar ausente"
-                            >
-                              ❌
-                            </button>
-                            <button
-                              onClick={() => handleAddNote(record.learner.id)}
-                              className="text-blue-600 hover:text-blue-900"
-                              title="Agregar nota"
-                            >
-                              📝
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ) : (
-            <div className="bg-white rounded-lg shadow p-8 text-center">
-              <div className="text-gray-400 mb-4">
-                <svg className="mx-auto h-16 w-16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Selecciona una clase</h3>
-              <p className="text-gray-500">Elige una clase de la lista para ver y gestionar la asistencia</p>
-            </div>
-          )}
-        </div>
-      </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className={getStatusBadge(record.status)}>
+                                {getStatusText(record.status)}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {formatTime(record.accessTime)}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {formatTime(record.markedAt)}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                record.isManual 
+                                  ? 'bg-blue-100 text-blue-800' 
+                                  : 'bg-green-100 text-green-800'
+                              }`}>
+                                {record.isManual ? 'Manual' : 'Automático'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
 
-      {/* Información adicional */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h3 className="font-medium text-blue-800 mb-2">💡 Información sobre la asistencia:</h3>
-        <ul className="text-sm text-blue-700 space-y-1">
-          <li>• <strong>Automática:</strong> Se marca cuando el aprendiz registra entrada con QR (tolerancia: 20 min)</li>
-          <li>• <strong>Manual:</strong> Puedes cambiar el estado manualmente haciendo clic en los botones</li>
-          <li>• <strong>Notas:</strong> Agrega observaciones específicas sobre la asistencia de cada aprendiz</li>
-          <li>• <strong>Estados:</strong> ✅ Presente • ⏰ Tarde • ❌ Ausente • 👤 Marcado manual</li>
-        </ul>
+                  {/* Footer con estadísticas */}
+                  {schedule.records.length > 0 && (
+                    <div className="bg-gray-50 px-6 py-3 border-t border-gray-200">
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-gray-600">
+                          {stats.total} aprendices registrados
+                        </span>
+                        <span className="text-gray-600">
+                          Asistencia: {stats.total > 0 ? Math.round(((stats.present + stats.late) / stats.total) * 100) : 0}%
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

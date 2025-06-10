@@ -20,6 +20,8 @@ Accesum-SENA
 │  │  ├─ app.module.ts
 │  │  ├─ app.service.ts
 │  │  ├─ attendance
+│  │  │  ├─ attendance-notifications.controller.ts
+│  │  │  ├─ attendance-notifications.service.ts
 │  │  │  ├─ attendance.controller.ts
 │  │  │  ├─ attendance.module.ts
 │  │  │  ├─ attendance.service.ts
@@ -59,13 +61,16 @@ Accesum-SENA
 │  │  │  ├─ config.service.ts
 │  │  │  ├─ database.config.ts
 │  │  │  ├─ datasource.config.ts
-│  │  │  └─ entities
-│  │  │     ├─ center.entity.ts
-│  │  │     ├─ coordination.entity.ts
-│  │  │     ├─ ficha.entity.ts
-│  │  │     ├─ personnel-type.entity.ts
-│  │  │     ├─ program.entity.ts
-│  │  │     └─ regional.entity.ts
+│  │  │  ├─ entities
+│  │  │  │  ├─ center.entity.ts
+│  │  │  │  ├─ coordination.entity.ts
+│  │  │  │  ├─ ficha.entity.ts
+│  │  │  │  ├─ personnel-type.entity.ts
+│  │  │  │  ├─ program.entity.ts
+│  │  │  │  └─ regional.entity.ts
+│  │  │  ├─ timezone.controller.ts
+│  │  │  ├─ timezone.module.ts
+│  │  │  └─ timezone.service.ts
 │  │  ├─ dashboard
 │  │  │  ├─ dashboard.controller.spec.ts
 │  │  │  ├─ dashboard.controller.ts
@@ -129,6 +134,8 @@ Accesum-SENA
 │  │  │  │  ├─ AccessHistory.tsx
 │  │  │  │  ├─ CurrentOccupancy.tsx
 │  │  │  │  └─ QRScanner.tsx
+│  │  │  ├─ attendance
+│  │  │  │  └─ AttendanceNotifications.tsx
 │  │  │  ├─ auth
 │  │  │  │  └─ PrivateRoute.tsx
 │  │  │  ├─ import
@@ -148,6 +155,8 @@ Accesum-SENA
 │  │  ├─ context
 │  │  │  └─ AuthContext.tsx
 │  │  ├─ hooks
+│  │  │  ├─ useAttendanceRealtime.ts
+│  │  │  └─ useDateSync.ts
 │  │  ├─ index.css
 │  │  ├─ main.tsx
 │  │  ├─ pages
@@ -175,6 +184,7 @@ Accesum-SENA
 │  │  │  ├─ instructorService.ts
 │  │  │  ├─ learnerService.ts
 │  │  │  ├─ profileService.ts
+│  │  │  ├─ timezoneService.ts
 │  │  │  └─ userService.ts
 │  │  ├─ styles
 │  │  │  └─ enhanced-userlist.css

@@ -14,6 +14,7 @@ import { AttendanceModule } from './attendance/attendance.module'; // ⭐ NUEVA 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { databaseConfig } from './config/database.config';
+import { TimezoneModule } from './config/timezone.module';
 
 @Module({
   imports: [
@@ -27,7 +28,8 @@ import { databaseConfig } from './config/database.config';
     DashboardModule,
     ImportModule,
     LearnerModule,
-    AttendanceModule, // ⭐ NUEVA IMPORTACIÓN
+    AttendanceModule,
+    TimezoneModule // ⭐ NUEVA IMPORTACIÓN
   ],
   controllers: [AppController],
   providers: [AppService],

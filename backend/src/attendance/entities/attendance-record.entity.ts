@@ -1,7 +1,9 @@
-// backend/src/attendance/entities/attendance-record.entity.ts - FINAL
+// backend/src/attendance/entities/attendance-record.entity.ts
+
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { ClassSchedule } from './class-schedule.entity';
 import { Profile } from '../../profiles/entities/profile.entity';
+import { AccessRecord } from '../../access/entities/access-record.entity';
 
 @Entity('attendance_records')
 export class AttendanceRecord {
@@ -21,6 +23,13 @@ export class AttendanceRecord {
 
   @Column()
   learnerId: number;
+
+  @ManyToOne(() => AccessRecord, access => access.attendanceRecords, { nullable: true })
+  @JoinColumn({ name: 'accessRecordId' })
+  accessRecord: AccessRecord;
+
+  @Column({ nullable: true })
+  accessRecordId: number;
 
   @Column({
     type: 'enum',

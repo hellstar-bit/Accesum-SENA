@@ -1,4 +1,4 @@
-// frontend/src/components/access/QRScanner.tsx - CORREGIDO
+// frontend/src/components/access/QRScanner.tsx - CORREGIDO PARA COMPLETAR EL FLUJO
 import { useState, useEffect, useRef } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { accessService } from '../../services/accessService';
@@ -43,25 +43,10 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
         showTorchButtonIfSupported: true,
         showZoomSliderIfSupported: true,
         defaultZoomValueIfSupported: 2,
-        // ⭐ CONFIGURACIONES ADICIONALES PARA MEJOR DETECCIÓN
         videoConstraints: {
-          facingMode: "environment" // Usar cámara trasera por defecto
+          facingMode: "environment"
         },
-        formatsToSupport: [ // Soportar múltiples formatos
-          0, // QR_CODE
-          1, // DATA_MATRIX
-          2, // UPC_A
-          3, // UPC_E
-          4, // EAN_8
-          5, // EAN_13
-          6, // CODE_128
-          7, // CODE_39
-          8, // CODE_93
-          9, // CODABAR
-          10, // ITF
-          11, // RSS14
-          12, // RSS_EXPANDED
-        ]
+        formatsToSupport: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
       },
       false
     );
@@ -83,16 +68,16 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
   const handleScan = async (result: string) => {
     const currentTime = Date.now();
     
-    // ⭐ PREVENIR DOBLE ESCANEO
+    // Prevenir doble escaneo
     if (
       processingQR || 
       result === lastScannedCode || 
-      (currentTime - lastScanTimeRef.current) < 3000 // 3 segundos entre escaneos
+      (currentTime - lastScanTimeRef.current) < 3000
     ) {
       return;
     }
 
-    // ⭐ PAUSAR EL ESCÁNER MIENTRAS SE PROCESA
+    // Pausar el escáner mientras se procesa
     setProcessingQR(true);
     setLastScannedCode(result);
     lastScanTimeRef.current = currentTime;
@@ -100,11 +85,11 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
     try {
       console.log('🔍 QR Escaneado (raw):', result);
       
-      // ⭐ VALIDAR Y LIMPIAR DATOS DEL QR
+      // Validar y limpiar datos del QR
       const cleanQRData = validateAndCleanQRData(result);
       console.log('🔍 QR Limpio:', cleanQRData);
       
-      // Mostrar loading mientras se procesa
+      // Mostrar loading
       Swal.fire({
         title: 'Procesando...',
         html: `
@@ -121,15 +106,21 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
         }
       });
 
-      // ⭐ DETERMINAR ACCIÓN Y PROCESAR
+      // ⭐ DETERMINAR ACCIÓN Y PROCESAR - CORREGIDO
+      console.log('🎯 Determinando acción para:', JSON.parse(cleanQRData));
+      
       const checkInOrOut = await determineAction(cleanQRData);
       console.log('🎯 Acción determinada:', checkInOrOut);
       
       let response;
+      console.log('📡 Enviando request de', checkInOrOut === 'entry' ? 'CHECK-IN' : 'CHECK-OUT');
+      
       if (checkInOrOut === 'entry') {
         response = await accessService.checkIn({ qrData: cleanQRData });
+        console.log('✅ CHECK-IN exitoso:', response);
       } else {
         response = await accessService.checkOut({ qrData: cleanQRData });
+        console.log('✅ CHECK-OUT exitoso:', response);
       }
       
       await showSuccessAlert(checkInOrOut, response);
@@ -149,44 +140,41 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
         'Error al procesar código QR'
       );
     } finally {
-      // ⭐ REANUDAR ESCÁNER DESPUÉS DE UN DELAY
+      // Reanudar escáner después de un delay
       setTimeout(() => {
         setProcessingQR(false);
         setLastScannedCode('');
-      }, 2000); // 2 segundos antes de permitir otro escaneo
+      }, 2000);
     }
   };
 
-  // ⭐ NUEVA FUNCIÓN - Validar y limpiar datos del QR
+  // ⭐ FUNCIÓN MEJORADA PARA VALIDAR QR
   const validateAndCleanQRData = (rawData: string): string => {
     try {
-      // Intentar parsear como JSON directamente
       const parsed = JSON.parse(rawData);
       
-      // Validar que tenga la estructura esperada
       if (parsed && typeof parsed === 'object') {
-        if (parsed.id && parsed.doc && parsed.type && parsed.type.startsWith('ACCESUM_SENA')) {
-        return JSON.stringify(parsed);
-          }
+        // ⭐ ACEPTAR DIFERENTES TIPOS DE QR ACCESUM
+        if (parsed.id && parsed.doc && 
+            (parsed.type === 'ACCESUM_SENA' || 
+             parsed.type === 'ACCESUM_SENA_LEARNER' || 
+             parsed.type?.startsWith('ACCESUM_SENA'))) {
+          return JSON.stringify(parsed);
+        }
       }
       
       throw new Error('Formato QR inválido');
     } catch (jsonError) {
-      // Si no es JSON válido, intentar otras estrategias
       console.log('No es JSON válido, intentando otras estrategias...');
       
-      // ⭐ ESTRATEGIA 1: Limpiar caracteres extraños
       let cleanData = rawData.trim();
-      
-      // Remover caracteres de control y no imprimibles
       cleanData = cleanData.replace(/[\x00-\x1F\x7F-\x9F]/g, '');
       
-      // ⭐ ESTRATEGIA 2: Intentar extraer JSON de una cadena más larga
       const jsonMatch = cleanData.match(/\{.*\}/);
       if (jsonMatch) {
         try {
           const parsed = JSON.parse(jsonMatch[0]);
-          if (parsed.id && parsed.doc && parsed.type === 'ACCESUM_SENA') {
+          if (parsed.id && parsed.doc && parsed.type?.includes('ACCESUM')) {
             return JSON.stringify(parsed);
           }
         } catch (e) {
@@ -194,13 +182,11 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
         }
       }
       
-      // ⭐ ESTRATEGIA 3: Si es solo un número, crear estructura QR
       const numberMatch = cleanData.match(/^\d+$/);
       if (numberMatch) {
         const documentNumber = numberMatch[0];
         console.log('🔍 Detectado número de documento puro:', documentNumber);
         
-        // Crear estructura QR temporal para búsqueda
         return JSON.stringify({
           id: null,
           doc: documentNumber,
@@ -209,7 +195,6 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
         });
       }
       
-      // ⭐ ESTRATEGIA 4: Intentar decodificar URL encoded
       try {
         const decoded = decodeURIComponent(cleanData);
         if (decoded !== cleanData) {
@@ -223,13 +208,57 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
     }
   };
 
-  // ⭐ NUEVA FUNCIÓN - Extraer documento del QR para mostrar
   const getDocumentFromQR = (qrData: string): string => {
     try {
       const parsed = JSON.parse(qrData);
       return parsed.doc || 'No identificado';
     } catch {
       return qrData.substring(0, 15) + '...';
+    }
+  };
+
+  // ⭐ FUNCIÓN MEJORADA PARA DETERMINAR ACCIÓN
+  const determineAction = async (qrData: string): Promise<'entry' | 'exit'> => {
+    try {
+      const qrInfo = JSON.parse(qrData);
+      console.log('🎯 Determinando acción para:', qrInfo);
+      
+      if (!qrInfo.doc) {
+        console.warn('⚠️ QR no contiene documento, asumiendo entrada');
+        return 'entry';
+      }
+      
+      console.log('🏢 Verificando ocupación actual...');
+      const current = await accessService.getCurrentOccupancy();
+      console.log('🏢 Personas actualmente dentro:', current.total);
+      console.log('🏢 Registros actuales:', current.records.map(r => ({
+        doc: r.user.profile.documentNumber,
+        name: `${r.user.profile.firstName} ${r.user.profile.lastName}`
+      })));
+      
+      const isInside = current.records.some(r => 
+        r.user.profile.documentNumber === qrInfo.doc
+      );
+      
+      console.log('🎯 ¿Está dentro?', isInside, 'para documento:', qrInfo.doc);
+      return isInside ? 'exit' : 'entry';
+    } catch (error) {
+      console.error('❌ Error determinando acción:', error);
+      // Por defecto, asumir entrada si hay error
+      return 'entry';
+    }
+  };
+
+  const determineActionByProfile = async (profileId: number): Promise<'entry' | 'exit'> => {
+    try {
+      console.log('🎯 Determinando acción por perfil ID:', profileId);
+      const current = await accessService.getCurrentOccupancy();
+      const isInside = current.records.some(r => r.user.id === profileId);
+      console.log('🎯 ¿Perfil está dentro?', isInside);
+      return isInside ? 'exit' : 'entry';
+    } catch (error) {
+      console.error('Error determinando acción por perfil:', error);
+      return 'entry';
     }
   };
 
@@ -322,7 +351,6 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
 
     setLoading(true);
 
-    // Mostrar loading para búsqueda manual
     Swal.fire({
       title: 'Buscando persona...',
       html: `
@@ -337,6 +365,7 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
     });
 
     try {
+      console.log('🔍 Búsqueda manual por documento:', manualDocument);
       const searchResult = await accessService.searchByDocument(manualDocument);
       
       if (!searchResult.found || !searchResult.profile) {
@@ -363,8 +392,10 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
         return;
       }
 
-      // ⭐ DETERMINAR ACCIÓN POR PERFIL ID
+      console.log('✅ Persona encontrada:', searchResult.profile);
+
       const checkInOrOut = await determineActionByProfile(searchResult.profile.id);
+      console.log('🎯 Acción determinada para búsqueda manual:', checkInOrOut);
       
       let response;
       if (checkInOrOut === 'entry') {
@@ -378,7 +409,7 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
       onScanSuccess();
 
     } catch (error: any) {
-      console.error('Error en búsqueda manual:', error);
+      console.error('❌ Error en búsqueda manual:', error);
       await showErrorAlert(
         error.response?.data?.message || 
         'Error al procesar el documento'
@@ -388,49 +419,9 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
     }
   };
 
-  // ⭐ MEJORAR FUNCIÓN DE DETERMINACIÓN DE ACCIÓN
-  const determineAction = async (qrData: string): Promise<'entry' | 'exit'> => {
-    try {
-      const qrInfo = JSON.parse(qrData);
-      console.log('🎯 Determinando acción para:', qrInfo);
-      
-      // Si no tiene documento, no se puede determinar
-      if (!qrInfo.doc) {
-        throw new Error('Código QR no contiene número de documento');
-      }
-      
-      const current = await accessService.getCurrentOccupancy();
-      console.log('🏢 Personas actualmente dentro:', current.total);
-      
-      const isInside = current.records.some(r => 
-        r.user.profile.documentNumber === qrInfo.doc
-      );
-      
-      console.log('🎯 ¿Está dentro?', isInside);
-      return isInside ? 'exit' : 'entry';
-    } catch (error) {
-      console.error('Error determinando acción:', error);
-      // Por defecto, asumir entrada si hay error
-      return 'entry';
-    }
-  };
-
-  const determineActionByProfile = async (profileId: number): Promise<'entry' | 'exit'> => {
-    try {
-      const current = await accessService.getCurrentOccupancy();
-      const isInside = current.records.some(r => r.user.id === profileId);
-      return isInside ? 'exit' : 'entry';
-    } catch (error) {
-      console.error('Error determinando acción por perfil:', error);
-      return 'entry';
-    }
-  };
-
   const handleError = (error: any) => {
-    // ⭐ MEJORAR MANEJO DE ERRORES DEL ESCÁNER
     console.log('⚠️ Error técnico del escáner:', error);
     
-    // Solo mostrar errores críticos, no técnicos normales
     if (error.includes('NotAllowedError') || error.includes('Permission')) {
       Swal.fire({
         title: '📷 Permisos de cámara',
@@ -467,7 +458,6 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
         </div>
       </div>
 
-      {/* ⭐ BOTÓN DE CONTROL MEJORADO */}
       <div className="flex space-x-4 mb-6">
         <button
           onClick={toggleScanning}
@@ -501,7 +491,6 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
         </button>
       </div>
 
-      {/* ⭐ ÁREA DE ESCÁNER MEJORADA */}
       {scanning && (
         <div className="mb-6">
           <div className={`relative max-w-sm mx-auto border-4 rounded-xl overflow-hidden transition-all ${
@@ -529,7 +518,6 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
         </div>
       )}
 
-      {/* ⭐ BÚSQUEDA MANUAL MEJORADA */}
       <div className="mb-6 p-4 bg-gradient-to-r from-gray-50 to-blue-50 rounded-lg border border-gray-200">
         <h3 className="text-lg font-medium mb-3 flex items-center text-gray-800">
           <span className="mr-2">🔢</span>
@@ -563,7 +551,6 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
         </p>
       </div>
 
-      {/* ⭐ INSTRUCCIONES MEJORADAS */}
       <div className="bg-blue-50 border-l-4 border-blue-400 rounded-lg p-4">
         <h4 className="font-medium text-blue-800 mb-2 flex items-center">
           <span className="mr-2">💡</span>

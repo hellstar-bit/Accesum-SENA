@@ -1,6 +1,6 @@
-// backend/src/access/entities/access-record.entity.ts
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
+import { AttendanceRecord } from '../../attendance/entities/attendance-record.entity';
 
 @Entity('access_records')
 export class AccessRecord {
@@ -23,12 +23,16 @@ export class AccessRecord {
   @Column()
   status: string;
 
-  @Column({ nullable: true }) // ⭐ AGREGAR ESTA PROPIEDAD
+  @Column({ nullable: true })
   duration: string;
 
-  @Column({ type: 'text', nullable: true }) // ⭐ AGREGAR ESTA PROPIEDAD
+  @Column({ type: 'text', nullable: true })
   notes: string;
 
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;
+
+  // Relación con AttendanceRecord
+  @OneToMany(() => AttendanceRecord, record => record.accessRecord)
+  attendanceRecords: AttendanceRecord[];
 }

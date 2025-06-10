@@ -77,6 +77,7 @@ export interface UserFilters {
 }
 
 export interface UsersResponse {
+  users: any;
   filter(arg0: (user: { role: { name: string; }; }) => boolean): unknown;
   data: User[];
   total: number;

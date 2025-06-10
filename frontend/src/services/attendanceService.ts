@@ -1,28 +1,33 @@
-// services/attendanceService.ts
 import api from './api';
 
-export interface InstructorFicha {
+export interface AttendanceRecord {
   id: number;
-  subject: string;
-  description?: string;
-  ficha: {
+  attendanceId: number;
+  learnerId: number;
+  learnerName: string;
+  status: 'PRESENT' | 'LATE' | 'ABSENT';
+  markedAt: string | null;
+  isManual: boolean;
+  accessTime: string | null;
+  notes?: string;
+  learner: {
     id: number;
-    code: string;
-    name: string;
-    status: string;
-    totalLearners: number;
+    firstName: string;
+    lastName: string;
+    documentNumber: string;
   };
-  assignedAt: Date;
 }
 
 export interface ClassSchedule {
   id: number;
-  date: Date;
+  scheduleId: number;
+  date: string;
   startTime: string;
   endTime: string;
-  classroom?: string;
+  classroom: string;
   subject: string;
   ficha: {
+    id: number;
     code: string;
     name: string;
   };
@@ -36,136 +41,327 @@ export interface ClassSchedule {
   records: AttendanceRecord[];
 }
 
-export interface AttendanceRecord {
-  id: number;
-  learner: {
-    id: number;
-    firstName: string;
-    lastName: string;
-    documentNumber: string;
-  };
-  status: 'PRESENT' | 'LATE' | 'ABSENT';
-  markedAt?: Date;
-  isManual: boolean;
-  notes?: string;
+export interface InstructorDashboardStats {
+  totalClasses: number;
+  totalStudents: number;
+  averageAttendance: number;
+  todayClasses: number;
+  presentToday: number;
+  lateToday: number;
+  absentToday: number;
+  weeklyStats: {
+    day: string;
+    present: number;
+    late: number;
+    absent: number;
+  }[];
+  monthlyStats: {
+    week: string;
+    attendance: number;
+  }[];
 }
 
-export interface CreateScheduleData {
+export interface ScheduleData {
   assignmentId: number;
   date: string;
   startTime: string;
   endTime: string;
   classroom?: string;
   description?: string;
-}
-
-export interface MarkAttendanceData {
-  scheduleId: number;
-  learnerId: number;
-  status: 'PRESENT' | 'LATE' | 'ABSENT';
-  notes?: string;
+  lateToleranceMinutes?: number;
 }
 
 class AttendanceService {
-  // ⭐ OBTENER MIS FICHAS (INSTRUCTOR)
-  async getMyFichas(): Promise<InstructorFicha[]> {
-    const response = await api.get('/instructor-assignments/my-fichas');
-    return response.data;
-  }
-
-  // ⭐ OBTENER MIS HORARIOS Y ASISTENCIAS (INSTRUCTOR)
+  // ⭐ OBTENER ASISTENCIA DE MIS CLASES
   async getMyClassesAttendance(date?: string): Promise<ClassSchedule[]> {
-    const params = date ? { date } : {};
-    const response = await api.get('/attendance/my-classes', { params });
-    return response.data;
-  }
-
-  // ⭐ CREAR HORARIO DE CLASE
-  async createSchedule(data: CreateScheduleData): Promise<any> {
-    const response = await api.post('/class-schedules', data);
-    return response.data;
+    try {
+      const params = date ? { date } : {};
+      const response = await api.get('/attendance/my-classes', { params });
+      
+      // Mapear la respuesta para asegurar compatibilidad
+      return response.data.map((schedule: any) => ({
+        id: schedule.scheduleId || schedule.id,
+        scheduleId: schedule.scheduleId || schedule.id,
+        date: schedule.date,
+        startTime: schedule.startTime,
+        endTime: schedule.endTime,
+        classroom: schedule.classroom || 'Sin asignar',
+        subject: schedule.assignment?.subject || schedule.subject || 'Sin asignatura',
+        ficha: {
+          id: schedule.assignment?.ficha?.id || schedule.ficha?.id,
+          code: schedule.assignment?.ficha?.code || schedule.ficha?.code || 'N/A',
+          name: schedule.assignment?.ficha?.name || schedule.ficha?.name || 'Sin nombre'
+        },
+        attendance: {
+          total: schedule.attendance?.total || 0,
+          present: schedule.attendance?.present || 0,
+          late: schedule.attendance?.late || 0,
+          absent: schedule.attendance?.absent || 0,
+          percentage: schedule.attendance?.percentage || '0.0'
+        },
+        records: (schedule.attendance?.records || schedule.records || []).map((record: any) => ({
+          id: record.attendanceId || record.id,
+          attendanceId: record.attendanceId || record.id,
+          learnerId: record.learnerId,
+          learnerName: record.learnerName || `${record.learner?.firstName || ''} ${record.learner?.lastName || ''}`.trim(),
+          status: record.status,
+          markedAt: record.markedAt,
+          isManual: record.isManual || false,
+          accessTime: record.accessTime,
+          notes: record.notes,
+          learner: {
+            id: record.learner?.id || record.learnerId,
+            firstName: record.learner?.firstName || '',
+            lastName: record.learner?.lastName || '',
+            documentNumber: record.learner?.documentNumber || ''
+          }
+        }))
+      }));
+    } catch (error) {
+      console.error('Error al obtener asistencia de clases:', error);
+      throw error;
+    }
   }
 
   // ⭐ MARCAR ASISTENCIA MANUAL
-  async markAttendance(data: MarkAttendanceData): Promise<AttendanceRecord> {
-    const response = await api.post('/attendance/mark', data);
-    return response.data;
+  async markAttendance(data: {
+    scheduleId: number;
+    profileId: number;
+    status: 'PRESENTE' | 'TARDE' | 'AUSENTE';
+    notes?: string;
+  }) {
+    try {
+      console.log('📝 Enviando datos de asistencia:', data);
+      const response = await api.post('/attendance/mark', data);
+      return response.data;
+    } catch (error) {
+      console.error('Error al marcar asistencia:', error);
+      throw error;
+    }
   }
 
-  // ⭐ ASIGNAR INSTRUCTOR A FICHA (ADMIN)
-  async assignInstructorToFicha(data: {
-    instructorId: number;
-    fichaId: number;
-    subject: string;
-    description?: string;
-  }): Promise<any> {
-    const response = await api.post('/instructor-assignments', data);
-    return response.data;
-  }
-
-  // ⭐ OBTENER FICHAS DE INSTRUCTOR (ADMIN)
-  async getInstructorFichas(instructorId: number): Promise<InstructorFicha[]> {
-    const response = await api.get(`/instructor-assignments/instructor/${instructorId}/fichas`);
-    return response.data;
-  }
-
-  // ⭐ VER ASISTENCIA DE INSTRUCTOR (ADMIN)
-  async getInstructorAttendance(instructorId: number, date?: string): Promise<ClassSchedule[]> {
-    const params = date ? { date } : {};
-    const response = await api.get(`/attendance/instructor/${instructorId}`, { params });
-    return response.data;
-  }
-  // ⭐ OBTENER HORARIOS DE UNA ASIGNACIÓN
-  async getSchedulesByAssignment(assignmentId: number) {
-    const response = await api.get(`/class-schedules/assignment/${assignmentId}`);
-    return response.data;
-  }
-
-  // ⭐ OBTENER ASISTENCIA DE UNA CLASE
+  // ⭐ OBTENER ASISTENCIA POR HORARIO
   async getAttendanceBySchedule(scheduleId: number) {
-    const response = await api.get(`/attendance/schedule/${scheduleId}`);
-    return response.data;
-  }
-
-  // ⭐ OBTENER MIS CLASES DE HOY (para instructor)
-  async getMyTodayClasses() {
-    const response = await api.get('/class-schedules/my-today');
-    return response.data;
+    try {
+      const response = await api.get(`/attendance/schedule/${scheduleId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error al obtener asistencia por horario:', error);
+      throw error;
+    }
   }
 
   // ⭐ OBTENER ESTADÍSTICAS DE ASISTENCIA
-  async getAttendanceStats(assignmentId: number, dateRange?: {
-    startDate: string;
-    endDate: string;
+  async getAttendanceStats(
+    assignmentId: number,
+    startDate?: string,
+    endDate?: string
+  ) {
+    try {
+      const params: any = {};
+      if (startDate) params.startDate = startDate;
+      if (endDate) params.endDate = endDate;
+
+      const response = await api.get(`/attendance/stats/${assignmentId}`, { params });
+      return response.data;
+    } catch (error) {
+      console.error('Error al obtener estadísticas:', error);
+      throw error;
+    }
+  }
+
+  // ⭐ OBTENER REPORTE DE ASISTENCIA
+  async getAttendanceReport(
+    assignmentId: number,
+    startDate?: string,
+    endDate?: string
+  ) {
+    try {
+      const params: any = {};
+      if (startDate) params.startDate = startDate;
+      if (endDate) params.endDate = endDate;
+
+      const response = await api.get(`/attendance/report/${assignmentId}`, { params });
+      return response.data;
+    } catch (error) {
+      console.error('Error al obtener reporte:', error);
+      throw error;
+    }
+  }
+
+  // ⭐ OBTENER DASHBOARD DEL INSTRUCTOR
+  async getInstructorDashboard(): Promise<InstructorDashboardStats> {
+    try {
+      const response = await api.get('/attendance/instructor-dashboard');
+      return response.data;
+    } catch (error) {
+      console.error('Error al obtener dashboard del instructor:', error);
+      throw error;
+    }
+  }
+
+  // ⭐ MARCAR ASISTENCIA AUTOMÁTICA (desde control de acceso)
+  async autoMarkAttendance(data: {
+    profileId: number;
+    entryTime: string;
   }) {
-    const params = new URLSearchParams();
-    if (dateRange) {
-      params.append('startDate', dateRange.startDate);
-      params.append('endDate', dateRange.endDate);
+    try {
+      const response = await api.post('/attendance/auto-mark', data);
+      return response.data;
+    } catch (error) {
+      console.error('Error en marcado automático:', error);
+      throw error;
     }
-    
-    const response = await api.get(`/attendance/stats/${assignmentId}?${params}`);
-    return response.data;
   }
 
-  // ⭐ OBTENER HORARIOS POR FECHA
-  async getSchedulesByDate(date: string, instructorId?: number) {
-    const params = new URLSearchParams();
-    params.append('date', date);
-    if (instructorId) {
-      params.append('instructorId', instructorId.toString());
+  // ⭐ OBTENER MIS FICHAS ASIGNADAS
+  async getMyFichas() {
+    try {
+      const response = await api.get('/instructor-assignments/my-fichas');
+      return response.data;
+    } catch (error) {
+      console.error('Error al obtener fichas asignadas:', error);
+      throw error;
     }
-    
-    const response = await api.get(`/class-schedules/date/${date}?${params}`);
-    return response.data;
   }
 
-  // ⭐ OBTENER HORARIO ESPECÍFICO
-  async getScheduleById(id: number) {
-    const response = await api.get(`/class-schedules/${id}`);
-    return response.data;
+  // ⭐ OBTENER HORARIOS DE UNA FICHA
+  async getFichaSchedules(fichaId: number, date?: string) {
+    try {
+      const params = date ? { date } : {};
+      const response = await api.get(`/attendance/ficha/${fichaId}/schedules`, { params });
+      return response.data;
+    } catch (error) {
+      console.error('Error al obtener horarios de ficha:', error);
+      throw error;
+    }
+  }
+
+  // ⭐ CREAR HORARIO DE CLASE
+  async createSchedule(data: ScheduleData) {
+    try {
+      const response = await api.post('/class-schedules', data);
+      return response.data;
+    } catch (error) {
+      console.error('Error al crear horario:', error);
+      throw error;
+    }
+  }
+
+  // ⭐ ACTUALIZAR HORARIO DE CLASE
+  async updateSchedule(scheduleId: number, data: Partial<ScheduleData>) {
+    try {
+      const response = await api.put(`/class-schedules/${scheduleId}`, data);
+      return response.data;
+    } catch (error) {
+      console.error('Error al actualizar horario:', error);
+      throw error;
+    }
+  }
+
+  // ⭐ ELIMINAR HORARIO DE CLASE
+  async deleteSchedule(scheduleId: number) {
+    try {
+      const response = await api.delete(`/class-schedules/${scheduleId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error al eliminar horario:', error);
+      throw error;
+    }
+  }
+
+  // ⭐ OBTENER NOTIFICACIONES DE ASISTENCIA
+  async getAttendanceNotifications() {
+    try {
+      const response = await api.get('/attendance/notifications');
+      return response.data;
+    } catch (error) {
+      console.error('Error al obtener notificaciones:', error);
+      throw error;
+    }
+  }
+
+  // ⭐ MARCAR NOTIFICACIÓN COMO LEÍDA
+  async markNotificationAsRead(notificationId: number) {
+    try {
+      const response = await api.patch(`/attendance/notifications/${notificationId}/read`);
+      return response.data;
+    } catch (error) {
+      console.error('Error al marcar notificación como leída:', error);
+      throw error;
+    }
+  }
+
+  // ⭐ EXPORTAR REPORTE A EXCEL
+  async exportAttendanceReport(
+    assignmentId: number,
+    startDate?: string,
+    endDate?: string,
+    format: 'excel' | 'pdf' = 'excel'
+  ) {
+    try {
+      const params: any = { format };
+      if (startDate) params.startDate = startDate;
+      if (endDate) params.endDate = endDate;
+
+      const response = await api.get(`/attendance/export/${assignmentId}`, {
+        params,
+        responseType: 'blob'
+      });
+
+      // Crear y descargar archivo
+      const blob = new Blob([response.data]);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `reporte-asistencia-${assignmentId}-${new Date().toISOString().split('T')[0]}.${format === 'excel' ? 'xlsx' : 'pdf'}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      return { success: true, message: 'Reporte descargado exitosamente' };
+    } catch (error) {
+      console.error('Error al exportar reporte:', error);
+      throw error;
+    }
+  }
+
+  // ⭐ OBTENER ESTADÍSTICAS GENERALES
+  async getGeneralStats() {
+    try {
+      const response = await api.get('/attendance/general-stats');
+      return response.data;
+    } catch (error) {
+      console.error('Error al obtener estadísticas generales:', error);
+      throw error;
+    }
+  }
+
+  // ⭐ OBTENER ASISTENCIA POR RANGO DE FECHAS
+  async getAttendanceByDateRange(startDate: string, endDate: string) {
+    try {
+      const response = await api.get('/attendance/date-range', {
+        params: { startDate, endDate }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error al obtener asistencia por rango de fechas:', error);
+      throw error;
+    }
+  }
+
+  // ⭐ SINCRONIZAR ASISTENCIA CON ACCESO
+  async syncAttendanceWithAccess(date?: string) {
+    try {
+      const params = date ? { date } : {};
+      const response = await api.post('/attendance/sync-with-access', params);
+      return response.data;
+    } catch (error) {
+      console.error('Error al sincronizar asistencia con acceso:', error);
+      throw error;
+    }
   }
 }
 
 export const attendanceService = new AttendanceService();
-

@@ -7,6 +7,8 @@ import { ClassSchedule } from './entities/class-schedule.entity';
 import { AttendanceRecord } from './entities/attendance-record.entity';
 import { Profile } from '../profiles/entities/profile.entity';
 import { User } from '../users/entities/user.entity';
+import { TimezoneService } from '../config/timezone.service';
+
 
 @Injectable()
 export class AttendanceService {
@@ -21,6 +23,7 @@ export class AttendanceService {
     private profileRepository: Repository<Profile>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    private timezoneService: TimezoneService, // ⭐ AGREGAR AQUÍ
   ) {}
 
   // ⭐ ASIGNAR INSTRUCTOR A FICHA
@@ -131,26 +134,29 @@ export class AttendanceService {
   }
 
   // ⭐ OBTENER CLASES Y ASISTENCIA DE UN INSTRUCTOR - CORREGIDO
-  async getInstructorAttendance(instructorId: number, date: Date) {
-    const startOfDay = new Date(date);
-    startOfDay.setHours(0, 0, 0, 0);
-    
-    const endOfDay = new Date(date);
-    endOfDay.setHours(23, 59, 59, 999);
+  async getInstructorAttendance(instructorId: number, date?: Date) {
+  // Usar timezone service para manejar fechas correctamente
+  const targetDate = date || this.timezoneService.getCurrentDateInColombia();
+  const { startOfDay, endOfDay } = this.timezoneService.getDayBounds(targetDate);
 
-    console.log(`🔍 Buscando clases para instructor ${instructorId} en fecha ${date.toISOString().split('T')[0]}`);
+  console.log(`🔍 Buscando clases para instructor ${instructorId} en fecha:`, {
+    targetDate: this.timezoneService.formatDateForDB(targetDate),
+    startOfDay: startOfDay.toISOString(),
+    endOfDay: endOfDay.toISOString()
+  });
 
-    const schedules = await this.scheduleRepository
-      .createQueryBuilder('schedule')
-      .leftJoinAndSelect('schedule.assignment', 'assignment')
-      .leftJoinAndSelect('assignment.ficha', 'ficha')
-      .leftJoinAndSelect('schedule.attendanceRecords', 'records')
-      .leftJoinAndSelect('records.learner', 'learner')
-      .where('assignment.instructorId = :instructorId', { instructorId })
-      .andWhere('schedule.date BETWEEN :startOfDay AND :endOfDay', { startOfDay, endOfDay })
-      .andWhere('schedule.isActive = true')
-      .orderBy('schedule.startTime', 'ASC')
-      .getMany();
+  const schedules = await this.scheduleRepository
+    .createQueryBuilder('schedule')
+    .leftJoinAndSelect('schedule.assignment', 'assignment')
+    .leftJoinAndSelect('assignment.ficha', 'ficha')
+    .leftJoinAndSelect('schedule.attendanceRecords', 'records')
+    .leftJoinAndSelect('records.learner', 'learner')
+    .where('assignment.instructorId = :instructorId', { instructorId })
+    .andWhere('schedule.date BETWEEN :startOfDay AND :endOfDay', { startOfDay, endOfDay })
+    .andWhere('schedule.isActive = true')
+    .orderBy('schedule.startTime', 'ASC')
+    .getMany();
+
 
     console.log(`📚 Encontradas ${schedules.length} clases programadas`);
 

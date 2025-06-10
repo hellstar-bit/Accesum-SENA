@@ -1,4 +1,4 @@
-// backend/src/access/access.controller.ts - CÓDIGO CORREGIDO
+// backend/src/access/access.controller.ts - CÃ“DIGO CORREGIDO
 import { Controller, Get, Post, Body, Param, UseGuards, Query, Request } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -10,7 +10,7 @@ import { AccessService } from './access.service';
 export class AccessController {
   constructor(private readonly accessService: AccessService) {}
 
-  // ⭐ CHECK-IN (Entrada)
+  // â­ CHECK-IN (Entrada)
   @Post('check-in')
   @Roles('Administrador', 'Instructor', 'Funcionario')
   async checkIn(@Body() data: { 
@@ -20,7 +20,7 @@ export class AccessController {
     return await this.accessService.checkIn(data);
   }
 
-  // ⭐ CHECK-OUT (Salida)
+  // â­ CHECK-OUT (Salida)
   @Post('check-out')
   @Roles('Administrador', 'Instructor', 'Funcionario')
   async checkOut(@Body() data: { 
@@ -30,14 +30,14 @@ export class AccessController {
     return await this.accessService.checkOut(data);
   }
 
-  // ⭐ OBTENER OCUPACIÓN ACTUAL
+  // â­ OBTENER OCUPACIÃ“N ACTUAL
   @Get('current')
   @Roles('Administrador', 'Instructor', 'Funcionario')
   async getCurrentOccupancy() {
     return await this.accessService.getCurrentOccupancy();
   }
 
-  // ⭐ OBTENER HISTORIAL DE ACCESOS - CORREGIDO
+  // â­ OBTENER HISTORIAL DE ACCESOS - CORREGIDO
   @Get('history')
   @Roles('Administrador', 'Instructor', 'Funcionario')
   async getHistory(
@@ -46,7 +46,7 @@ export class AccessController {
     @Query('date') date?: string,
     @Query('userId') userId?: string
   ) {
-    // ⭐ CORREGIR: Asegurar valores por defecto
+    // â­ CORREGIR: Asegurar valores por defecto
     const params = {
       page: page ? parseInt(page) : 1,
       limit: limit ? parseInt(limit) : 10,
@@ -57,7 +57,7 @@ export class AccessController {
     return await this.accessService.getHistory(params);
   }
 
-  // ⭐ OBTENER ESTADÍSTICAS DE ACCESO
+  // â­ OBTENER ESTADÃSTICAS DE ACCESO
   @Get('stats')
   @Roles('Administrador', 'Instructor', 'Funcionario')
   async getStats(@Query('date') date?: string) {
@@ -65,21 +65,21 @@ export class AccessController {
     return await this.accessService.getStats(targetDate);
   }
 
-  // ⭐ BUSCAR POR NÚMERO DE DOCUMENTO
+  // â­ BUSCAR POR NÃšMERO DE DOCUMENTO
   @Get('search/:documentNumber')
   @Roles('Administrador', 'Instructor', 'Funcionario')
   async searchByDocument(@Param('documentNumber') documentNumber: string) {
     return await this.accessService.searchByDocument(documentNumber);
   }
 
-  // ⭐ OBTENER ACCESO ACTIVO DE UN USUARIO
+  // â­ OBTENER ACCESO ACTIVO DE UN USUARIO
   @Get('active/:userId')
   @Roles('Administrador', 'Instructor', 'Funcionario')
   async getActiveAccess(@Param('userId') userId: number) {
     return await this.accessService.getActiveAccess(userId);
   }
 
-  // ⭐ FORZAR SALIDA (para casos especiales)
+  // â­ FORZAR SALIDA (para casos especiales)
   @Post('force-checkout/:userId')
   @Roles('Administrador')
   async forceCheckOut(
@@ -89,7 +89,7 @@ export class AccessController {
     return await this.accessService.forceCheckOut(userId, data.reason);
   }
 
-  // ⭐ OBTENER MIS ACCESOS (para usuarios regulares) - CORREGIDO
+  // â­ OBTENER MIS ACCESOS (para usuarios regulares) - CORREGIDO
   @Get('my-access')
   @Roles('Administrador', 'Instructor', 'Funcionario', 'Aprendiz')
   async getMyAccess(
@@ -97,7 +97,7 @@ export class AccessController {
     @Query('page') page?: string,
     @Query('limit') limit?: string
   ) {
-    // ⭐ CORREGIR: Asegurar valores por defecto
+    // â­ CORREGIR: Asegurar valores por defecto
     const params = {
       page: page ? parseInt(page) : 1,
       limit: limit ? parseInt(limit) : 10,
@@ -107,7 +107,7 @@ export class AccessController {
     return await this.accessService.getHistory(params);
   }
 
-  // ⭐ VERIFICAR ESTADO DE ACCESO ACTUAL
+  // â­ VERIFICAR ESTADO DE ACCESO ACTUAL
   @Get('my-status')
   @Roles('Administrador', 'Instructor', 'Funcionario', 'Aprendiz')
   async getMyStatus(@Request() req: any) {
@@ -120,7 +120,7 @@ export class AccessController {
     };
   }
 
-  // ⭐ OBTENER ESTADÍSTICAS POR TIPO DE USUARIO
+  // â­ OBTENER ESTADÃSTICAS POR TIPO DE USUARIO
   @Get('stats-by-type')
   @Roles('Administrador')
   async getStatsByType(@Query('date') date?: string) {
@@ -136,7 +136,7 @@ export class AccessController {
     };
   }
 
-  // ⭐ EXPORTAR REPORTE DE ACCESOS - CORREGIDO
+  // â­ EXPORTAR REPORTE DE ACCESOS - CORREGIDO
   @Get('export')
   @Roles('Administrador')
   async exportAccessReport(
@@ -147,7 +147,7 @@ export class AccessController {
     const start = startDate ? new Date(startDate) : new Date();
     const end = endDate ? new Date(endDate) : new Date();
     
-    // ⭐ CORREGIR: Usar parámetros correctos
+    // â­ CORREGIR: Usar parÃ¡metros correctos
     const history = await this.accessService.getHistory({
       page: 1,
       limit: 1000
@@ -155,7 +155,7 @@ export class AccessController {
 
     if (format === 'csv') {
       return {
-        message: 'Exportación CSV no implementada aún',
+        message: 'ExportaciÃ³n CSV no implementada aÃºn',
         data: history.data
       };
     }
@@ -167,7 +167,7 @@ export class AccessController {
     };
   }
 
-  // ⭐ OBTENER RESUMEN DE ACTIVIDAD - CORREGIDO
+  // â­ OBTENER RESUMEN DE ACTIVIDAD - CORREGIDO
   @Get('activity-summary')
   @Roles('Administrador', 'Instructor')
   async getActivitySummary(@Query('days') days: string = '7') {
@@ -176,7 +176,7 @@ export class AccessController {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - daysCount);
 
-    // ⭐ CORREGIR: Tipar correctamente el array
+    // â­ CORREGIR: Tipar correctamente el array
     const summaryData: Array<{
       date: string;
       totalAccess: number;
@@ -204,7 +204,7 @@ export class AccessController {
     };
   }
 
-  // ⭐ VALIDAR QR CODE
+  // â­ VALIDAR QR CODE
   @Post('validate-qr')
   @Roles('Administrador', 'Instructor', 'Funcionario')
   async validateQR(@Body() data: { qrData: string }) {
@@ -214,7 +214,7 @@ export class AccessController {
       if (!qrInfo.id || !qrInfo.doc || !qrInfo.type) {
         return {
           valid: false,
-          message: 'Formato de QR inválido'
+          message: 'Formato de QR invÃ¡lido'
         };
       }
 
@@ -224,17 +224,17 @@ export class AccessController {
         valid: searchResult.found,
         profile: searchResult.profile || null,
         qrInfo: qrInfo,
-        message: searchResult.found ? 'QR válido' : 'Perfil no encontrado'
+        message: searchResult.found ? 'QR vÃ¡lido' : 'Perfil no encontrado'
       };
     } catch (error) {
       return {
         valid: false,
-        message: 'QR no válido o corrupto'
+        message: 'QR no vÃ¡lido o corrupto'
       };
     }
   }
 
-  // ⭐ OBTENER MÉTRICAS EN TIEMPO REAL
+  // â­ OBTENER MÃ‰TRICAS EN TIEMPO REAL
   @Get('realtime-metrics')
   @Roles('Administrador', 'Instructor')
   async getRealtimeMetrics() {
@@ -251,13 +251,13 @@ export class AccessController {
     };
   }
 
-  // ⭐ OBTENER REPORTE SIMPLE (sin getDailyReport que no existe)
+  // â­ OBTENER REPORTE SIMPLE (sin getDailyReport que no existe)
   @Get('daily-report')
   @Roles('Administrador', 'Instructor')
   async getDailyReport(@Query('date') date?: string) {
     const targetDate = date ? new Date(date) : new Date();
     
-    // ⭐ USAR MÉTODOS EXISTENTES EN LUGAR DE getDailyReport
+    // â­ USAR MÃ‰TODOS EXISTENTES EN LUGAR DE getDailyReport
     const stats = await this.accessService.getStats(targetDate);
     const history = await this.accessService.getHistory({
       page: 1,

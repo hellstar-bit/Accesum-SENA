@@ -1,4 +1,4 @@
-// frontend/src/services/api.ts - MEJORADO CON DEBUGGING
+// frontend/src/services/api.ts - OPTIMIZADO PARA CANCELACIONES
 import axios from 'axios';
 
 const API_BASE_URL = 'http://localhost:3000';
@@ -8,6 +8,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 10000, // ⭐ AGREGAR timeout de 10 segundos
 });
 
 // Interceptor de request - agregar token
@@ -15,12 +16,18 @@ api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
     
-    console.log(`🌐 ${config.method?.toUpperCase()} ${config.url}`);
+    // ⭐ SOLO loggear en desarrollo
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`🌐 ${config.method?.toUpperCase()} ${config.url}`);
+    }
     
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
-      console.log('🎫 Token agregado:', token.substring(0, 20) + '...');
-    } else {
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🎫 Token agregado:', token.substring(0, 20) + '...');
+      }
+    } else if (process.env.NODE_ENV === 'development') {
       console.log('⚠️ No hay token disponible');
     }
     
@@ -32,10 +39,12 @@ api.interceptors.request.use(
   }
 );
 
-// Interceptor de response - manejar errores
+// Interceptor de response - manejar errores MEJORADO
 api.interceptors.response.use(
   (response) => {
-    console.log(`✅ ${response.config.method?.toUpperCase()} ${response.config.url} - ${response.status}`);
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`✅ ${response.config.method?.toUpperCase()} ${response.config.url} - ${response.status}`);
+    }
     return response;
   },
   (error) => {
@@ -43,18 +52,42 @@ api.interceptors.response.use(
     const url = error.config?.url;
     const method = error.config?.method?.toUpperCase();
     
+    // ⭐ FILTRAR peticiones canceladas para no mostrarlas como errores
+    if (error.code === 'ERR_CANCELED' || error.message === 'canceled') {
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`🚫 ${method} ${url} - Petición cancelada (normal)`);
+      }
+      return Promise.reject({
+        ...error,
+        message: 'canceled',
+        isCanceled: true
+      });
+    }
+
+    // ⭐ FILTRAR timeouts
+    if (error.code === 'ECONNABORTED') {
+      console.warn(`⏱️ ${method} ${url} - Timeout`);
+      return Promise.reject({
+        ...error,
+        message: 'Tiempo de espera agotado',
+        isTimeout: true
+      });
+    }
+
+    // ⭐ SOLO loggear errores reales
     console.error(`❌ ${method} ${url} - ${status}:`, {
       status,
       message: error.response?.data?.message || error.message,
       data: error.response?.data
     });
 
+    // ⭐ MANEJO MEJORADO de 401
     if (status === 401) {
       console.log('🔒 Error 401: Token inválido o expirado');
       localStorage.removeItem('token');
       
-      // Solo redirigir si no estamos ya en login
-      if (!window.location.pathname.includes('/login')) {
+      // Solo redirigir si no estamos ya en login y no es una petición cancelada
+      if (!window.location.pathname.includes('/login') && !error.isCanceled) {
         window.location.href = '/login';
       }
     }

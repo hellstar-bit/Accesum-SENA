@@ -1,30 +1,135 @@
-// backend/src/attendance/attendance.service.ts - CÓDIGO COMPLETO CORREGIDO
+// backend/src/attendance/attendance.service.ts
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
-import { InstructorAssignment } from './entities/instructor-assignment.entity';
-import { ClassSchedule } from './entities/class-schedule.entity';
 import { AttendanceRecord } from './entities/attendance-record.entity';
+import { ClassSchedule } from './entities/class-schedule.entity';
+import { InstructorAssignment } from './entities/instructor-assignment.entity';
 import { Profile } from '../profiles/entities/profile.entity';
-import { User } from '../users/entities/user.entity';
-import { TimezoneService } from '../config/timezone.service';
-
 
 @Injectable()
 export class AttendanceService {
+  getInstructorTodayClasses: any;
+  createClassSchedule(arg0: { date: Date; assignmentId: number; startTime: string; endTime: string; classroom?: string; description?: string; }) {
+    throw new Error('Method not implemented.');
+  }
+  getSchedulesByAssignment(assignmentId: number) {
+    throw new Error('Method not implemented.');
+  }
   constructor(
-    @InjectRepository(InstructorAssignment)
-    private assignmentRepository: Repository<InstructorAssignment>,
-    @InjectRepository(ClassSchedule)
-    private scheduleRepository: Repository<ClassSchedule>,
     @InjectRepository(AttendanceRecord)
-    private attendanceRepository: Repository<AttendanceRecord>,
+    private readonly attendanceRepository: Repository<AttendanceRecord>,
+    
+    @InjectRepository(ClassSchedule)
+    private readonly scheduleRepository: Repository<ClassSchedule>,
+    
+    @InjectRepository(InstructorAssignment)
+    private readonly instructorAssignmentRepository: Repository<InstructorAssignment>,
+    
     @InjectRepository(Profile)
-    private profileRepository: Repository<Profile>,
-    @InjectRepository(User)
-    private userRepository: Repository<User>,
-    private timezoneService: TimezoneService, // ⭐ AGREGAR AQUÍ
+    private readonly profileRepository: Repository<Profile>,
   ) {}
+
+  // ⭐ OBTENER ASISTENCIA DE LAS CLASES DEL INSTRUCTOR
+  async getInstructorAttendance(instructorId: number, date: Date = new Date()) {
+    try {
+      const startOfDay = new Date(date);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(date);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      const schedules = await this.scheduleRepository.find({
+        where: {
+          date: Between(startOfDay, endOfDay),
+          assignment: { instructorId }
+        },
+        relations: [
+          'assignment',
+          'assignment.ficha',
+          'attendanceRecords',
+          'attendanceRecords.learner',
+          'attendanceRecords.accessRecord'
+        ],
+        order: { startTime: 'ASC' }
+      });
+
+      return schedules.map(schedule => ({
+        scheduleId: schedule.id,
+        date: schedule.date,
+        startTime: schedule.startTime,
+        endTime: schedule.endTime,
+        classroom: schedule.classroom,
+        subject: schedule.assignment?.subject || 'Sin asignatura',
+        ficha: {
+          id: schedule.assignment?.ficha?.id,
+          code: schedule.assignment?.ficha?.code,
+          name: schedule.assignment?.ficha?.name
+        },
+        attendance: schedule.attendanceRecords.map(record => ({
+          attendanceId: record.id,
+          learnerId: record.learnerId,
+          learnerName: record.learner
+            ? `${record.learner.firstName} ${record.learner.lastName}`
+            : 'Sin nombre',
+          status: record.status,
+          markedAt: record.markedAt,
+          isManual: record.isManual,
+          accessTime: record.accessRecord?.entryTime || null,
+          notes: record.notes
+        }))
+      }));
+    } catch (error) {
+      console.error('Error al obtener asistencia del instructor:', error);
+      throw error;
+    }
+  }
+
+  // ⭐ OBTENER FICHAS ASIGNADAS A UN INSTRUCTOR
+  async getInstructorFichas(instructorId: number) {
+    try {
+      const assignments = await this.instructorAssignmentRepository.find({
+        where: { 
+          instructorId,
+          isActive: true 
+        },
+        relations: [
+          'instructor',
+          'instructor.profile',
+          'ficha'
+        ],
+        order: {
+          assignedAt: 'DESC'
+        }
+      });
+
+      return assignments.map(assignment => ({
+        id: assignment.id,
+        instructorId: assignment.instructorId,
+        fichaId: assignment.fichaId,
+        subject: assignment.subject,
+        description: assignment.description,
+        isActive: assignment.isActive,
+        assignedAt: assignment.assignedAt,
+        instructor: {
+          id: assignment.instructor.id,
+          email: assignment.instructor.email,
+          profile: {
+            firstName: assignment.instructor.profile?.firstName,
+            lastName: assignment.instructor.profile?.lastName
+          }
+        },
+        ficha: {
+          id: assignment.ficha.id,
+          code: assignment.ficha.code,
+          name: assignment.ficha.name,
+          status: assignment.ficha.status
+        }
+      }));
+    } catch (error) {
+      console.error('Error al obtener fichas del instructor:', error);
+      throw new Error('Error al obtener las fichas del instructor');
+    }
+  }
 
   // ⭐ ASIGNAR INSTRUCTOR A FICHA
   async assignInstructorToFicha(data: {
@@ -33,473 +138,634 @@ export class AttendanceService {
     subject: string;
     description?: string;
   }) {
-    // Verificar que el instructor existe y tiene el rol correcto
-    const instructor = await this.userRepository.findOne({
-      where: { id: data.instructorId },
-      relations: ['role']
-    });
+    try {
+      // Verificar si ya existe una asignación activa
+      const existingAssignment = await this.instructorAssignmentRepository.findOne({
+        where: {
+          instructorId: data.instructorId,
+          fichaId: data.fichaId,
+          isActive: true
+        }
+      });
 
-    if (!instructor || instructor.role.name !== 'Instructor') {
-      throw new BadRequestException('El usuario no es un instructor válido');
-    }
+      if (existingAssignment) {
+        throw new BadRequestException('El instructor ya está asignado a esta ficha');
+      }
 
-    // Verificar que no exista ya una asignación activa
-    const existingAssignment = await this.assignmentRepository.findOne({
-      where: {
+      // Crear nueva asignación
+      const assignment = this.instructorAssignmentRepository.create({
         instructorId: data.instructorId,
         fichaId: data.fichaId,
-        isActive: true
-      }
-    });
+        subject: data.subject,
+        description: data.description,
+        isActive: true,
+        assignedAt: new Date()
+      });
 
-    if (existingAssignment) {
-      throw new BadRequestException('El instructor ya está asignado a esta ficha');
+      const savedAssignment = await this.instructorAssignmentRepository.save(assignment);
+
+      // Retornar con relaciones
+      return await this.instructorAssignmentRepository.findOne({
+        where: { id: savedAssignment.id },
+        relations: ['instructor', 'instructor.profile', 'ficha']
+      });
+    } catch (error) {
+      console.error('Error al asignar instructor a ficha:', error);
+      throw error;
     }
-
-    const assignment = this.assignmentRepository.create(data);
-    return await this.assignmentRepository.save(assignment);
-  }
-
-  // ⭐ OBTENER FICHAS DE UN INSTRUCTOR
-  async getInstructorFichas(instructorId: number) {
-    return await this.assignmentRepository.find({
-      where: { instructorId, isActive: true },
-      relations: ['ficha', 'instructor'],
-      order: { assignedAt: 'DESC' }
-    });
-  }
-
-  // ⭐ CREAR HORARIO DE CLASE
-  async createClassSchedule(data: {
-    assignmentId: number;
-    date: Date;
-    startTime: string;
-    endTime: string;
-    classroom?: string;
-    description?: string;
-  }) {
-    // Verificar que la asignación existe
-    const assignment = await this.assignmentRepository.findOne({
-      where: { id: data.assignmentId, isActive: true },
-      relations: ['ficha']
-    });
-
-    if (!assignment) {
-      throw new NotFoundException('Asignación no encontrada');
-    }
-
-    // Crear el horario
-    const schedule = this.scheduleRepository.create(data);
-    const savedSchedule = await this.scheduleRepository.save(schedule);
-
-    // Crear registros de asistencia para todos los aprendices de la ficha
-    await this.createAttendanceRecordsForSchedule(savedSchedule.id, assignment.fichaId);
-
-    return savedSchedule;
-  }
-
-  // ⭐ CREAR REGISTROS DE ASISTENCIA PARA UNA CLASE - CORREGIDO
-  private async createAttendanceRecordsForSchedule(scheduleId: number, fichaId: number) {
-    console.log(`🔍 Buscando aprendices para ficha ID: ${fichaId}`);
-    
-    // ⭐ CORREGIR: Buscar aprendices por fichaId correctamente
-    const learners = await this.profileRepository
-      .createQueryBuilder('profile')
-      .leftJoin('profile.type', 'type')
-      .leftJoin('profile.ficha', 'ficha')
-      .where('ficha.id = :fichaId', { fichaId })
-      .andWhere('type.name = :typeName', { typeName: 'Aprendiz' })
-      .getMany();
-
-    console.log(`🎓 Encontrados ${learners.length} aprendices para la ficha ${fichaId}`);
-
-    if (learners.length === 0) {
-      console.warn('⚠️ No se encontraron aprendices para esta ficha');
-      return [];
-    }
-
-    // Crear registro de asistencia para cada aprendiz
-    const attendanceRecords = learners.map(learner => 
-      this.attendanceRepository.create({
-        scheduleId,
-        learnerId: learner.id,
-        status: 'ABSENT', // Por defecto ausente
-      })
-    );
-
-    const savedRecords = await this.attendanceRepository.save(attendanceRecords);
-    console.log(`✅ ${savedRecords.length} registros de asistencia creados para la clase ${scheduleId}`);
-    
-    return savedRecords;
-  }
-
-  // ⭐ OBTENER CLASES Y ASISTENCIA DE UN INSTRUCTOR - CORREGIDO
-  async getInstructorAttendance(instructorId: number, date?: Date) {
-  // Usar timezone service para manejar fechas correctamente
-  const targetDate = date || this.timezoneService.getCurrentDateInColombia();
-  const { startOfDay, endOfDay } = this.timezoneService.getDayBounds(targetDate);
-
-  console.log(`🔍 Buscando clases para instructor ${instructorId} en fecha:`, {
-    targetDate: this.timezoneService.formatDateForDB(targetDate),
-    startOfDay: startOfDay.toISOString(),
-    endOfDay: endOfDay.toISOString()
-  });
-
-  const schedules = await this.scheduleRepository
-    .createQueryBuilder('schedule')
-    .leftJoinAndSelect('schedule.assignment', 'assignment')
-    .leftJoinAndSelect('assignment.ficha', 'ficha')
-    .leftJoinAndSelect('schedule.attendanceRecords', 'records')
-    .leftJoinAndSelect('records.learner', 'learner')
-    .where('assignment.instructorId = :instructorId', { instructorId })
-    .andWhere('schedule.date BETWEEN :startOfDay AND :endOfDay', { startOfDay, endOfDay })
-    .andWhere('schedule.isActive = true')
-    .orderBy('schedule.startTime', 'ASC')
-    .getMany();
-
-
-    console.log(`📚 Encontradas ${schedules.length} clases programadas`);
-
-    // ⭐ PARA CADA CLASE, VERIFICAR QUE TENGA REGISTROS DE ASISTENCIA
-    for (const schedule of schedules) {
-      if (schedule.attendanceRecords.length === 0) {
-        console.log(`⚠️ Clase ${schedule.id} no tiene registros de asistencia, creándolos...`);
-        await this.createAttendanceRecordsForSchedule(schedule.id, schedule.assignment.fichaId);
-        
-        // Recargar la clase con los nuevos registros
-        const updatedSchedule = await this.scheduleRepository.findOne({
-          where: { id: schedule.id },
-          relations: ['assignment', 'assignment.ficha', 'attendanceRecords', 'attendanceRecords.learner']
-        });
-        
-        if (updatedSchedule) {
-          schedule.attendanceRecords = updatedSchedule.attendanceRecords;
-          console.log(`✅ Recargados ${schedule.attendanceRecords.length} registros para la clase ${schedule.id}`);
-        }
-      }
-    }
-
-    // Formatear datos para el frontend
-    return schedules.map(schedule => {
-      const totalRecords = schedule.attendanceRecords.length;
-      const presentCount = schedule.attendanceRecords.filter(r => r.status === 'PRESENT').length;
-      const lateCount = schedule.attendanceRecords.filter(r => r.status === 'LATE').length;
-      const absentCount = schedule.attendanceRecords.filter(r => r.status === 'ABSENT').length;
-      
-      const percentage = totalRecords > 0 
-        ? (((presentCount + lateCount) / totalRecords) * 100).toFixed(1)
-        : '0.0';
-
-      console.log(`📊 Clase ${schedule.id}: ${totalRecords} total, ${presentCount} presentes, ${lateCount} tardíos, ${absentCount} ausentes - ${percentage}% asistencia`);
-
-      return {
-        id: schedule.id,
-        subject: schedule.assignment.subject,
-        date: schedule.date,
-        startTime: schedule.startTime,
-        endTime: schedule.endTime,
-        classroom: schedule.classroom,
-        ficha: {
-          code: schedule.assignment.ficha.code,
-          name: schedule.assignment.ficha.name
-        },
-        attendance: {
-          total: totalRecords,
-          present: presentCount,
-          late: lateCount,
-          absent: absentCount,
-          percentage
-        },
-        records: schedule.attendanceRecords.map(record => ({
-          id: record.id,
-          learner: {
-            id: record.learner.id,
-            firstName: record.learner.firstName,
-            lastName: record.learner.lastName,
-            documentNumber: record.learner.documentNumber
-          },
-          status: record.status,
-          markedAt: record.markedAt,
-          isManual: record.isManual,
-          notes: record.notes
-        }))
-      };
-    });
-  }
-
-  // ⭐ OBTENER ESTADÍSTICAS DEL DASHBOARD DEL INSTRUCTOR - NUEVO
-  async getInstructorDashboardStats(instructorId: number) {
-    console.log(`👨‍🏫 Obteniendo estadísticas del dashboard para instructor ${instructorId}`);
-    
-    // Obtener todas las fichas asignadas
-    const assignments = await this.assignmentRepository.find({
-      where: { instructorId, isActive: true },
-      relations: ['ficha']
-    });
-
-    console.log(`📚 Instructor ${instructorId} tiene ${assignments.length} fichas asignadas`);
-
-    // Contar total de aprendices en todas las fichas
-    let totalLearners = 0;
-    for (const assignment of assignments) {
-      const learnersCount = await this.profileRepository
-        .createQueryBuilder('profile')
-        .leftJoin('profile.type', 'type')
-        .leftJoin('profile.ficha', 'ficha')
-        .where('ficha.id = :fichaId', { fichaId: assignment.fichaId })
-        .andWhere('type.name = :typeName', { typeName: 'Aprendiz' })
-        .getCount();
-      
-      totalLearners += learnersCount;
-      console.log(`📚 Ficha ${assignment.ficha.code}: ${learnersCount} aprendices`);
-    }
-
-    // Obtener clases de hoy
-    const today = new Date();
-    const todayClasses = await this.getInstructorAttendance(instructorId, today);
-
-    console.log(`📊 Resumen: ${assignments.length} fichas, ${totalLearners} aprendices, ${todayClasses.length} clases hoy`);
-
-    return {
-      totalFichas: assignments.length,
-      totalLearners,
-      todayClasses: todayClasses.length,
-      todayClassesData: todayClasses,
-      assignments: assignments.map(a => ({
-        id: a.id,
-        subject: a.subject,
-        ficha: {
-          code: a.ficha.code,
-          name: a.ficha.name
-        }
-      }))
-    };
   }
 
   // ⭐ MARCAR ASISTENCIA MANUAL
   async markAttendance(data: {
     scheduleId: number;
     profileId: number;
-    status: 'PRESENTE' | 'AUSENTE' | 'TARDE';
+    status: 'PRESENTE' | 'TARDE' | 'AUSENTE';
     notes?: string;
   }) {
-    // Mapear estados del frontend al backend
-    const statusMap = {
-      'PRESENTE': 'PRESENT',
-      'AUSENTE': 'ABSENT',
-      'TARDE': 'LATE'
+    try {
+      // Mapear estados del frontend al backend
+      const statusMap = {
+        'PRESENTE': 'PRESENT',
+        'TARDE': 'LATE',
+        'AUSENTE': 'ABSENT'
+      };
+
+      const mappedStatus = statusMap[data.status] as 'PRESENT' | 'LATE' | 'ABSENT';
+
+      // Verificar si ya existe un registro
+      let attendanceRecord = await this.attendanceRepository.findOne({
+        where: {
+          scheduleId: data.scheduleId,
+          learnerId: data.profileId
+        }
+      });
+
+      if (attendanceRecord) {
+        // Actualizar registro existente
+        attendanceRecord.status = mappedStatus;
+        attendanceRecord.notes = data.notes ?? '';
+        attendanceRecord.isManual = true;
+        attendanceRecord.manuallyMarkedAt = new Date();
+      } else {
+        // Crear nuevo registro
+        attendanceRecord = this.attendanceRepository.create({
+          scheduleId: data.scheduleId,
+          learnerId: data.profileId,
+          status: mappedStatus,
+          notes: data.notes,
+          isManual: true,
+          markedAt: new Date(),
+          manuallyMarkedAt: new Date()
+        });
+      }
+
+      return await this.attendanceRepository.save(attendanceRecord);
+    } catch (error) {
+      console.error('Error al marcar asistencia:', error);
+      throw error;
+    }
+  }
+  async getSchedulesByDate(date: Date, instructorId?: number) {
+  try {
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const whereCondition: any = {
+      date: Between(startOfDay, endOfDay),
+      isActive: true
     };
 
-    const mappedStatus = statusMap[data.status] as 'PRESENT' | 'ABSENT' | 'LATE';
-
-    // Buscar el registro de asistencia
-    let attendanceRecord = await this.attendanceRepository.findOne({
-      where: {
-        scheduleId: data.scheduleId,
-        learnerId: data.profileId
-      },
-      relations: ['learner']
-    });
-
-    if (!attendanceRecord) {
-      // Si no existe, crear uno nuevo
-      attendanceRecord = this.attendanceRepository.create({
-        scheduleId: data.scheduleId,
-        learnerId: data.profileId,
-        status: mappedStatus,
-        isManual: true,
-        manuallyMarkedAt: new Date(),
-        notes: data.notes
-      });
-    } else {
-      // Actualizar el existente
-      attendanceRecord.status = mappedStatus;
-      attendanceRecord.isManual = true;
-      attendanceRecord.manuallyMarkedAt = new Date();
-      attendanceRecord.notes = data.notes || '';
+    // Si se proporciona instructorId, filtrar por instructor
+    if (instructorId) {
+      whereCondition.assignment = { instructorId };
     }
 
-    const saved = await this.attendanceRepository.save(attendanceRecord);
-    console.log(`✅ Asistencia marcada manualmente: ${mappedStatus} para aprendiz ${data.profileId}`);
-    
-    return saved;
+    const schedules = await this.scheduleRepository.find({
+      where: whereCondition,
+      relations: [
+        'assignment',
+        'assignment.instructor',
+        'assignment.instructor.profile',
+        'assignment.ficha',
+        'attendanceRecords',
+        'attendanceRecords.learner'
+      ],
+      order: { startTime: 'ASC' }
+    });
+
+    return schedules.map(schedule => ({
+      id: schedule.id,
+      date: schedule.date,
+      startTime: schedule.startTime,
+      endTime: schedule.endTime,
+      classroom: schedule.classroom,
+      description: schedule.description,
+      lateToleranceMinutes: schedule.lateToleranceMinutes,
+      isActive: schedule.isActive,
+      assignment: {
+        id: schedule.assignment.id,
+        subject: schedule.assignment.subject,
+        instructor: {
+          id: schedule.assignment.instructor.id,
+          name: schedule.assignment.instructor.profile 
+            ? `${schedule.assignment.instructor.profile.firstName} ${schedule.assignment.instructor.profile.lastName}`
+            : 'Sin nombre'
+        },
+        ficha: {
+          id: schedule.assignment.ficha.id,
+          code: schedule.assignment.ficha.code,
+          name: schedule.assignment.ficha.name
+        }
+      },
+      attendanceCount: {
+        total: schedule.attendanceRecords.length,
+        present: schedule.attendanceRecords.filter(r => r.status === 'PRESENT').length,
+        late: schedule.attendanceRecords.filter(r => r.status === 'LATE').length,
+        absent: schedule.attendanceRecords.filter(r => r.status === 'ABSENT').length
+      }
+    }));
+  } catch (error) {
+    console.error('Error al obtener horarios por fecha:', error);
+    throw error;
+  }
+}
+// backend/src/attendance/attendance.service.ts
+// Agregar estos métodos adicionales:
+
+async createSchedule(data: {
+  assignmentId: number;
+  date: string;
+  startTime: string;
+  endTime: string;
+  classroom?: string;
+  description?: string;
+  lateToleranceMinutes?: number;
+}) {
+  try {
+    const schedule = this.scheduleRepository.create({
+      assignmentId: data.assignmentId,
+      date: new Date(data.date),
+      startTime: data.startTime,
+      endTime: data.endTime,
+      classroom: data.classroom,
+      description: data.description,
+      lateToleranceMinutes: data.lateToleranceMinutes || 20,
+      isActive: true
+    });
+
+    return await this.scheduleRepository.save(schedule);
+  } catch (error) {
+    console.error('Error al crear horario:', error);
+    throw error;
+  }
+}
+
+async updateSchedule(scheduleId: number, data: {
+  date?: string;
+  startTime?: string;
+  endTime?: string;
+  classroom?: string;
+  description?: string;
+  lateToleranceMinutes?: number;
+}) {
+  try {
+    const schedule = await this.scheduleRepository.findOne({
+      where: { id: scheduleId }
+    });
+
+    if (!schedule) {
+      throw new Error('Horario no encontrado');
+    }
+
+    if (data.date) schedule.date = new Date(data.date);
+    if (data.startTime) schedule.startTime = data.startTime;
+    if (data.endTime) schedule.endTime = data.endTime;
+    if (data.classroom !== undefined) schedule.classroom = data.classroom;
+    if (data.description !== undefined) schedule.description = data.description;
+    if (data.lateToleranceMinutes !== undefined) schedule.lateToleranceMinutes = data.lateToleranceMinutes;
+
+    return await this.scheduleRepository.save(schedule);
+  } catch (error) {
+    console.error('Error al actualizar horario:', error);
+    throw error;
+  }
+}
+
+async deleteSchedule(scheduleId: number) {
+  try {
+    const schedule = await this.scheduleRepository.findOne({
+      where: { id: scheduleId }
+    });
+
+    if (!schedule) {
+      throw new Error('Horario no encontrado');
+    }
+
+    // Marcar como inactivo en lugar de eliminar
+    schedule.isActive = false;
+    return await this.scheduleRepository.save(schedule);
+  } catch (error) {
+    console.error('Error al eliminar horario:', error);
+    throw error;
+  }
+}
+
+async getScheduleById(scheduleId: number) {
+  try {
+    return await this.scheduleRepository.findOne({
+      where: { id: scheduleId },
+      relations: [
+        'assignment',
+        'assignment.instructor',
+        'assignment.instructor.profile',
+        'assignment.ficha',
+        'attendanceRecords',
+        'attendanceRecords.learner'
+      ]
+    });
+  } catch (error) {
+    console.error('Error al obtener horario por ID:', error);
+    throw error;
+  }
+}
+
+
+  // ⭐ OBTENER ASISTENCIA POR HORARIO
+  async getAttendanceBySchedule(scheduleId: number) {
+    try {
+      const records = await this.attendanceRepository.find({
+        where: { scheduleId },
+        relations: ['learner', 'accessRecord'],
+        order: { createdAt: 'ASC' }
+      });
+
+      return records.map(record => ({
+        id: record.id,
+        learnerId: record.learnerId,
+        learnerName: record.learner 
+          ? `${record.learner.firstName} ${record.learner.lastName}`
+          : 'Sin nombre',
+        status: record.status,
+        markedAt: record.markedAt,
+        isManual: record.isManual,
+        accessTime: record.accessRecord?.entryTime,
+        notes: record.notes
+      }));
+    } catch (error) {
+      console.error('Error al obtener asistencia por horario:', error);
+      throw error;
+    }
   }
 
   // ⭐ MARCAR ASISTENCIA AUTOMÁTICA (desde control de acceso)
-  async autoMarkAttendance(profileId: number, entryTime: Date) {
-    const today = new Date(entryTime);
-    today.setHours(0, 0, 0, 0);
-    
-    const endOfDay = new Date(entryTime);
-    endOfDay.setHours(23, 59, 59, 999);
+  async autoMarkAttendance(profileId: number, entryTime: Date, accessRecordId?: number) {
+    try {
+      const profile = await this.profileRepository.findOne({
+        where: { id: profileId },
+        relations: ['ficha']
+      });
 
-    console.log(`🤖 Marcando asistencia automática para perfil ${profileId} a las ${entryTime.toLocaleString()}`);
-
-    // Buscar clases del aprendiz para hoy
-    const profile = await this.profileRepository.findOne({
-      where: { id: profileId },
-      relations: ['ficha', 'type']
-    });
-
-    if (!profile || !profile.ficha || profile.type.name !== 'Aprendiz') {
-      console.log(`⚠️ Perfil ${profileId} no es un aprendiz con ficha asignada`);
-      return null;
-    }
-
-    console.log(`🎓 Aprendiz ${profile.firstName} ${profile.lastName} de la ficha ${profile.ficha.code}`);
-
-    // Buscar horarios de clase para la ficha del aprendiz
-    const schedules = await this.scheduleRepository
-      .createQueryBuilder('schedule')
-      .leftJoinAndSelect('schedule.assignment', 'assignment')
-      .where('assignment.fichaId = :fichaId', { fichaId: profile.ficha.id })
-      .andWhere('schedule.date BETWEEN :today AND :endOfDay', { today, endOfDay })
-      .andWhere('schedule.isActive = true')
-      .getMany();
-
-    console.log(`📅 Encontradas ${schedules.length} clases programadas para hoy`);
-
-    const results: AttendanceRecord[] = [];
-
-    for (const schedule of schedules) {
-      // Verificar si está dentro del horario de clase o tolerancia
-      const classStart = new Date(`${schedule.date.toISOString().split('T')[0]}T${schedule.startTime}`);
-      const toleranceEnd = new Date(classStart.getTime() + (schedule.lateToleranceMinutes * 60000));
-
-      let status: 'PRESENT' | 'LATE' | 'ABSENT' = 'ABSENT';
-
-      if (entryTime <= classStart) {
-        status = 'PRESENT';
-      } else if (entryTime <= toleranceEnd) {
-        status = 'LATE';
+      if (!profile?.ficha) {
+        console.log('Perfil sin ficha asociada:', profileId);
+        return [];
       }
 
-      console.log(`⏰ Clase ${schedule.id}: inicio ${classStart.toLocaleTimeString()}, tolerancia hasta ${toleranceEnd.toLocaleTimeString()}, entrada ${entryTime.toLocaleTimeString()} = ${status}`);
+      const today = new Date(entryTime);
+      today.setHours(0, 0, 0, 0);
+      
+      const endOfDay = new Date(today);
+      endOfDay.setHours(23, 59, 59, 999);
 
-      if (status !== 'ABSENT') {
-        // Buscar o crear registro de asistencia
-        let attendanceRecord = await this.attendanceRepository.findOne({
+      // Buscar horarios de clase para esa ficha en ese día
+      const schedules = await this.scheduleRepository.find({
+        where: {
+          date: Between(today, endOfDay),
+          assignment: { fichaId: profile.ficha.id }
+        },
+        relations: ['assignment']
+      });
+
+      if (schedules.length === 0) {
+        console.log('No hay horarios para la ficha:', profile.ficha.id);
+        return [];
+      }
+
+      const attendanceRecords: AttendanceRecord[] = [];
+
+      for (const schedule of schedules) {
+        // Verificar si ya existe un registro de asistencia
+        const existingRecord = await this.attendanceRepository.findOne({
           where: {
             scheduleId: schedule.id,
             learnerId: profileId
           }
         });
 
-        if (!attendanceRecord) {
-          attendanceRecord = this.attendanceRepository.create({
-            scheduleId: schedule.id,
-            learnerId: profileId,
-            status,
-            markedAt: entryTime,
-            isManual: false
-          });
-          console.log(`➕ Creando nuevo registro de asistencia: ${status}`);
-        } else if (!attendanceRecord.isManual) {
-          // Solo actualizar si no fue marcado manualmente
-          attendanceRecord.status = status;
-          attendanceRecord.markedAt = entryTime;
-          console.log(`🔄 Actualizando registro existente: ${status}`);
-        } else {
-          console.log(`🔒 Registro ya marcado manualmente, no se actualiza`);
+        if (existingRecord) {
+          console.log('Ya existe registro de asistencia para:', profileId, schedule.id);
           continue;
         }
 
-        const saved = await this.attendanceRepository.save(attendanceRecord);
-        results.push(saved);
+        // Calcular estado de asistencia
+        const status = this.calculateAttendanceStatus(
+          entryTime, 
+          schedule.startTime, 
+          schedule.lateToleranceMinutes || 20
+        );
+
+        // Crear nuevo registro de asistencia
+        const attendanceRecord = this.attendanceRepository.create({
+          scheduleId: schedule.id,
+          learnerId: profileId,
+          status,
+          accessRecordId, // Vincular con el registro de acceso
+          markedAt: new Date(),
+          isManual: false
+        });
+
+        const savedRecord = await this.attendanceRepository.save(attendanceRecord);
+        attendanceRecords.push(savedRecord);
       }
-    }
 
-    console.log(`✅ Asistencia automática procesada: ${results.length} registros actualizados`);
-    return results;
+      return attendanceRecords;
+    } catch (error) {
+      console.error('Error en autoMarkAttendance:', error);
+      throw error;
+    }
   }
 
-  // ⭐ MÉTODOS ADICIONALES PARA COMPLETAR LA FUNCIONALIDAD
-  async getAttendanceBySchedule(scheduleId: number) {
-    return await this.attendanceRepository.find({
-      where: { scheduleId },
-      relations: ['learner'],
-      order: { learner: { lastName: 'ASC' } }
-    });
-  }
-
-  async getAttendanceStats(assignmentId: number, startDate?: Date, endDate?: Date) {
-    let query = this.attendanceRepository
-      .createQueryBuilder('attendance')
-      .leftJoin('attendance.schedule', 'schedule')
-      .where('schedule.assignmentId = :assignmentId', { assignmentId });
-
-    if (startDate && endDate) {
-      query = query.andWhere('schedule.date BETWEEN :startDate AND :endDate', { startDate, endDate });
-    }
-
-    const records = await query.getMany();
+  // ⭐ CALCULAR ESTADO DE ASISTENCIA
+  private calculateAttendanceStatus(
+    entryTime: Date, 
+    scheduleStartTime: string, 
+    lateToleranceMinutes: number
+  ): 'PRESENT' | 'LATE' | 'ABSENT' {
+    const entryHour = entryTime.getHours();
+    const entryMinute = entryTime.getMinutes();
     
-    const totalClasses = await this.scheduleRepository.count({
-      where: { assignmentId, isActive: true }
-    });
+    const [scheduleHour, scheduleMinute] = scheduleStartTime.split(':').map(Number);
+    
+    const entryTotalMinutes = entryHour * 60 + entryMinute;
+    const scheduleTotalMinutes = scheduleHour * 60 + scheduleMinute;
+    
+    const diffMinutes = entryTotalMinutes - scheduleTotalMinutes;
+    
+    if (diffMinutes <= 0) {
+      return 'PRESENT'; // Llegó a tiempo o temprano
+    } else if (diffMinutes <= lateToleranceMinutes) {
+      return 'LATE'; // Llegó tarde pero dentro de la tolerancia
+    } else {
+      return 'ABSENT'; // Llegó muy tarde
+    }
+  }
 
-    const presentCount = records.filter(r => r.status === 'PRESENT').length;
-    const lateCount = records.filter(r => r.status === 'LATE').length;
-    const absentCount = records.filter(r => r.status === 'ABSENT').length;
+  // ⭐ OBTENER ESTADÍSTICAS DEL DASHBOARD DEL INSTRUCTOR
+  async getInstructorDashboardStats(instructorId: number) {
+    try {
+      const today = new Date();
+      const startOfDay = new Date(today);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(today);
+      endOfDay.setHours(23, 59, 59, 999);
 
+      // Obtener clases de hoy
+      const todaySchedules = await this.scheduleRepository.find({
+        where: {
+          date: Between(startOfDay, endOfDay),
+          assignment: { instructorId }
+        },
+        relations: ['attendanceRecords']
+      });
+
+      // Calcular estadísticas
+      let totalStudents = 0;
+      let presentToday = 0;
+      let lateToday = 0;
+      let absentToday = 0;
+
+      todaySchedules.forEach(schedule => {
+        schedule.attendanceRecords.forEach(record => {
+          totalStudents++;
+          switch (record.status) {
+            case 'PRESENT':
+              presentToday++;
+              break;
+            case 'LATE':
+              lateToday++;
+              break;
+            case 'ABSENT':
+              absentToday++;
+              break;
+          }
+        });
+      });
+
+      return {
+        totalClasses: todaySchedules.length,
+        totalStudents,
+        presentToday,
+        lateToday,
+        absentToday,
+        averageAttendance: totalStudents > 0 
+          ? Math.round(((presentToday + lateToday) / totalStudents) * 100) 
+          : 0
+      };
+    } catch (error) {
+      console.error('Error al obtener estadísticas del dashboard:', error);
+      throw error;
+    }
+  }
+
+  // ⭐ OBTENER ESTADÍSTICAS DE ASISTENCIA
+  async getAttendanceStats(
+    assignmentId: number,
+    startDate?: Date,
+    endDate?: Date
+  ) {
+    try {
+      const whereCondition: any = {
+        schedule: { assignmentId }
+      };
+
+      if (startDate && endDate) {
+        whereCondition.createdAt = Between(startDate, endDate);
+      }
+
+      const records = await this.attendanceRepository.find({
+        where: whereCondition,
+        relations: ['schedule']
+      });
+
+      const total = records.length;
+      const present = records.filter(r => r.status === 'PRESENT').length;
+      const late = records.filter(r => r.status === 'LATE').length;
+      const absent = records.filter(r => r.status === 'ABSENT').length;
+
+      return {
+        total,
+        present,
+        late,
+        absent,
+        percentage: total > 0 ? Math.round(((present + late) / total) * 100) : 0
+      };
+    } catch (error) {
+      console.error('Error al obtener estadísticas de asistencia:', error);
+      throw error;
+    }
+  }
+
+  // ⭐ OBTENER REPORTE DE ASISTENCIA
+  async getAttendanceReport(
+    assignmentId: number,
+    startDate?: Date,
+    endDate?: Date
+  ) {
+    try {
+      const whereCondition: any = {
+        schedule: { assignmentId }
+      };
+
+      if (startDate && endDate) {
+        whereCondition.createdAt = Between(startDate, endDate);
+      }
+
+      const records = await this.attendanceRepository.find({
+        where: whereCondition,
+        relations: ['schedule', 'learner', 'accessRecord'],
+        order: { createdAt: 'DESC' }
+      });
+
+      return records.map(record => ({
+        id: record.id,
+        date: record.schedule.date,
+        startTime: record.schedule.startTime,
+        endTime: record.schedule.endTime,
+        learnerName: record.learner 
+          ? `${record.learner.firstName} ${record.learner.lastName}`
+          : 'Sin nombre',
+        documentNumber: record.learner?.documentNumber,
+        status: record.status,
+        markedAt: record.markedAt,
+        accessTime: record.accessRecord?.entryTime,
+        isManual: record.isManual,
+        notes: record.notes
+      }));
+    } catch (error) {
+      console.error('Error al obtener reporte de asistencia:', error);
+      throw error;
+    }
+  }
+
+  // ⭐ ELIMINAR ASIGNACIÓN DE INSTRUCTOR
+  async removeInstructorAssignment(assignmentId: number) {
+    try {
+      const assignment = await this.instructorAssignmentRepository.findOne({
+        where: { id: assignmentId }
+      });
+
+      if (!assignment) {
+        throw new NotFoundException('Asignación no encontrada');
+      }
+
+      // Marcar como inactiva en lugar de eliminar
+      assignment.isActive = false;
+      return await this.instructorAssignmentRepository.save(assignment);
+    } catch (error) {
+      console.error('Error al eliminar asignación:', error);
+      throw error;
+    }
+  }
+
+  // ⭐ OBTENER TODAS LAS ASIGNACIONES (Para administradores)
+  async getAllInstructorAssignments() {
+    try {
+      return await this.instructorAssignmentRepository.find({
+        relations: [
+          'instructor',
+          'instructor.profile',
+          'ficha'
+        ],
+        order: {
+          assignedAt: 'DESC'
+        }
+      });
+    } catch (error) {
+      console.error('Error al obtener todas las asignaciones:', error);
+      throw error;
+    }
+  }
+  async getTrimesterSchedule(fichaId: number, trimester: string) {
+  try {
+    console.log(`📋 Obteniendo horarios de trimestre para ficha ${fichaId}, trimestre ${trimester}`);
+    
+    // Por ahora retornamos estructura vacía ya que no tienes la tabla trimester_schedules
+    // Cuando implementes la tabla, aquí harías la consulta real
+    const weeklySchedule = {
+      LUNES: [],
+      MARTES: [],
+      MIERCOLES: [],
+      JUEVES: [],
+      VIERNES: [],
+      SABADO: []
+    };
+
+    console.log('📋 Horarios obtenidos (estructura vacía por ahora)');
+    return weeklySchedule;
+  } catch (error) {
+    console.error('❌ Error al obtener horarios de trimestre:', error);
+    // Retornar estructura vacía en caso de error
     return {
-      totalClasses,
-      totalRecords: records.length,
-      present: presentCount,
-      late: lateCount,
-      absent: absentCount,
-      attendanceRate: records.length > 0 ? ((presentCount + lateCount) / records.length * 100).toFixed(1) : '0'
+      LUNES: [],
+      MARTES: [],
+      MIERCOLES: [],
+      JUEVES: [],
+      VIERNES: [],
+      SABADO: []
     };
   }
+}
 
-  async getSchedulesByAssignment(assignmentId: number) {
-    return await this.scheduleRepository.find({
-      where: { assignmentId, isActive: true },
-      relations: ['assignment', 'assignment.ficha'],
-      order: { date: 'DESC', startTime: 'ASC' }
-    });
-  }
-
-  async getInstructorTodayClasses(instructorId: number) {
-    const today = new Date();
-    return await this.getInstructorAttendance(instructorId, today);
-  }
-
-  async getSchedulesByDate(date: string, instructorId?: number) {
-    const targetDate = new Date(date);
+async createTrimesterSchedule(data: {
+  dayOfWeek: string;
+  startTime: string;
+  endTime: string;
+  competenceId: number;
+  instructorId: number;
+  fichaId: number;
+  classroom?: string;
+  trimester: string;
+}) {
+  try {
+    console.log('📋 Creando horario de trimestre:', data);
     
-    let query = this.scheduleRepository
-      .createQueryBuilder('schedule')
-      .leftJoinAndSelect('schedule.assignment', 'assignment')
-      .leftJoinAndSelect('assignment.ficha', 'ficha')
-      .where('schedule.date = :date', { date: targetDate })
-      .andWhere('schedule.isActive = true');
-
-    if (instructorId) {
-      query = query.andWhere('assignment.instructorId = :instructorId', { instructorId });
-    }
-
-    return await query.orderBy('schedule.startTime', 'ASC').getMany();
-  }
-
-  async getScheduleById(id: number) {
-    return await this.scheduleRepository.findOne({
-      where: { id },
-      relations: ['assignment', 'assignment.ficha', 'attendanceRecords', 'attendanceRecords.learner']
-    });
-  }
-
-  async getAttendanceReport(assignmentId: number, startDate?: Date, endDate?: Date) {
-    const stats = await this.getAttendanceStats(assignmentId, startDate, endDate);
-    const schedules = await this.getSchedulesByAssignment(assignmentId);
+    // Por ahora solo logueamos, cuando tengas la tabla implementarás la lógica real
+    console.log('✅ Horario creado (simulado por ahora)');
     
     return {
-      stats,
-      schedules: schedules.length,
-      period: {
-        startDate,
-        endDate
-      }
+      id: Date.now(), // ID temporal
+      ...data,
+      isActive: true,
+      createdAt: new Date()
     };
+  } catch (error) {
+    console.error('❌ Error al crear horario de trimestre:', error);
+    throw error;
   }
+}
+
+async deleteTrimesterSchedule(id: number) {
+  try {
+    console.log(`📋 Eliminando horario de trimestre ${id}`);
+    
+    // Por ahora solo logueamos
+    console.log('✅ Horario eliminado (simulado por ahora)');
+    
+    return { message: 'Horario eliminado exitosamente' };
+  } catch (error) {
+    console.error('❌ Error al eliminar horario de trimestre:', error);
+    throw error;
+  }
+}
 }

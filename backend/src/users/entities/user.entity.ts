@@ -1,40 +1,51 @@
-// src/users/entities/user.entity.ts
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToOne, OneToMany, JoinColumn } from 'typeorm';
-import { Role } from './role.entity';
+// backend/src/users/entities/user.entity.ts
+import { Entity, PrimaryGeneratedColumn, Column, OneToOne, ManyToOne, ManyToMany, JoinTable, JoinColumn } from 'typeorm';
 import { Profile } from '../../profiles/entities/profile.entity';
-import { InstructorAssignment } from '../../attendance/entities/instructor-assignment.entity';
+import { Role } from './role.entity';
+import { Competence } from '../../config/entities/competence.entity'; // ⭐ AGREGAR IMPORTACIÓN
 
 @Entity('users')
 export class User {
-    @PrimaryGeneratedColumn()
-    id: number;
+  @PrimaryGeneratedColumn()
+  id: number;
 
-    @Column({ length: 100, unique: true })
-    email: string;
+  @Column({ unique: true })
+  email: string;
 
-    @Column()
-    password: string;
+  @Column()
+  password: string;
 
-    @Column({ default: true })
-    isActive: boolean;
+  @Column({ default: true })
+  isActive: boolean;
 
-    @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
-    createdAt: Date;
+  @OneToOne(() => Profile, profile => profile.user, { cascade: true })
+  profile: Profile;
 
-    @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP', onUpdate: 'CURRENT_TIMESTAMP' })
-    updatedAt: Date;
+  @ManyToOne(() => Role, role => role.users)
+  @JoinColumn({ name: 'roleId' })
+  role: Role;
 
-    @ManyToOne(() => Role, role => role.users)
-    @JoinColumn({ name: 'roleId' })
-    role: Role;
+  @Column()
+  roleId: number;
 
-    @Column()
-    roleId: number;
+  // ⭐ AGREGAR ESTA RELACIÓN MANY-TO-MANY
+  @ManyToMany(() => Competence, competence => competence.instructors)
+  @JoinTable({
+    name: 'instructor_competences', // Nombre de la tabla intermedia
+    joinColumn: {
+      name: 'instructorId',
+      referencedColumnName: 'id'
+    },
+    inverseJoinColumn: {
+      name: 'competenceId',
+      referencedColumnName: 'id'
+    }
+  })
+  competences: Competence[];
 
-    @OneToOne(() => Profile, profile => profile.user)
-    profile: Profile;
+  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+  createdAt: Date;
 
-    @OneToMany(() => InstructorAssignment, assignment => assignment.instructor)
-    instructorAssignments: InstructorAssignment[];
-
+  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP', onUpdate: 'CURRENT_TIMESTAMP' })
+  updatedAt: Date;
 }

@@ -19,6 +19,7 @@ import { User } from '../users/entities/user.entity';
 // ⭐ IMPORTAR TimezoneModule
 import { TimezoneModule } from '../config/timezone.module';
 import { ProfilesModule } from '../profiles/profiles.module'; 
+import { TrimesterScheduleController } from './TrimesterScheduleController';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { ProfilesModule } from '../profiles/profiles.module';
     ClassScheduleController,
     InstructorAssignmentController,
     InstructorProfileController,
+    TrimesterScheduleController,
   ],
   providers: [AttendanceService],
   exports: [AttendanceService],

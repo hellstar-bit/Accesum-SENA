@@ -1,11 +1,10 @@
-// frontend/src/pages/InstructorManagement.tsx
+// frontend/src/pages/InstructorManagement.tsx - ARCHIVO COMPLETO
 import React, { useState, useEffect } from 'react';
-// ⭐ Importación tipo-only para evitar error TS1484
 import type { InstructorAssignment } from '../services/instructorAssignmentService';
 import { instructorAssignmentService } from '../services/instructorAssignmentService';
 import { userService } from '../services/userService';
+import { useNavigate } from 'react-router-dom';
 
-// ⭐ Definir interfaces explícitas para evitar 'any'
 interface User {
   id: number;
   email: string;
@@ -23,23 +22,34 @@ interface User {
   }>;
 }
 
-interface UserFilters {
-  search?: string;
-  role?: string;
-  isActive?: boolean;
-  typeId?: number;
+interface Ficha {
+  id: number;
+  code: string;
+  name: string;
+  status: string;
 }
 
 const InstructorManagement: React.FC = () => {
+  const navigate = useNavigate();
   const [instructors, setInstructors] = useState<User[]>([]);
   const [selectedInstructorId, setSelectedInstructorId] = useState<number | null>(null);
   const [instructorFichas, setInstructorFichas] = useState<InstructorAssignment[]>([]);
+  const [availableFichas, setAvailableFichas] = useState<Ficha[]>([]);
   const [loadingFichas, setLoadingFichas] = useState<boolean>(false);
+  const [loadingAvailableFichas, setLoadingAvailableFichas] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
+  const [success, setSuccess] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
+  const [showAssignModal, setShowAssignModal] = useState<boolean>(false);
+  const [assignmentData, setAssignmentData] = useState({
+    fichaId: '',
+    subject: '',
+    description: ''
+  });
 
   useEffect(() => {
     loadInstructors();
+    loadAvailableFichas();
   }, []);
 
   const loadInstructors = async () => {
@@ -47,38 +57,71 @@ const InstructorManagement: React.FC = () => {
       setLoading(true);
       setError('');
       
-      // ⭐ Usar getUsers en lugar de getAllUsers
       const response = await userService.getUsers(1, 100, { role: 'Instructor' });
+      
+      if (!response || !Array.isArray(response.users)) {
+        console.warn('Respuesta inválida del servidor:', response);
+        setInstructors([]);
+        return;
+      }
+      
       const users = response.users;
       
-      // ⭐ Filtrar instructores con tipado explícito
       const instructorUsers = users.filter((user: User) => 
         user.profile?.type?.name === 'Instructor' || 
         user.roles?.some((role: { name: string }) => role.name === 'Instructor')
       );
       
       setInstructors(instructorUsers);
-    } catch (error) {
-      console.error('Error al cargar instructores:', error);
+      console.log('✅ Instructores cargados:', instructorUsers.length);
+      
+    } catch (error: any) {
+      if (error.isCanceled || error.message === 'canceled') {
+        console.log('🚫 loadInstructors - Petición cancelada, ignorando');
+        return;
+      }
+      
+      console.error('❌ Error al cargar instructores:', error);
       setError('Error al cargar la lista de instructores');
+      setInstructors([]);
     } finally {
       setLoading(false);
     }
   };
 
+  const loadAvailableFichas = async () => {
+    try {
+      setLoadingAvailableFichas(true);
+      console.log('📡 Cargando fichas disponibles...');
+      
+      const fichas = await userService.getFichas();
+      setAvailableFichas(fichas);
+      
+      console.log('✅ Fichas disponibles cargadas:', fichas.length, fichas);
+    } catch (error: any) {
+      console.error('❌ Error al cargar fichas disponibles:', error);
+      setError('Error al cargar fichas disponibles');
+    } finally {
+      setLoadingAvailableFichas(false);
+    }
+  };
+
   const handleSelectInstructor = async (instructorId: number) => {
     try {
+      console.log('🎯 Instructor seleccionado:', instructorId);
       setSelectedInstructorId(instructorId);
       setLoadingFichas(true);
       setError('');
+      setSuccess('');
       
       const fichas = await instructorAssignmentService.getInstructorFichas(instructorId);
       setInstructorFichas(fichas);
       
-      console.log('Fichas cargadas para instructor:', instructorId, fichas);
+      console.log('✅ Estado actualizado - selectedInstructorId:', instructorId);
+      console.log('✅ Fichas cargadas:', fichas);
       
     } catch (error: any) {
-      console.error('Error al cargar fichas del instructor:', error);
+      console.error('❌ Error al cargar fichas del instructor:', error);
       setError(error.response?.data?.message || 'Error al cargar las fichas del instructor');
       setInstructorFichas([]);
     } finally {
@@ -86,26 +129,44 @@ const InstructorManagement: React.FC = () => {
     }
   };
 
-  const handleAssignFicha = async (fichaId: number, subject: string, description?: string) => {
-    if (!selectedInstructorId) return;
+  const handleAssignFicha = async () => {
+    if (!selectedInstructorId || !assignmentData.fichaId || !assignmentData.subject) {
+      setError('Por favor completa todos los campos requeridos');
+      return;
+    }
 
     try {
+      setError('');
+      
       await instructorAssignmentService.assignInstructorToFicha({
         instructorId: selectedInstructorId,
-        fichaId,
-        subject,
-        description
+        fichaId: parseInt(assignmentData.fichaId),
+        subject: assignmentData.subject,
+        description: assignmentData.description
       });
       
       // Recargar fichas después de asignar
       await handleSelectInstructor(selectedInstructorId);
+      
+      // Limpiar formulario y cerrar modal
+      setAssignmentData({ fichaId: '', subject: '', description: '' });
+      setShowAssignModal(false);
+      setSuccess('Ficha asignada exitosamente');
+      
+      // Limpiar mensaje de éxito después de 3 segundos
+      setTimeout(() => setSuccess(''), 3000);
+      
     } catch (error: any) {
-      console.error('Error al asignar ficha:', error);
+      console.error('❌ Error al asignar ficha:', error);
       setError(error.response?.data?.message || 'Error al asignar la ficha');
     }
   };
 
   const handleRemoveAssignment = async (assignmentId: number) => {
+    if (!confirm('¿Estás seguro de que deseas eliminar esta asignación?')) {
+      return;
+    }
+
     try {
       await instructorAssignmentService.removeAssignment(assignmentId);
       
@@ -113,10 +174,25 @@ const InstructorManagement: React.FC = () => {
       if (selectedInstructorId) {
         await handleSelectInstructor(selectedInstructorId);
       }
+      
+      setSuccess('Asignación eliminada exitosamente');
+      setTimeout(() => setSuccess(''), 3000);
+      
     } catch (error: any) {
-      console.error('Error al eliminar asignación:', error);
+      console.error('❌ Error al eliminar asignación:', error);
       setError(error.response?.data?.message || 'Error al eliminar la asignación');
     }
+  };
+
+  const getSelectedInstructorName = () => {
+    const instructor = instructors.find(i => i.id === selectedInstructorId);
+    return instructor ? `${instructor.profile.firstName} ${instructor.profile.lastName}` : '';
+  };
+
+  const getAvailableFichasForAssignment = () => {
+    // Filtrar fichas que no están ya asignadas al instructor
+    const assignedFichaIds = instructorFichas.map(assignment => assignment.fichaId);
+    return availableFichas.filter(ficha => !assignedFichaIds.includes(ficha.id));
   };
 
   if (loading) {
@@ -130,23 +206,44 @@ const InstructorManagement: React.FC = () => {
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
       <div className="max-w-7xl mx-auto">
+        {/* ⭐ HEADER ACTUALIZADO CON BOTÓN */}
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Gestión de Instructores
-          </h1>
-          <p className="text-gray-600">
-            Asigna fichas a los instructores y gestiona sus responsabilidades
-          </p>
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                Gestión de Instructores
+              </h1>
+              <p className="text-gray-600">
+                Asigna fichas a los instructores y gestiona sus responsabilidades
+              </p>
+            </div>
+            {/* ⭐ BOTÓN PARA IR A HORARIOS POR TRIMESTRE */}
+            <button
+              onClick={() => navigate('/trimester-schedules')}
+              className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 font-medium flex items-center gap-2 transition-colors"
+            >
+              📅 Gestionar Horarios por Trimestre
+            </button>
+          </div>
         </div>
 
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-6">
-            <div className="text-red-800">
-              <p className="text-sm font-medium">Error:</p>
-              <p className="text-sm">{error}</p>
+        {success && (
+          <div className="bg-green-50 border border-green-200 rounded-md p-4 mb-6">
+            <div className="text-green-800">
+              <p className="text-sm font-medium">Éxito:</p>
+              <p className="text-sm">{success}</p>
             </div>
           </div>
         )}
+
+        {/* ⭐ DEBUG INFO - TEMPORAL */}
+        <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 mb-6">
+          <p className="text-xs text-yellow-800">
+            🔍 DEBUG - selectedInstructorId: {selectedInstructorId || 'null'} | 
+            loadingAvailableFichas: {loadingAvailableFichas.toString()} | 
+            availableFichas: {availableFichas.length}
+          </p>
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Lista de Instructores */}
@@ -162,7 +259,7 @@ const InstructorManagement: React.FC = () => {
                   No hay instructores registrados
                 </p>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-3 max-h-96 overflow-y-auto">
                   {instructors.map((instructor: User) => (
                     <div
                       key={instructor.id}
@@ -202,11 +299,31 @@ const InstructorManagement: React.FC = () => {
 
           {/* Fichas del Instructor Seleccionado */}
           <div className="bg-white rounded-lg shadow-sm">
-            <div className="px-6 py-4 border-b border-gray-200">
+            {/* ⭐ HEADER CON BOTÓN - ESTA PARTE FALTABA EN TU CÓDIGO */}
+            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
               <h2 className="text-lg font-semibold text-gray-900">
                 Fichas Asignadas
               </h2>
+              {/* ⭐ BOTÓN ASIGNAR FICHA */}
+              {selectedInstructorId && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500">
+                    ID: {selectedInstructorId}
+                  </span>
+                  <button
+                    onClick={() => {
+                      console.log('🔘 Botón Asignar Ficha clickeado');
+                      setShowAssignModal(true);
+                    }}
+                    disabled={loadingAvailableFichas}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium disabled:opacity-50"
+                  >
+                    {loadingAvailableFichas ? 'Cargando...' : 'Asignar Ficha'}
+                  </button>
+                </div>
+              )}
             </div>
+
             <div className="p-6">
               {!selectedInstructorId ? (
                 <p className="text-gray-500 text-center py-8">
@@ -221,7 +338,7 @@ const InstructorManagement: React.FC = () => {
                   Este instructor no tiene fichas asignadas
                 </p>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-3 max-h-96 overflow-y-auto">
                   {instructorFichas.map((assignment: InstructorAssignment) => (
                     <div
                       key={assignment.id}
@@ -254,7 +371,7 @@ const InstructorManagement: React.FC = () => {
                           </div>
                           <button
                             onClick={() => handleRemoveAssignment(assignment.id)}
-                            className="text-red-600 hover:text-red-800 text-sm"
+                            className="text-red-600 hover:text-red-800 text-sm p-1"
                             title="Eliminar asignación"
                           >
                             ✕
@@ -271,6 +388,89 @@ const InstructorManagement: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* ⭐ MODAL DE ASIGNACIÓN - ESTA PARTE COMPLETA FALTABA */}
+        {showAssignModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-md">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                Asignar Ficha a {getSelectedInstructorName()}
+              </h3>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Ficha *
+                  </label>
+                  <select
+                    value={assignmentData.fichaId}
+                    onChange={(e) => setAssignmentData({...assignmentData, fichaId: e.target.value})}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    disabled={loadingAvailableFichas}
+                  >
+                    <option value="">Seleccionar ficha...</option>
+                    {getAvailableFichasForAssignment().map((ficha) => (
+                      <option key={ficha.id} value={ficha.id}>
+                        {ficha.code} - {ficha.name}
+                      </option>
+                    ))}
+                  </select>
+                  {getAvailableFichasForAssignment().length === 0 && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      No hay fichas disponibles para asignar
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Materia *
+                  </label>
+                  <input
+                    type="text"
+                    value={assignmentData.subject}
+                    onChange={(e) => setAssignmentData({...assignmentData, subject: e.target.value})}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Ej: Programación Web"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Descripción
+                  </label>
+                  <textarea
+                    value={assignmentData.description}
+                    onChange={(e) => setAssignmentData({...assignmentData, description: e.target.value})}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    rows={3}
+                    placeholder="Descripción opcional..."
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  onClick={() => {
+                    setShowAssignModal(false);
+                    setAssignmentData({ fichaId: '', subject: '', description: '' });
+                    setError('');
+                  }}
+                  className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleAssignFicha}
+                  disabled={!assignmentData.fichaId || !assignmentData.subject}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                >
+                  Asignar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

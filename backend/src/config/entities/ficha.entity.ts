@@ -1,9 +1,9 @@
-// backend/src/config/entities/.ts
+// backend/src/config/entities/ficha.entity.ts
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
 import { Program } from './program.entity';
 import { Profile } from '../../profiles/entities/profile.entity';
 import { InstructorAssignment } from '../../attendance/entities/instructor-assignment.entity';
-
+import { FichaCompetence } from './ficha-competence.entity'; // ⭐ AGREGAR IMPORTACIÓN
 
 @Entity('fichas')
 export class Ficha {
@@ -11,13 +11,13 @@ export class Ficha {
   id: number;
 
   @Column({ length: 20, unique: true })
-  code: string; // "2856502"
+  code: string;
 
   @Column({ length: 200 })
-  name: string; // "GESTIÓN DE REDES DE DATOS"
+  name: string;
 
   @Column({ length: 50, default: 'EN EJECUCIÓN' })
-  status: string; // "EN EJECUCIÓN", "TERMINADA", "CANCELADA"
+  status: string;
 
   @Column({ type: 'date', nullable: true })
   startDate: Date;
@@ -26,7 +26,7 @@ export class Ficha {
   endDate: Date;
 
   @Column({ type: 'date', nullable: true })
-  reportDate: Date; // Fecha del último reporte importado
+  reportDate: Date;
 
   @ManyToOne(() => Program, program => program.fichas)
   @JoinColumn({ name: 'programId' })
@@ -38,13 +38,16 @@ export class Ficha {
   @OneToMany(() => Profile, profile => profile.ficha)
   profiles: Profile[];
 
+  @OneToMany(() => InstructorAssignment, assignment => assignment.ficha)
+  instructorAssignments: InstructorAssignment[];
+
+  // ⭐ AGREGAR ESTA RELACIÓN
+  @OneToMany(() => FichaCompetence, fichaCompetence => fichaCompetence.ficha)
+  competenceAssignments: FichaCompetence[];
+
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;
 
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP', onUpdate: 'CURRENT_TIMESTAMP' })
   updatedAt: Date;
-
-  @OneToMany(() => InstructorAssignment, assignment => assignment.ficha)
-  instructorAssignments: InstructorAssignment[];
-
 }

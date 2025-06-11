@@ -1,4 +1,4 @@
-// frontend/src/App.tsx - CORREGIDO CON TODAS LAS RUTAS
+// frontend/src/App.tsx - AGREGAR RUTA DE HORARIOS POR TRIMESTRE
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -13,6 +13,7 @@ import InstructorDashboard from './pages/InstructorDashboard';
 import InstructorAttendance from './pages/InstructorAttendance';
 import MyClasses from './pages/MyClasses';
 import ProfileManagement from './pages/ProfileManagement';
+import TrimesterScheduleManagement from './pages/TrimesterScheduleManagement'; // ⭐ NUEVA IMPORTACIÓN
 import Layout from './components/layout/Layout';
 import PrivateRoute from './components/auth/PrivateRoute';
 import { AuthProvider } from './context/AuthContext';
@@ -51,6 +52,9 @@ function App() {
               <Route path="instructor-profile" element={<InstructorProfile />} />
               <Route path="instructor-attendance" element={<InstructorAttendance />} />
               <Route path="my-classes" element={<MyClasses />} />
+              
+              {/* ⭐ NUEVA RUTA - GESTIÓN DE HORARIOS POR TRIMESTRE */}
+              <Route path="trimester-schedules" element={<TrimesterScheduleManagement />} />
               
               {/* ⭐ CONFIGURACIÓN DEL SISTEMA */}
               <Route path="config" element={<Configuration />} />

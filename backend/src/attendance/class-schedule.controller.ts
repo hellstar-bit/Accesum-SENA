@@ -48,7 +48,8 @@ export class ClassScheduleController {
     @Param('date') date: string,
     @Query('instructorId') instructorId?: number
   ) {
-    return await this.attendanceService.getSchedulesByDate(date, instructorId);
+    const dateObj = new Date(date);
+    return await this.attendanceService.getSchedulesByDate(dateObj, instructorId);
   }
 
   // ⭐ OBTENER HORARIO ESPECÍFICO

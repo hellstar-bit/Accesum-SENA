@@ -1,12 +1,12 @@
-// backend/src/users/users.service.ts - CORREGIDO PARA MYSQL
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import * as bcrypt from 'bcrypt';
+import { Repository, Like, In } from 'typeorm';
 import { User } from './entities/user.entity';
 import { Role } from './entities/role.entity';
 import { Profile } from '../profiles/entities/profile.entity';
 import { Ficha } from '../config/entities/ficha.entity';
+import { Competence } from '../config/entities/competence.entity';
+import * as bcrypt from 'bcrypt';
 
 export interface CreateUserDto {
   email: string;
@@ -18,164 +18,120 @@ export interface CreateUserDto {
     firstName: string;
     lastName: string;
     phoneNumber?: string;
+    address?: string;
+    city?: string;
     typeId: number;
     regionalId: number;
     centerId: number;
+    coordinationId?: number;
+    programId?: number;
     fichaId?: number;
   };
 }
 
 export interface UpdateUserDto {
   email?: string;
-  roleId?: number;
   isActive?: boolean;
+  roleId?: number;
   profile?: {
-    documentType?: string;
-    documentNumber?: string;
     firstName?: string;
     lastName?: string;
     phoneNumber?: string;
+    address?: string;
+    city?: string;
     typeId?: number;
     regionalId?: number;
     centerId?: number;
+    coordinationId?: number;
+    programId?: number;
     fichaId?: number;
   };
-}
-
-export interface UserFilters {
-  search?: string;
-  role?: string;
-  status?: string;
-  typeId?: number;
-  fichaId?: number;
-  regionalId?: number;
-  centerId?: number;
 }
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(User)
-    private userRepository: Repository<User>,
+    private readonly userRepository: Repository<User>,
+    
     @InjectRepository(Role)
-    private roleRepository: Repository<Role>,
+    private readonly roleRepository: Repository<Role>,
+    
     @InjectRepository(Profile)
-    private profileRepository: Repository<Profile>,
+    private readonly profileRepository: Repository<Profile>,
+    
     @InjectRepository(Ficha)
-    private fichaRepository: Repository<Ficha>,
+    private readonly fichaRepository: Repository<Ficha>,
+    
+    @InjectRepository(Competence)
+    private readonly competenceRepository: Repository<Competence>,
   ) {}
 
-  async findAll(page: number = 1, limit: number = 10, filters: UserFilters = {}) {
+  async findAll(page: number = 1, limit: number = 10, filters: any = {}) {
     try {
-      console.log('🔍 findAll llamado con:', { page, limit, filters });
-
       const skip = (page - 1) * limit;
       
-      // Query base simple
-      let query = this.userRepository
-        .createQueryBuilder('user')
+      const queryBuilder = this.userRepository.createQueryBuilder('user')
         .leftJoinAndSelect('user.role', 'role')
         .leftJoinAndSelect('user.profile', 'profile')
         .leftJoinAndSelect('profile.type', 'type')
         .leftJoinAndSelect('profile.regional', 'regional')
         .leftJoinAndSelect('profile.center', 'center')
-        .leftJoinAndSelect('profile.ficha', 'ficha')
-        .skip(skip)
-        .take(limit)
-        .orderBy('user.id', 'DESC');
+        .leftJoinAndSelect('profile.coordination', 'coordination')
+        .leftJoinAndSelect('profile.program', 'program')
+        .leftJoinAndSelect('profile.ficha', 'ficha');
 
-      // 🔧 CORREGIDO: Usar LIKE en lugar de ILIKE para MySQL
-      if (filters.search && filters.search.trim()) {
-        const searchTerm = filters.search.trim();
-        console.log('🔍 Aplicando filtro de búsqueda:', searchTerm);
-        
-        // Para MySQL: usar LIKE con LOWER() para hacer búsqueda case-insensitive
-        query = query.andWhere(
-          '(LOWER(profile.firstName) LIKE LOWER(:search) OR LOWER(profile.lastName) LIKE LOWER(:search) OR LOWER(profile.documentNumber) LIKE LOWER(:search) OR LOWER(user.email) LIKE LOWER(:search))',
-          { search: `%${searchTerm}%` }
+      // Aplicar filtros
+      if (filters.search) {
+        queryBuilder.andWhere(
+          '(profile.firstName LIKE :search OR profile.lastName LIKE :search OR user.email LIKE :search OR profile.documentNumber LIKE :search)',
+          { search: `%${filters.search}%` }
         );
       }
 
-      // Filtro de rol
-      if (filters.role && filters.role.trim()) {
-        console.log('🔍 Aplicando filtro de rol:', filters.role);
-        query = query.andWhere('role.name = :role', { role: filters.role });
+      if (filters.role) {
+        queryBuilder.andWhere('role.name = :role', { role: filters.role });
       }
 
-      // Filtro de estado
       if (filters.status) {
-        console.log('🔍 Aplicando filtro de estado:', filters.status);
         const isActive = filters.status === 'active';
-        query = query.andWhere('user.isActive = :isActive', { isActive });
+        queryBuilder.andWhere('user.isActive = :isActive', { isActive });
       }
 
-      // Filtro de ficha
-      if (filters.fichaId && !isNaN(Number(filters.fichaId))) {
-        console.log('🔍 Aplicando filtro de ficha:', filters.fichaId);
-        query = query.andWhere('profile.fichaId = :fichaId', { fichaId: Number(filters.fichaId) });
+      if (filters.typeId) {
+        queryBuilder.andWhere('profile.typeId = :typeId', { typeId: filters.typeId });
       }
 
-      // Filtro de tipo
-      if (filters.typeId && !isNaN(Number(filters.typeId))) {
-        console.log('🔍 Aplicando filtro de tipo:', filters.typeId);
-        query = query.andWhere('profile.typeId = :typeId', { typeId: Number(filters.typeId) });
+      if (filters.fichaId) {
+        queryBuilder.andWhere('profile.fichaId = :fichaId', { fichaId: filters.fichaId });
       }
 
-      // Filtro de regional
-      if (filters.regionalId && !isNaN(Number(filters.regionalId))) {
-        console.log('🔍 Aplicando filtro de regional:', filters.regionalId);
-        query = query.andWhere('profile.regionalId = :regionalId', { regionalId: Number(filters.regionalId) });
+      if (filters.regionalId) {
+        queryBuilder.andWhere('profile.regionalId = :regionalId', { regionalId: filters.regionalId });
       }
 
-      // Filtro de centro
-      if (filters.centerId && !isNaN(Number(filters.centerId))) {
-        console.log('🔍 Aplicando filtro de centro:', filters.centerId);
-        query = query.andWhere('profile.centerId = :centerId', { centerId: Number(filters.centerId) });
+      if (filters.centerId) {
+        queryBuilder.andWhere('profile.centerId = :centerId', { centerId: filters.centerId });
       }
 
-      console.log('🔍 Ejecutando query...');
-      
-      const [users, total] = await query.getManyAndCount();
-
-      console.log(`✅ Query exitosa: ${users.length} usuarios de ${total} total`);
+      const [users, total] = await queryBuilder
+        .orderBy('user.createdAt', 'DESC')
+        .skip(skip)
+        .take(limit)
+        .getManyAndCount();
 
       return {
+        users,
         data: users,
         total,
+        count: users.length,
         page,
         limit,
-        totalPages: Math.ceil(total / limit),
+        totalPages: Math.ceil(total / limit)
       };
-
     } catch (error) {
-      console.error('❌ Error detallado en findAll:', {
-        message: error.message,
-        stack: error.stack,
-        filters,
-        page,
-        limit
-      });
-      
-      // Re-lanzar con mensaje más claro
-      throw new Error(`Error en consulta de usuarios: ${error.message}`);
-    }
-  }
-
-  async getFichas() {
-    try {
-      console.log('📋 Obteniendo fichas...');
-      
-      const fichas = await this.fichaRepository.find({
-        select: ['id', 'code', 'name', 'status'],
-        order: { code: 'ASC' },
-      });
-      
-      console.log(`📋 Fichas encontradas: ${fichas.length}`);
-      return fichas;
-      
-    } catch (error) {
-      console.error('❌ Error al obtener fichas:', error);
-      return [];
+      console.error('Error en findAll:', error);
+      throw error;
     }
   }
 
@@ -184,13 +140,15 @@ export class UsersService {
       const user = await this.userRepository.findOne({
         where: { id },
         relations: [
-          'role', 
-          'profile', 
-          'profile.type', 
-          'profile.regional', 
-          'profile.center', 
+          'role',
+          'profile',
+          'profile.type',
+          'profile.regional',
+          'profile.center',
+          'profile.coordination',
+          'profile.program',
           'profile.ficha'
-        ],
+        ]
       });
 
       if (!user) {
@@ -199,60 +157,46 @@ export class UsersService {
 
       return user;
     } catch (error) {
-      console.error(`❌ Error al buscar usuario ${id}:`, error);
+      console.error('Error en findOne:', error);
       throw error;
     }
   }
 
   async create(createUserDto: CreateUserDto) {
     try {
-      // Verificar que el email no exista
+      // Verificar si el email ya existe
       const existingUser = await this.userRepository.findOne({
-        where: { email: createUserDto.email },
+        where: { email: createUserDto.email }
       });
 
       if (existingUser) {
         throw new ConflictException('El email ya está en uso');
       }
 
-      // Verificar que el documento no exista
-      const existingProfile = await this.profileRepository.findOne({
-        where: { documentNumber: createUserDto.profile.documentNumber },
-      });
-
-      if (existingProfile) {
-        throw new ConflictException('El número de documento ya está en uso');
-      }
-
-      // Verificar que el rol exista
-      const role = await this.roleRepository.findOne({
-        where: { id: createUserDto.roleId },
-      });
-
-      if (!role) {
-        throw new NotFoundException('Rol no encontrado');
-      }
-
       // Hash de la contraseña
       const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
 
       // Crear usuario
-      const user = await this.userRepository.save({
+      const user = this.userRepository.create({
         email: createUserDto.email,
         password: hashedPassword,
         roleId: createUserDto.roleId,
-        isActive: true,
+        isActive: true
       });
+
+      const savedUser = await this.userRepository.save(user);
 
       // Crear perfil
-      await this.profileRepository.save({
+      const profile = this.profileRepository.create({
         ...createUserDto.profile,
-        userId: user.id,
+        userId: savedUser.id
       });
 
-      return this.findOne(user.id);
+      await this.profileRepository.save(profile);
+
+      return await this.findOne(savedUser.id);
     } catch (error) {
-      console.error('❌ Error al crear usuario:', error);
+      console.error('Error en create:', error);
       throw error;
     }
   }
@@ -261,37 +205,32 @@ export class UsersService {
     try {
       const user = await this.findOne(id);
 
-      // Verificar email único si se está actualizando
       if (updateUserDto.email && updateUserDto.email !== user.email) {
         const existingUser = await this.userRepository.findOne({
-          where: { email: updateUserDto.email },
+          where: { email: updateUserDto.email }
         });
 
         if (existingUser) {
-          throw new ConflictException('El email ya está en uso');
+          throw new ConflictException('El email ya está en uso por otro usuario');
         }
       }
 
       // Actualizar usuario
-      if (updateUserDto.email || updateUserDto.roleId !== undefined || updateUserDto.isActive !== undefined) {
-        await this.userRepository.update(id, {
-          ...(updateUserDto.email && { email: updateUserDto.email }),
-          ...(updateUserDto.roleId && { roleId: updateUserDto.roleId }),
-          ...(updateUserDto.isActive !== undefined && { isActive: updateUserDto.isActive }),
-        });
-      }
+      if (updateUserDto.email) user.email = updateUserDto.email;
+      if (typeof updateUserDto.isActive === 'boolean') user.isActive = updateUserDto.isActive;
+      if (updateUserDto.roleId) user.roleId = updateUserDto.roleId;
+
+      await this.userRepository.save(user);
 
       // Actualizar perfil si se proporciona
-      if (updateUserDto.profile) {
-        await this.profileRepository.update(
-          { userId: id },
-          updateUserDto.profile,
-        );
+      if (updateUserDto.profile && user.profile) {
+        Object.assign(user.profile, updateUserDto.profile);
+        await this.profileRepository.save(user.profile);
       }
 
-      return this.findOne(id);
+      return await this.findOne(id);
     } catch (error) {
-      console.error(`❌ Error al actualizar usuario ${id}:`, error);
+      console.error('Error en update:', error);
       throw error;
     }
   }
@@ -299,15 +238,10 @@ export class UsersService {
   async remove(id: number) {
     try {
       const user = await this.findOne(id);
-      
-      // Soft delete - marcar como inactivo
-      await this.userRepository.update(id, { isActive: false });
-
-      return { 
-        message: `Usuario ${user.profile.firstName} ${user.profile.lastName} desactivado correctamente` 
-      };
+      await this.userRepository.remove(user);
+      return { message: 'Usuario eliminado exitosamente' };
     } catch (error) {
-      console.error(`❌ Error al eliminar usuario ${id}:`, error);
+      console.error('Error en remove:', error);
       throw error;
     }
   }
@@ -318,7 +252,6 @@ export class UsersService {
       const activeUsers = await this.userRepository.count({ where: { isActive: true } });
       const inactiveUsers = totalUsers - activeUsers;
 
-      // Usuarios por rol - versión simplificada
       const usersByRole = await this.userRepository
         .createQueryBuilder('user')
         .leftJoin('user.role', 'role')
@@ -327,37 +260,118 @@ export class UsersService {
         .groupBy('role.name')
         .getRawMany();
 
-      // Aprendices por ficha - versión simplificada
-      const learnersByFicha = await this.userRepository
-        .createQueryBuilder('user')
-        .leftJoin('user.role', 'role')
-        .leftJoin('user.profile', 'profile')
-        .leftJoin('profile.ficha', 'ficha')
-        .select('ficha.code', 'fichaCode')
-        .addSelect('ficha.name', 'fichaName')
-        .addSelect('COUNT(user.id)', 'count')
-        .where('role.name = :roleName', { roleName: 'Aprendiz' })
-        .andWhere('ficha.id IS NOT NULL')
-        .groupBy('ficha.id, ficha.code, ficha.name')
-        .getRawMany();
-
       return {
         totalUsers,
         activeUsers,
         inactiveUsers,
-        usersByRole,
-        learnersByFicha,
+        usersByRole
       };
     } catch (error) {
-      console.error('❌ Error al obtener estadísticas:', error);
-      // Retornar datos básicos en caso de error
-      return {
-        totalUsers: 0,
-        activeUsers: 0,
-        inactiveUsers: 0,
-        usersByRole: [],
-        learnersByFicha: [],
-      };
+      console.error('Error en getStats:', error);
+      throw error;
+    }
+  }
+
+  async getFichas() {
+    try {
+      console.log('📋 Obteniendo fichas...');
+      
+      const fichas = await this.fichaRepository.find({
+        where: { 
+          status: In(['EN EJECUCIÓN', 'EN FORMACION']) 
+        },
+        order: { code: 'ASC' }
+      });
+
+      console.log('📋 Fichas encontradas:', fichas.length);
+      return fichas;
+    } catch (error) {
+      console.error('❌ Error al obtener fichas:', error);
+      return [];
+    }
+  }
+
+  // ⭐ NUEVOS MÉTODOS PARA HORARIOS POR TRIMESTRE
+  async getInstructorsWithCompetences() {
+    try {
+      console.log('📋 Obteniendo instructores con competencias...');
+      
+      const instructors = await this.userRepository.find({
+        where: {
+          role: { name: 'Instructor' },
+          isActive: true
+        },
+        relations: ['profile', 'competences'],
+        select: {
+          id: true,
+          email: true,
+          profile: {
+            firstName: true,
+            lastName: true
+          }
+        }
+      });
+
+      const formattedInstructors = instructors.map(instructor => ({
+        id: instructor.id,
+        name: `${instructor.profile?.firstName || ''} ${instructor.profile?.lastName || ''}`.trim(),
+        email: instructor.email,
+        competences: instructor.competences || [],
+        assignments: []
+      }));
+
+      console.log('📋 Instructores encontrados:', formattedInstructors.length);
+      return formattedInstructors;
+    } catch (error) {
+      console.error('❌ Error al obtener instructores con competencias:', error);
+      return [];
+    }
+  }
+
+  async getFichasWithCompetences() {
+    try {
+      console.log('📋 Obteniendo fichas con competencias...');
+      
+      const fichas = await this.fichaRepository.find({
+        where: { 
+          status: In(['EN EJECUCIÓN', 'EN FORMACION']) 
+        },
+        relations: ['program', 'program.competences'],
+        order: { code: 'ASC' }
+      });
+
+      const formattedFichas = fichas.map(ficha => ({
+        id: ficha.id,
+        code: ficha.code,
+        name: ficha.name,
+        status: ficha.status,
+        programId: ficha.programId,
+        competences: ficha.program?.competences || []
+      }));
+
+      console.log('📋 Fichas encontradas:', formattedFichas.length);
+      return formattedFichas;
+    } catch (error) {
+      console.error('❌ Error al obtener fichas con competencias:', error);
+      return [];
+    }
+  }
+
+  async getAllCompetences() {
+    try {
+      console.log('📋 Obteniendo todas las competencias...');
+      
+      const competences = await this.competenceRepository.find({
+        where: { isActive: true },
+        relations: ['program'],
+        order: { code: 'ASC' }
+      });
+
+      console.log('📋 Competencias encontradas:', competences.length);
+      return competences;
+    } catch (error) {
+      console.error('❌ Error al obtener competencias:', error);
+      return [];
     }
   }
 }

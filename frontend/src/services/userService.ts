@@ -1,8 +1,9 @@
-
-      // frontend/src/services/userService.ts - Optimizado para búsqueda en vivo
+// frontend/src/services/userService.ts - Optimizado para búsqueda en vivo
 import api from './api';
+
 // ============= INTERFACES =============
 export type { Role } from '../types/user.types';
+
 export interface User {
   id: number;
   email: string;
@@ -74,16 +75,20 @@ export interface UserFilters {
   fichaId?: number;
   regionalId?: number;
   centerId?: number;
+  page?: number; // ⭐ AGREGADO
+  limit?: number; // ⭐ AGREGADO
 }
 
 export interface UsersResponse {
-  users: any;
-  filter(arg0: (user: { role: { name: string; }; }) => boolean): unknown;
+  users: User[]; // ⭐ CORREGIDO: debe ser User[] no any
   data: User[];
   total: number;
+  count: number; // ⭐ AGREGADO
   page: number;
   limit: number;
   totalPages: number;
+  // ⭐ MANTENER filter para compatibilidad
+  filter(arg0: (user: { role: { name: string; }; }) => boolean): User[];
 }
 
 export interface UserStats {
@@ -138,103 +143,68 @@ const requestController = new RequestController();
 export const userService = {
   // ========== USUARIOS CON CANCELACIÓN DE PETICIONES ==========
   
-  async getUsers(
-    page: number = 1, 
-    limit: number = 10, 
-    filters?: UserFilters
-  ): Promise<UsersResponse> {
-    const requestKey = 'getUsers';
+  // ⭐ MÉTODO CORREGIDO CON TODAS LAS PROPIEDADES NECESARIAS
+  async getUsers(page = 1, limit = 10, filters: UserFilters = {}): Promise<UsersResponse> {
+  try {
+    const params = this.sanitizeFilters({ page, limit, ...filters });
     
-    try {
-      // Crear controlador para esta petición
-      const controller = requestController.createController(requestKey);
-      
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: limit.toString(),
-      });
-      
-      // Solo agregar filtros que tengan valor válido
-      if (filters) {
-        Object.entries(filters).forEach(([key, value]) => {
-          if (value !== undefined && value !== null && value !== '') {
-            params.append(key, value.toString());
-          }
-        });
-      }
-
-      console.log('📡 getUsers - Enviando request:', {
-        page,
-        limit,
-        filters,
-        params: params.toString()
-      });
-
-      const response = await api.get<UsersResponse>(`/users?${params}`, {
-        signal: controller.signal
-      });
-      
-      console.log('✅ getUsers - Response exitoso:', {
-        total: response.data.total,
-        count: response.data.data.length,
-        page: response.data.page
-      });
-      
-      // Limpiar controlador después del éxito
-      requestController.cleanup(requestKey);
-      
-      return response.data;
-      
-    } catch (error: any) {
-      // Limpiar controlador en caso de error
-      requestController.cleanup(requestKey);
-      
-      // Si la petición fue cancelada, no reportar como error
-      if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
-        console.log('🚫 getUsers - Petición cancelada');
-        // Retornar un objeto especial para indicar cancelación sin lanzar error
-        return {
-          data: [],
-          total: 0,
-          page: 1,
-          limit: 10,
-          totalPages: 0,
-          cancelled: true
-        } as any;
-      }
-      
-      console.error('❌ getUsers - Error:', {
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data
-      });
-      
-      // Mejorar el manejo de errores específicos
-      if (error.response) {
-        const status = error.response.status;
-        const message = error.response.data?.message || 'Error del servidor';
-        
-        switch (status) {
-          case 400:
-            throw new Error(`Parámetros inválidos: ${message}`);
-          case 401:
-            throw new Error('Sesión expirada. Por favor, inicia sesión nuevamente.');
-          case 403:
-            throw new Error('No tienes permisos para ver usuarios.');
-          case 404:
-            throw new Error('Endpoint no encontrado.');
-          case 500:
-            throw new Error('Error interno del servidor. Intenta más tarde.');
-          default:
-            throw new Error(message);
-        }
-      } else if (error.request) {
-        throw new Error('Error de conexión. Verifica tu conexión a internet.');
-      } else {
-        throw new Error(error.message || 'Error desconocido');
-      }
+    const response = await api.get('/users', { params });
+    
+    if (!response.data) {
+      throw new Error('Respuesta vacía del servidor');
     }
-  },
+    
+    const users = response.data.users || response.data.data || [];
+    const total = response.data.total || 0;
+    const count = response.data.count || users.length;
+    
+    return {
+      users,
+      data: users,
+      total,
+      count,
+      page: response.data.page || page,
+      limit,
+      totalPages: response.data.totalPages || Math.ceil(total / limit),
+      filter: (predicate: (user: { role: { name: string; }; }) => boolean) => {
+        return users.filter(predicate);
+      }
+    };
+  } catch (error: any) {
+    // ⭐ MANEJO MEJORADO de cancelaciones
+    if (error.isCanceled || error.message === 'canceled' || error.code === 'ERR_CANCELED') {
+      console.log('🚫 getUsers - Petición cancelada, retornando datos vacíos');
+      return {
+        users: [],
+        data: [],
+        total: 0,
+        count: 0,
+        page: 1,
+        limit,
+        totalPages: 1,
+        filter: () => []
+      };
+    }
+    
+    // ⭐ MANEJO de timeouts
+    if (error.isTimeout) {
+      console.warn('⏱️ getUsers - Timeout, retornando datos vacíos');
+      return {
+        users: [],
+        data: [],
+        total: 0,
+        count: 0,
+        page: 1,
+        limit,
+        totalPages: 1,
+        filter: () => []
+      };
+    }
+    
+    console.error('❌ Error real en getUsers:', error);
+    throw error;
+  }
+},
 
   // ========== CANCELAR PETICIONES PENDIENTES ==========
   
@@ -639,6 +609,15 @@ export const userService = {
     
     if (filters.centerId && !isNaN(Number(filters.centerId))) {
       sanitized.centerId = Number(filters.centerId);
+    }
+    
+    // ⭐ AGREGAR page y limit al sanitizado
+    if (filters.page && !isNaN(Number(filters.page))) {
+      sanitized.page = Number(filters.page);
+    }
+    
+    if (filters.limit && !isNaN(Number(filters.limit))) {
+      sanitized.limit = Number(filters.limit);
     }
     
     return sanitized;

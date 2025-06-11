@@ -25,6 +25,7 @@ export interface InstructorAssignment {
 }
 
 class InstructorAssignmentService {
+  // ⭐ ASEGÚRATE DE QUE ESTA FUNCIÓN EXISTA
   async getInstructorFichas(instructorId?: number): Promise<InstructorAssignment[]> {
     try {
       const endpoint = instructorId 
@@ -38,6 +39,7 @@ class InstructorAssignmentService {
       throw error;
     }
   }
+
 
   async assignInstructorToFicha(data: {
     instructorId: number;

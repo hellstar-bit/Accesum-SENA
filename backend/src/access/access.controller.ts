@@ -1,5 +1,19 @@
-// backend/src/access/access.controller.ts - CÃ“DIGO CORREGIDO
-import { Controller, Get, Post, Body, Param, UseGuards, Query, Request } from '@nestjs/common';
+// backend/src/access/access.controller.ts - COMPLETO CORREGIDO
+import { 
+  Controller, 
+  Get, 
+  Post, 
+  Body, 
+  Param, 
+  Query, 
+  UseGuards, 
+  Request,
+  ParseIntPipe,
+  HttpStatus,
+  HttpException,
+  NotFoundException,
+  BadRequestException
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -10,266 +24,392 @@ import { AccessService } from './access.service';
 export class AccessController {
   constructor(private readonly accessService: AccessService) {}
 
-  // â­ CHECK-IN (Entrada)
+  // ⭐ CHECK-IN - ENTRADA AL SISTEMA
   @Post('check-in')
-  @Roles('Administrador', 'Instructor', 'Funcionario')
+  @Roles('Administrador', 'Instructor', 'Aprendiz')
   async checkIn(@Body() data: { 
     profileId?: number; 
     qrData?: string 
   }) {
-    return await this.accessService.checkIn(data);
+    try {
+      console.log('🌐 POST /access/check-in');
+      
+      if (!data.profileId && !data.qrData) {
+        throw new BadRequestException('Se requiere profileId o qrData');
+      }
+
+      const result = await this.accessService.checkIn(data);
+      console.log('✅ Check-in exitoso');
+      
+      return {
+        success: true,
+        message: 'Check-in realizado exitosamente',
+        data: result
+      };
+    } catch (error) {
+      console.error('❌ Error en check-in:', error);
+      throw error;
+    }
   }
 
-  // â­ CHECK-OUT (Salida)
+  // ⭐ CHECK-OUT - SALIDA DEL SISTEMA
   @Post('check-out')
-  @Roles('Administrador', 'Instructor', 'Funcionario')
+  @Roles('Administrador', 'Instructor', 'Aprendiz')
   async checkOut(@Body() data: { 
     profileId?: number; 
     qrData?: string 
   }) {
-    return await this.accessService.checkOut(data);
-  }
-
-  // â­ OBTENER OCUPACIÃ“N ACTUAL
-  @Get('current')
-  @Roles('Administrador', 'Instructor', 'Funcionario')
-  async getCurrentOccupancy() {
-    return await this.accessService.getCurrentOccupancy();
-  }
-
-  // â­ OBTENER HISTORIAL DE ACCESOS - CORREGIDO
-  @Get('history')
-  @Roles('Administrador', 'Instructor', 'Funcionario')
-  async getHistory(
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
-    @Query('date') date?: string,
-    @Query('userId') userId?: string
-  ) {
-    // â­ CORREGIR: Asegurar valores por defecto
-    const params = {
-      page: page ? parseInt(page) : 1,
-      limit: limit ? parseInt(limit) : 10,
-      date: date ? new Date(date) : undefined,
-      userId: userId ? parseInt(userId) : undefined
-    };
-
-    return await this.accessService.getHistory(params);
-  }
-
-  // â­ OBTENER ESTADÃSTICAS DE ACCESO
-  @Get('stats')
-  @Roles('Administrador', 'Instructor', 'Funcionario')
-  async getStats(@Query('date') date?: string) {
-    const targetDate = date ? new Date(date) : undefined;
-    return await this.accessService.getStats(targetDate);
-  }
-
-  // â­ BUSCAR POR NÃšMERO DE DOCUMENTO
-  @Get('search/:documentNumber')
-  @Roles('Administrador', 'Instructor', 'Funcionario')
-  async searchByDocument(@Param('documentNumber') documentNumber: string) {
-    return await this.accessService.searchByDocument(documentNumber);
-  }
-
-  // â­ OBTENER ACCESO ACTIVO DE UN USUARIO
-  @Get('active/:userId')
-  @Roles('Administrador', 'Instructor', 'Funcionario')
-  async getActiveAccess(@Param('userId') userId: number) {
-    return await this.accessService.getActiveAccess(userId);
-  }
-
-  // â­ FORZAR SALIDA (para casos especiales)
-  @Post('force-checkout/:userId')
-  @Roles('Administrador')
-  async forceCheckOut(
-    @Param('userId') userId: number,
-    @Body() data: { reason?: string }
-  ) {
-    return await this.accessService.forceCheckOut(userId, data.reason);
-  }
-
-  // â­ OBTENER MIS ACCESOS (para usuarios regulares) - CORREGIDO
-  @Get('my-access')
-  @Roles('Administrador', 'Instructor', 'Funcionario', 'Aprendiz')
-  async getMyAccess(
-    @Request() req: any,
-    @Query('page') page?: string,
-    @Query('limit') limit?: string
-  ) {
-    // â­ CORREGIR: Asegurar valores por defecto
-    const params = {
-      page: page ? parseInt(page) : 1,
-      limit: limit ? parseInt(limit) : 10,
-      userId: req.user.id
-    };
-
-    return await this.accessService.getHistory(params);
-  }
-
-  // â­ VERIFICAR ESTADO DE ACCESO ACTUAL
-  @Get('my-status')
-  @Roles('Administrador', 'Instructor', 'Funcionario', 'Aprendiz')
-  async getMyStatus(@Request() req: any) {
-    const activeAccess = await this.accessService.getActiveAccess(req.user.id);
-    
-    return {
-      hasActiveAccess: !!activeAccess,
-      accessRecord: activeAccess || null,
-      status: activeAccess ? 'DENTRO' : 'FUERA'
-    };
-  }
-
-  // â­ OBTENER ESTADÃSTICAS POR TIPO DE USUARIO
-  @Get('stats-by-type')
-  @Roles('Administrador')
-  async getStatsByType(@Query('date') date?: string) {
-    const targetDate = date ? new Date(date) : new Date();
-    
-    const occupancy = await this.accessService.getCurrentOccupancy();
-    const dailyStats = await this.accessService.getStats(targetDate);
-    
-    return {
-      current: occupancy.byType,
-      daily: dailyStats,
-      date: targetDate
-    };
-  }
-
-  // â­ EXPORTAR REPORTE DE ACCESOS - CORREGIDO
-  @Get('export')
-  @Roles('Administrador')
-  async exportAccessReport(
-    @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-    @Query('format') format: string = 'json'
-  ) {
-    const start = startDate ? new Date(startDate) : new Date();
-    const end = endDate ? new Date(endDate) : new Date();
-    
-    // â­ CORREGIR: Usar parÃ¡metros correctos
-    const history = await this.accessService.getHistory({
-      page: 1,
-      limit: 1000
-    });
-
-    if (format === 'csv') {
-      return {
-        message: 'ExportaciÃ³n CSV no implementada aÃºn',
-        data: history.data
-      };
-    }
-
-    return {
-      period: { startDate: start, endDate: end },
-      totalRecords: history.total,
-      data: history.data
-    };
-  }
-
-  // â­ OBTENER RESUMEN DE ACTIVIDAD - CORREGIDO
-  @Get('activity-summary')
-  @Roles('Administrador', 'Instructor')
-  async getActivitySummary(@Query('days') days: string = '7') {
-    const daysCount = parseInt(days);
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - daysCount);
-
-    // â­ CORREGIR: Tipar correctamente el array
-    const summaryData: Array<{
-      date: string;
-      totalAccess: number;
-      averageDuration: number;
-      accessByHour: Array<{ hour: number; count: number }>;
-    }> = [];
-    
-    for (let i = 0; i < daysCount; i++) {
-      const currentDate = new Date(startDate);
-      currentDate.setDate(startDate.getDate() + i);
-      
-      const dayStats = await this.accessService.getStats(currentDate);
-      
-      summaryData.push({
-        date: currentDate.toISOString().split('T')[0],
-        totalAccess: dayStats.totalAccess,
-        averageDuration: dayStats.averageDurationMinutes,
-        accessByHour: dayStats.accessByHour
-      });
-    }
-
-    return {
-      period: { startDate, endDate, days: daysCount },
-      summary: summaryData
-    };
-  }
-
-  // â­ VALIDAR QR CODE
-  @Post('validate-qr')
-  @Roles('Administrador', 'Instructor', 'Funcionario')
-  async validateQR(@Body() data: { qrData: string }) {
     try {
-      const qrInfo = JSON.parse(data.qrData);
+      console.log('🌐 POST /access/check-out');
       
-      if (!qrInfo.id || !qrInfo.doc || !qrInfo.type) {
-        return {
-          valid: false,
-          message: 'Formato de QR invÃ¡lido'
-        };
+      if (!data.profileId && !data.qrData) {
+        throw new BadRequestException('Se requiere profileId o qrData');
       }
 
-      const searchResult = await this.accessService.searchByDocument(qrInfo.doc);
+      const result = await this.accessService.checkOut(data);
+      console.log('✅ Check-out exitoso');
       
       return {
-        valid: searchResult.found,
-        profile: searchResult.profile || null,
-        qrInfo: qrInfo,
-        message: searchResult.found ? 'QR vÃ¡lido' : 'Perfil no encontrado'
+        success: true,
+        message: 'Check-out realizado exitosamente',
+        data: result
       };
     } catch (error) {
-      return {
-        valid: false,
-        message: 'QR no vÃ¡lido o corrupto'
-      };
+      console.error('❌ Error en check-out:', error);
+      throw error;
     }
   }
 
-  // â­ OBTENER MÃ‰TRICAS EN TIEMPO REAL
-  @Get('realtime-metrics')
-  @Roles('Administrador', 'Instructor')
-  async getRealtimeMetrics() {
-    const currentOccupancy = await this.accessService.getCurrentOccupancy();
-    const todayStats = await this.accessService.getStats();
-    
-    return {
-      timestamp: new Date(),
-      currentOccupancy: currentOccupancy.total,
-      byType: currentOccupancy.byType,
-      todayTotal: todayStats.totalAccess,
-      averageDuration: todayStats.averageDurationMinutes,
-      lastHourAccess: todayStats.accessByHour[new Date().getHours()]?.count || 0
-    };
+  // ⭐ OBTENER ESTADÍSTICAS DE ACCESO
+  @Get('stats')
+  @Roles('Administrador')
+  async getStats(@Query() filters: {
+    startDate?: string;
+    endDate?: string;
+    groupBy?: 'day' | 'week' | 'month';
+  }) {
+    try {
+      console.log('🌐 GET /access/stats');
+      const stats = await this.accessService.getStats(filters);
+      console.log('✅ Estadísticas obtenidas exitosamente');
+      return stats;
+    } catch (error) {
+      console.error('❌ Error al obtener estadísticas:', error);
+      throw new HttpException(
+        'Error al obtener estadísticas de acceso',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
   }
 
-  // â­ OBTENER REPORTE SIMPLE (sin getDailyReport que no existe)
-  @Get('daily-report')
-  @Roles('Administrador', 'Instructor')
-  async getDailyReport(@Query('date') date?: string) {
-    const targetDate = date ? new Date(date) : new Date();
+  // ⭐ OBTENER HISTORIAL DE ACCESOS
+  @Get('history')
+  @Roles('Administrador')
+  async getHistory(@Query() filters: {
+    userId?: number;
+    startDate?: string;
+    endDate?: string;
+    status?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    try {
+      console.log('🌐 GET /access/history');
+      const history = await this.accessService.getHistory(filters);
+      console.log('✅ Historial obtenido exitosamente');
+      return history;
+    } catch (error) {
+      console.error('❌ Error al obtener historial:', error);
+      throw new HttpException(
+        'Error al obtener historial de accesos',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
+  // ⭐ BUSCAR POR NÚMERO DE DOCUMENTO
+  @Get('search/:document')
+  @Roles('Administrador')
+  async searchByDocument(@Param('document') documentNumber: string) {
+    try {
+      console.log('🌐 GET /access/search/' + documentNumber);
+      
+      if (!documentNumber || documentNumber.trim().length === 0) {
+        throw new BadRequestException('Número de documento requerido');
+      }
+
+      const result = await this.accessService.searchByDocument(documentNumber.trim());
+      
+      if (!result.found) {
+        throw new NotFoundException(result.message || 'Usuario no encontrado');
+      }
+      
+      console.log('✅ Búsqueda por documento exitosa');
+      return result;
+    } catch (error) {
+      console.error('❌ Error en búsqueda por documento:', error);
+      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new HttpException(
+        'Error al buscar por documento',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
+  // ⭐ OBTENER ACCESOS ACTIVOS (USUARIOS DENTRO)
+  @Get('active')
+  @Roles('Administrador')
+  async getActiveAccess() {
+    try {
+      console.log('🌐 GET /access/active');
+      const activeAccess = await this.accessService.getActiveAccess();
+      console.log('✅ Accesos activos obtenidos exitosamente');
+      return activeAccess;
+    } catch (error) {
+      console.error('❌ Error al obtener accesos activos:', error);
+      throw new HttpException(
+        'Error al obtener accesos activos',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
+  // ⭐ OBTENER OCUPACIÓN ACTUAL
+  @Get('occupancy')
+  @Roles('Administrador')
+  async getCurrentOccupancy() {
+    try {
+      console.log('🌐 GET /access/occupancy');
+      const occupancy = await this.accessService.getCurrentOccupancy();
+      console.log('✅ Ocupación actual obtenida exitosamente');
+      return occupancy;
+    } catch (error) {
+      console.error('❌ Error al obtener ocupación actual:', error);
+      throw new HttpException(
+        'Error al obtener ocupación actual',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
+  // ⭐ VERIFICAR ESTADO DE ACCESO DE UN USUARIO
+  @Get('status/:userId')
+  @Roles('Administrador')
+  async checkUserStatus(@Param('userId', ParseIntPipe) userId: number) {
+    try {
+      console.log('🌐 GET /access/status/' + userId);
+      const status = await this.accessService.checkUserStatus(userId);
+      console.log('✅ Estado de usuario obtenido exitosamente');
+      return status;
+    } catch (error) {
+      console.error('❌ Error al verificar estado del usuario:', error);
+      throw new HttpException(
+        'Error al verificar estado del usuario',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
+  // ⭐ FORZAR CHECK-OUT (SOLO ADMINISTRADORES)
+  @Post('force-checkout')
+  @Roles('Administrador')
+  async forceCheckOut(
+    @Body() data: { 
+      userId?: number; 
+      accessRecordId?: number; 
+      reason?: string;
+    },
+    @Request() req: any
+  ) {
+    try {
+      console.log('🌐 POST /access/force-checkout');
+      
+      if (!data.userId && !data.accessRecordId) {
+        throw new BadRequestException('Se requiere userId o accessRecordId');
+      }
+
+      const result = await this.accessService.forceCheckOut({
+        ...data,
+        adminUserId: req.user.id // ID del administrador que fuerza el checkout
+      });
+      
+      console.log('✅ Check-out forzado exitoso');
+      return result;
+    } catch (error) {
+      console.error('❌ Error al forzar check-out:', error);
+      throw error;
+    }
+  }
+
+  // ⭐ OBTENER REPORTE DETALLADO
+  @Get('report')
+@Roles('Administrador')
+async getDetailedReport(@Query() filters: {
+  startDate?: string;
+  endDate?: string;
+  userType?: string;
+  includeActive?: string; // ⭐ CAMBIAR A string AQUÍ
+}) {
+  try {
+    console.log('🌐 GET /access/report');
     
-    // â­ USAR MÃ‰TODOS EXISTENTES EN LUGAR DE getDailyReport
-    const stats = await this.accessService.getStats(targetDate);
-    const history = await this.accessService.getHistory({
-      page: 1,
-      limit: 100,
-      date: targetDate
+    // ⭐ CREAR OBJETO CON TIPO CORRECTO
+    const processedFilters = {
+      startDate: filters.startDate,
+      endDate: filters.endDate,
+      userType: filters.userType,
+      includeActive: filters.includeActive 
+        ? filters.includeActive.toLowerCase() === 'true' 
+        : undefined
+    };
+
+    const report = await this.accessService.getDetailedReport(processedFilters);
+    console.log('✅ Reporte detallado generado exitosamente');
+    return report;
+  } catch (error) {
+    console.error('❌ Error al generar reporte detallado:', error);
+    throw new HttpException(
+      'Error al generar reporte detallado',
+      HttpStatus.INTERNAL_SERVER_ERROR
+    );
+  }
+}
+
+  // ⭐ LIMPIAR REGISTROS ANTIGUOS (MANTENIMIENTO)
+  @Post('cleanup')
+  @Roles('Administrador')
+  async cleanupOldRecords(@Body() data: { daysToKeep?: number }) {
+    try {
+      console.log('🌐 POST /access/cleanup');
+      
+      const daysToKeep = data.daysToKeep || 365;
+      
+      if (daysToKeep < 30) {
+        throw new BadRequestException('No se pueden eliminar registros de menos de 30 días');
+      }
+
+      const result = await this.accessService.cleanupOldRecords(daysToKeep);
+      console.log('✅ Limpieza de registros completada');
+      return result;
+    } catch (error) {
+      console.error('❌ Error en limpieza de registros:', error);
+      throw error;
+    }
+  }
+
+  // ⭐ OBTENER MI ESTADO DE ACCESO (PARA USUARIOS AUTENTICADOS)
+  @Get('my-status')
+  @Roles('Administrador', 'Instructor', 'Aprendiz', )
+  async getMyStatus(@Request() req: any) {
+    try {
+      console.log('🌐 GET /access/my-status');
+      const status = await this.accessService.checkUserStatus(req.user.id);
+      console.log('✅ Mi estado obtenido exitosamente');
+      return status;
+    } catch (error) {
+      console.error('❌ Error al obtener mi estado:', error);
+      throw new HttpException(
+        'Error al obtener estado personal',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
+  // ⭐ OBTENER MIS ÚLTIMOS ACCESOS
+  @Get('my-history')
+  @Roles('Administrador', 'Instructor', 'Aprendiz', )
+  async getMyHistory(
+    @Request() req: any,
+    @Query() filters: {
+      startDate?: string;
+      endDate?: string;
+      page?: number;
+      limit?: number;
+    }
+  ) {
+    try {
+      console.log('🌐 GET /access/my-history');
+      
+      const history = await this.accessService.getHistory({
+        ...filters,
+        userId: req.user.id // Filtrar solo por el usuario autenticado
+      });
+      
+      console.log('✅ Mi historial obtenido exitosamente');
+      return history;
+    } catch (error) {
+      console.error('❌ Error al obtener mi historial:', error);
+      throw new HttpException(
+        'Error al obtener historial personal',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
+  // ⭐ ENDPOINT DE SALUD DEL SERVICIO
+  @Get('health')
+  async healthCheck() {
+    try {
+      const occupancy = await this.accessService.getCurrentOccupancy();
+      return {
+        status: 'OK',
+        timestamp: new Date().toISOString(),
+        service: 'Access Control',
+        currentOccupancy: occupancy.total,
+        message: 'Servicio de control de acceso funcionando correctamente'
+      };
+    } catch (error) {
+      throw new HttpException(
+        'Servicio de control de acceso no disponible',
+        HttpStatus.SERVICE_UNAVAILABLE
+      );
+    }
+  }
+
+  // ⭐ OBTENER ESTADÍSTICAS RÁPIDAS (DASHBOARD)
+  @Get('quick-stats')
+@Roles('Administrador')
+async getQuickStats() {
+  try {
+    console.log('🌐 GET /access/quick-stats');
+    
+    // Obtener estadísticas de hoy
+    const today = new Date().toISOString().split('T')[0];
+    const todayStats = await this.accessService.getStats({
+      startDate: today,
+      endDate: today
     });
 
+    // Obtener ocupación actual
+    const occupancy = await this.accessService.getCurrentOccupancy();
+
+    // ⭐ CORREGIR LLAMADA SIN PARÁMETROS
+    const activeAccess = await this.accessService.getActiveAccess();
+
+    console.log('✅ Estadísticas rápidas obtenidas');
+    
     return {
-      date: targetDate,
-      stats,
-      recentAccess: history.data,
-      totalRecords: history.total
+      today: {
+        totalAccess: todayStats.totalAccess,
+        uniqueUsers: todayStats.uniqueUsers,
+        peakHour: todayStats.peakHour,
+        accessByHour: todayStats.accessByHour
+      },
+      current: {
+        occupancy: occupancy.total,
+        byType: occupancy.byType,
+        activeRecords: activeAccess.total
+      },
+      timestamp: new Date().toISOString()
     };
+  } catch (error) {
+    console.error('❌ Error al obtener estadísticas rápidas:', error);
+    throw new HttpException(
+      'Error al obtener estadísticas rápidas',
+      HttpStatus.INTERNAL_SERVER_ERROR
+    );
   }
+}
 }

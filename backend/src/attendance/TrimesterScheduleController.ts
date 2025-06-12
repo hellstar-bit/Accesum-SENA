@@ -1,21 +1,25 @@
-// backend/src/attendance/trimester-schedule.controller.ts
+// backend/src/attendance/TrimesterScheduleController.ts
 import { Controller, Get, Post, Delete, Body, Param, Query, UseGuards, ParseIntPipe } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { AttendanceService } from './attendance.service';
 
+// ⭐ IMPORTAR TIPOS DESDE EL ARCHIVO COMPARTIDO
+import { TrimesterScheduleItem, CreateTrimesterScheduleDto } from './types/attendance.types';
+
 @Controller('trimester-schedules')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class TrimesterScheduleController {
   constructor(private readonly attendanceService: AttendanceService) {}
 
+  // ⭐ USAR TIPO EXPLÍCITO DEL ARCHIVO COMPARTIDO
   @Get('ficha/:fichaId')
   @Roles('Administrador', 'Instructor')
   async getTrimesterSchedule(
     @Param('fichaId', ParseIntPipe) fichaId: number,
     @Query('trimester') trimester: string
-  ) {
+  ): Promise<Record<string, TrimesterScheduleItem[]>> {
     try {
       console.log(`🌐 GET /trimester-schedules/ficha/${fichaId}?trimester=${trimester}`);
       const result = await this.attendanceService.getTrimesterSchedule(fichaId, trimester);
@@ -37,16 +41,7 @@ export class TrimesterScheduleController {
 
   @Post()
   @Roles('Administrador', 'Instructor')
-  async createTrimesterSchedule(@Body() data: {
-    dayOfWeek: string;
-    startTime: string;
-    endTime: string;
-    competenceId: number;
-    instructorId: number;
-    fichaId: number;
-    classroom?: string;
-    trimester: string;
-  }) {
+  async createTrimesterSchedule(@Body() data: CreateTrimesterScheduleDto) {
     try {
       console.log('🌐 POST /trimester-schedules');
       const result = await this.attendanceService.createTrimesterSchedule(data);

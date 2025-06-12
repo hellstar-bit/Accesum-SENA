@@ -14,18 +14,35 @@ export class ClassScheduleController {
   @Post()
   @Roles('Administrador', 'Instructor')
   async createSchedule(@Body() data: {
-    assignmentId: number;
-    date: string;
-    startTime: string;
-    endTime: string;
-    classroom?: string;
-    description?: string;
-  }) {
-    return await this.attendanceService.createClassSchedule({
+  assignmentId: number;
+  date: Date | string; // Permitir Date o string
+  startTime: string;
+  endTime: string;
+  classroom?: string;
+  description?: string;
+  lateToleranceMinutes?: number;
+}) {
+  try {
+    // ⭐ CONVERTIR Date A STRING ANTES DE PASAR AL SERVICIO
+    let formattedDate: string;
+    if (data.date instanceof Date) {
+      formattedDate = data.date.toISOString().split('T')[0];
+    } else if (typeof data.date === 'string') {
+      formattedDate = data.date.split('T')[0];
+    } else {
+      throw new Error('Invalid date format');
+    }
+
+    const scheduleData = {
       ...data,
-      date: new Date(data.date)
-    });
+      date: formattedDate
+    };
+
+    return await this.attendanceService.createClassSchedule(scheduleData);
+  } catch (error) {
+    throw error;
   }
+}
 
   // ⭐ OBTENER HORARIOS DE UNA ASIGNACIÓN
   @Get('assignment/:assignmentId')
@@ -48,8 +65,8 @@ export class ClassScheduleController {
     @Param('date') date: string,
     @Query('instructorId') instructorId?: number
   ) {
-    const dateObj = new Date(date);
-    return await this.attendanceService.getSchedulesByDate(dateObj, instructorId);
+    // Asegurarse de pasar la fecha como string
+    return await this.attendanceService.getSchedulesByDate(date, instructorId);
   }
 
   // ⭐ OBTENER HORARIO ESPECÍFICO

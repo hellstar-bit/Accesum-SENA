@@ -1,49 +1,68 @@
-
-//⭐ PASO 3: Actualizar AttendanceModule para importar TimezoneModule
-// backend/src/attendance/attendance.module.ts
+// backend/src/attendance/attendance.module.ts - COMPLETO
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+
+// ⭐ SERVICIOS
 import { AttendanceService } from './attendance.service';
+
+// ⭐ CONTROLADORES
 import { AttendanceController } from './attendance.controller';
-import { ClassScheduleController } from './class-schedule.controller';
-import { InstructorAssignmentController } from './instructor-assignment.controller';
 import { InstructorProfileController } from './instructor-profile.controller';
-
-// Entities
-import { AttendanceRecord } from './entities/attendance-record.entity';
-import { ClassSchedule } from './entities/class-schedule.entity';
-import { InstructorAssignment } from './entities/instructor-assignment.entity';
-import { Profile } from '../profiles/entities/profile.entity';
-import { User } from '../users/entities/user.entity';
-
-// ⭐ IMPORTAR TimezoneModule
-import { TimezoneModule } from '../config/timezone.module';
-import { ProfilesModule } from '../profiles/profiles.module'; 
+import { InstructorAssignmentController } from './instructor-assignment.controller';
 import { TrimesterScheduleController } from './TrimesterScheduleController';
-import { TrimesterSchedule } from './entities/trimester-schedule.entity'; // ⭐ AGREGAR
+import { ClassScheduleController } from './class-schedule.controller';
+import { AttendanceNotificationsController } from './attendance-notifications.controller';
 
+// ⭐ ENTIDADES
+import { ClassSchedule } from './entities/class-schedule.entity';
+import { TrimesterSchedule } from './entities/trimester-schedule.entity';
+import { AttendanceRecord } from './entities/attendance-record.entity';
+import { InstructorAssignment } from './entities/instructor-assignment.entity';
+
+// ⭐ MÓDULOS RELACIONADOS
+import { ProfilesModule } from '../profiles/profiles.module';
+import { UsersModule } from '../users/users.module';
+import { ConfigModule } from '../config/config.module';
+
+// ⭐ SERVICIOS ADICIONALES
+import { AttendanceNotificationsService } from './attendance-notifications.service';
 
 @Module({
   imports: [
+    // ⭐ IMPORTAR ENTIDADES PARA TYPEORM
     TypeOrmModule.forFeature([
+      ClassSchedule,
       TrimesterSchedule,
       AttendanceRecord,
-      ClassSchedule,
       InstructorAssignment,
-      Profile,
-      User
     ]),
-    TimezoneModule,
-    ProfilesModule, // ⭐ AGREGAR AQUÍ
+    
+    // ⭐ MÓDULOS EXTERNOS NECESARIOS
+    ProfilesModule, // Para InstructorProfileController
+    UsersModule,    // Para relaciones con usuarios
+    ConfigModule,   // Para competencias y fichas
   ],
+  
+  // ⭐ CONTROLADORES DEL MÓDULO
   controllers: [
     AttendanceController,
-    ClassScheduleController,
-    InstructorAssignmentController,
     InstructorProfileController,
+    InstructorAssignmentController,
     TrimesterScheduleController,
+    ClassScheduleController,
+    AttendanceNotificationsController,
   ],
-  providers: [AttendanceService],
-  exports: [AttendanceService],
+  
+  // ⭐ SERVICIOS DEL MÓDULO
+  providers: [
+    AttendanceService,
+    AttendanceNotificationsService,
+  ],
+  
+  // ⭐ EXPORTAR SERVICIOS PARA OTROS MÓDULOS
+  exports: [
+    AttendanceService,
+    AttendanceNotificationsService,
+  ],
 })
 export class AttendanceModule {}

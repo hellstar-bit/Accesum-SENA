@@ -4,6 +4,7 @@ import { User } from '../../users/entities/user.entity';
 import { Ficha } from '../../config/entities/ficha.entity';
 import { Competence } from '../../config/entities/competence.entity';
 
+
 @Entity('trimester_schedules')
 export class TrimesterSchedule {
   @PrimaryGeneratedColumn()

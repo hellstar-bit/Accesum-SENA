@@ -1,4 +1,4 @@
-// backend/src/attendance/instructor-assignment.controller.ts
+// backend/src/attendance/instructor-assignment.controller.ts - COMPLETO
 import { 
   Controller, 
   Get, 
@@ -11,12 +11,21 @@ import {
   Request,
   ParseIntPipe,
   HttpStatus,
-  HttpException
+  HttpException,
+  BadRequestException,
+  NotFoundException
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { AttendanceService } from './attendance.service';
+
+// ⭐ IMPORTAR TIPOS DESDE EL ARCHIVO COMPARTIDO
+import { 
+  InstructorFicha, 
+  InstructorAssignment,
+  CreateInstructorAssignmentDto 
+} from './types/attendance.types';
 
 @Controller('instructor-assignments')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -26,31 +35,57 @@ export class InstructorAssignmentController {
   // ⭐ ASIGNAR INSTRUCTOR A FICHA (Solo administradores)
   @Post()
   @Roles('Administrador')
-  async assignInstructor(@Body() data: {
-    instructorId: number;
-    fichaId: number;
-    subject: string;
-    description?: string;
-  }) {
+  async assignInstructor(@Body() data: CreateInstructorAssignmentDto): Promise<InstructorAssignment> {
     try {
-      return await this.attendanceService.assignInstructorToFicha(data);
+      console.log('🌐 POST /instructor-assignments');
+      
+      // Validaciones básicas
+      if (!data.instructorId || !data.fichaId || !data.subject) {
+        throw new BadRequestException('instructorId, fichaId y subject son requeridos');
+      }
+
+      const result = await this.attendanceService.assignInstructorToFicha(data);
+      console.log('✅ Instructor asignado exitosamente');
+      return result;
     } catch (error) {
+      console.error('❌ Error al asignar instructor:', error);
       throw new HttpException(
         error.message || 'Error al asignar instructor a ficha',
         HttpStatus.BAD_REQUEST
       );
     }
   }
-  
-  
+
+  // ⭐ OBTENER TODAS LAS ASIGNACIONES (Solo admin)
+  @Get()
+  @Roles('Administrador')
+  async getAllAssignments(): Promise<InstructorAssignment[]> {
+    try {
+      console.log('🌐 GET /instructor-assignments');
+      const result = await this.attendanceService.getAllInstructorAssignments();
+      console.log('✅ Todas las asignaciones obtenidas exitosamente');
+      return result;
+    } catch (error) {
+      console.error('❌ Error al obtener todas las asignaciones:', error);
+      throw new HttpException(
+        'Error al obtener todas las asignaciones',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
 
   // ⭐ OBTENER FICHAS DE UN INSTRUCTOR AUTENTICADO
   @Get('my-fichas')
   @Roles('Instructor')
-  async getMyFichas(@Request() req: any) {
+  async getMyFichas(@Request() req: any): Promise<InstructorFicha[]> {
     try {
-      return await this.attendanceService.getInstructorFichas(req.user.id);
+      console.log('🌐 GET /instructor-assignments/my-fichas');
+      const instructorId = req.user.id;
+      const result = await this.attendanceService.getInstructorFichas(instructorId);
+      console.log('✅ Fichas del instructor obtenidas exitosamente');
+      return result;
     } catch (error) {
+      console.error('❌ Error al obtener fichas del instructor:', error);
       throw new HttpException(
         'Error al obtener fichas del instructor',
         HttpStatus.INTERNAL_SERVER_ERROR
@@ -61,10 +96,19 @@ export class InstructorAssignmentController {
   // ⭐ OBTENER FICHAS DE CUALQUIER INSTRUCTOR (Solo admin)
   @Get('instructor/:instructorId/fichas')
   @Roles('Administrador')
-  async getInstructorFichas(@Param('instructorId', ParseIntPipe) instructorId: number) {
+  async getInstructorFichas(@Param('instructorId', ParseIntPipe) instructorId: number): Promise<InstructorFicha[]> {
     try {
-      return await this.attendanceService.getInstructorFichas(instructorId);
+      console.log(`🌐 GET /instructor-assignments/instructor/${instructorId}/fichas`);
+      
+      if (instructorId <= 0) {
+        throw new BadRequestException('ID de instructor inválido');
+      }
+
+      const result = await this.attendanceService.getInstructorFichas(instructorId);
+      console.log('✅ Fichas del instructor obtenidas exitosamente');
+      return result;
     } catch (error) {
+      console.error('❌ Error al obtener fichas del instructor:', error);
       throw new HttpException(
         'Error al obtener fichas del instructor',
         HttpStatus.INTERNAL_SERVER_ERROR
@@ -72,37 +116,64 @@ export class InstructorAssignmentController {
     }
   }
 
-  // ⭐ OBTENER TODAS LAS ASIGNACIONES (Solo admin)
-  @Get()
-  @Roles('Administrador')
-  async getAllAssignments() {
+  // ⭐ VERIFICAR SI UN INSTRUCTOR ESTÁ ASIGNADO A UNA FICHA
+  @Get('check/:instructorId/:fichaId')
+  @Roles('Administrador', 'Instructor')
+  async checkAssignment(
+    @Param('instructorId', ParseIntPipe) instructorId: number,
+    @Param('fichaId', ParseIntPipe) fichaId: number
+  ): Promise<{
+    isAssigned: boolean;
+    instructorId: number;
+    fichaId: number;
+    assignment: InstructorFicha | null;
+  }> {
     try {
-      return await this.attendanceService.getAllInstructorAssignments();
+      console.log(`🌐 GET /instructor-assignments/check/${instructorId}/${fichaId}`);
+      
+      if (instructorId <= 0 || fichaId <= 0) {
+        throw new BadRequestException('IDs de instructor y ficha deben ser válidos');
+      }
+
+      const assignments = await this.attendanceService.getInstructorFichas(instructorId);
+      const assignment = assignments.find(a => a.fichaId === fichaId && a.isActive);
+      
+      const result = {
+        isAssigned: !!assignment,
+        instructorId,
+        fichaId,
+        assignment: assignment || null
+      };
+
+      console.log('✅ Verificación de asignación completada');
+      return result;
     } catch (error) {
+      console.error('❌ Error al verificar la asignación:', error);
       throw new HttpException(
-        'Error al obtener todas las asignaciones',
+        'Error al verificar la asignación',
         HttpStatus.INTERNAL_SERVER_ERROR
       );
     }
   }
 
-  // ⭐ OBTENER UNA ASIGNACIÓN ESPECÍFICA
+  // ⭐ OBTENER ASIGNACIÓN POR ID
   @Get(':assignmentId')
   @Roles('Administrador', 'Instructor')
-  async getAssignment(@Param('assignmentId', ParseIntPipe) assignmentId: number) {
+  async getAssignmentById(@Param('assignmentId', ParseIntPipe) assignmentId: number) {
     try {
-      const assignments = await this.attendanceService.getAllInstructorAssignments();
-      const assignment = assignments.find(a => a.id === assignmentId);
+      console.log(`🌐 GET /instructor-assignments/${assignmentId}`);
       
-      if (!assignment) {
-        throw new HttpException('Asignación no encontrada', HttpStatus.NOT_FOUND);
+      if (assignmentId <= 0) {
+        throw new BadRequestException('ID de asignación inválido');
       }
-      
-      return assignment;
+
+      // Por ahora retornar mensaje, implementar según necesidades
+      return {
+        message: 'Obtener asignación por ID - Funcionalidad pendiente',
+        assignmentId
+      };
     } catch (error) {
-      if (error instanceof HttpException) {
-        throw error;
-      }
+      console.error('❌ Error al obtener asignación:', error);
       throw new HttpException(
         'Error al obtener la asignación',
         HttpStatus.INTERNAL_SERVER_ERROR
@@ -110,7 +181,7 @@ export class InstructorAssignmentController {
     }
   }
 
-  // ⭐ ACTUALIZAR UNA ASIGNACIÓN
+  // ⭐ ACTUALIZAR ASIGNACIÓN
   @Put(':assignmentId')
   @Roles('Administrador')
   async updateAssignment(
@@ -122,14 +193,24 @@ export class InstructorAssignmentController {
     }
   ) {
     try {
-      // Aquí necesitarías implementar updateInstructorAssignment en el service
-      // Por ahora retornamos un mensaje
+      console.log(`🌐 PUT /instructor-assignments/${assignmentId}`);
+      
+      if (assignmentId <= 0) {
+        throw new BadRequestException('ID de asignación inválido');
+      }
+
+      if (!data.subject && !data.description && data.isActive === undefined) {
+        throw new BadRequestException('Al menos un campo debe ser proporcionado para actualizar');
+      }
+
+      // Por ahora retornar mensaje, implementar según necesidades
       return {
-        message: 'Funcionalidad de actualización pendiente de implementar',
+        message: 'Actualizar asignación - Funcionalidad pendiente',
         assignmentId,
         data
       };
     } catch (error) {
+      console.error('❌ Error al actualizar asignación:', error);
       throw new HttpException(
         'Error al actualizar la asignación',
         HttpStatus.INTERNAL_SERVER_ERROR
@@ -142,8 +223,17 @@ export class InstructorAssignmentController {
   @Roles('Administrador')
   async removeAssignment(@Param('assignmentId', ParseIntPipe) assignmentId: number) {
     try {
-      return await this.attendanceService.removeInstructorAssignment(assignmentId);
+      console.log(`🌐 DELETE /instructor-assignments/${assignmentId}`);
+      
+      if (assignmentId <= 0) {
+        throw new BadRequestException('ID de asignación inválido');
+      }
+
+      const result = await this.attendanceService.removeInstructorAssignment(assignmentId);
+      console.log('✅ Asignación eliminada exitosamente');
+      return result;
     } catch (error) {
+      console.error('❌ Error al eliminar asignación:', error);
       throw new HttpException(
         error.message || 'Error al eliminar la asignación',
         HttpStatus.INTERNAL_SERVER_ERROR
@@ -152,22 +242,30 @@ export class InstructorAssignmentController {
   }
 
   // ⭐ OBTENER ESTADÍSTICAS DE ASIGNACIONES
-  @Get('stats/overview')
+  @Get('stats/summary')
   @Roles('Administrador')
   async getAssignmentStats() {
     try {
-      const assignments = await this.attendanceService.getAllInstructorAssignments();
+      console.log('🌐 GET /instructor-assignments/stats/summary');
+      
+      const allAssignments = await this.attendanceService.getAllInstructorAssignments();
       
       const stats = {
-        totalAssignments: assignments.length,
-        activeAssignments: assignments.filter(a => a.isActive).length,
-        inactiveAssignments: assignments.filter(a => !a.isActive).length,
-        instructorsWithAssignments: [...new Set(assignments.map(a => a.instructorId))].length,
-        fichasWithInstructors: [...new Set(assignments.map(a => a.fichaId))].length
+        totalAssignments: allAssignments.length,
+        activeAssignments: allAssignments.filter(a => a.isActive).length,
+        inactiveAssignments: allAssignments.filter(a => !a.isActive).length,
+        uniqueInstructors: new Set(allAssignments.map(a => a.instructorId)).size,
+        uniqueFichas: new Set(allAssignments.map(a => a.fichaId)).size,
+        assignmentsByStatus: {
+          active: allAssignments.filter(a => a.isActive).length,
+          inactive: allAssignments.filter(a => !a.isActive).length
+        }
       };
-      
+
+      console.log('✅ Estadísticas de asignaciones obtenidas');
       return stats;
     } catch (error) {
+      console.error('❌ Error al obtener estadísticas:', error);
       throw new HttpException(
         'Error al obtener estadísticas de asignaciones',
         HttpStatus.INTERNAL_SERVER_ERROR
@@ -175,131 +273,81 @@ export class InstructorAssignmentController {
     }
   }
 
-  // ⭐ VERIFICAR SI UN INSTRUCTOR ESTÁ ASIGNADO A UNA FICHA
-  @Get('check/:instructorId/:fichaId')
-  @Roles('Administrador', 'Instructor')
-  async checkAssignment(
-    @Param('instructorId', ParseIntPipe) instructorId: number,
-    @Param('fichaId', ParseIntPipe) fichaId: number
-  ) {
+  // ⭐ BUSCAR ASIGNACIONES POR FICHA
+  @Get('ficha/:fichaId/instructors')
+  @Roles('Administrador')
+  async getInstructorsByFicha(@Param('fichaId', ParseIntPipe) fichaId: number) {
     try {
-      const assignments = await this.attendanceService.getInstructorFichas(instructorId);
-      const isAssigned = assignments.some(a => a.fichaId === fichaId && a.isActive);
+      console.log(`🌐 GET /instructor-assignments/ficha/${fichaId}/instructors`);
       
+      if (fichaId <= 0) {
+        throw new BadRequestException('ID de ficha inválido');
+      }
+
+      const allAssignments = await this.attendanceService.getAllInstructorAssignments();
+      const fichaAssignments = allAssignments.filter(a => a.fichaId === fichaId && a.isActive);
+
+      console.log('✅ Instructores de la ficha obtenidos');
       return {
-        isAssigned,
-        instructorId,
         fichaId,
-        assignment: isAssigned ? assignments.find(a => a.fichaId === fichaId && a.isActive) : null
+        totalInstructors: fichaAssignments.length,
+        instructors: fichaAssignments.map(assignment => ({
+          assignmentId: assignment.id,
+          instructorId: assignment.instructorId,
+          instructor: assignment.instructor,
+          subject: assignment.subject,
+          description: assignment.description,
+          assignedAt: assignment.assignedAt
+        }))
       };
     } catch (error) {
+      console.error('❌ Error al obtener instructores de la ficha:', error);
       throw new HttpException(
-        'Error al verificar la asignación',
+        'Error al obtener instructores de la ficha',
         HttpStatus.INTERNAL_SERVER_ERROR
       );
     }
   }
 
-  // ⭐ OBTENER INSTRUCTORES SIN ASIGNACIONES
-  @Get('unassigned/instructors')
+  // ⭐ ACTIVAR/DESACTIVAR ASIGNACIÓN
+  @Put(':assignmentId/toggle-status')
   @Roles('Administrador')
-  async getUnassignedInstructors() {
+  async toggleAssignmentStatus(@Param('assignmentId', ParseIntPipe) assignmentId: number) {
     try {
-      // Esta funcionalidad requeriría acceso al servicio de usuarios
-      // Por ahora retornamos un mensaje
-      return {
-        message: 'Funcionalidad pendiente - requiere integración con UserService',
-        note: 'Necesita obtener todos los instructores y filtrar los que no tienen asignaciones'
-      };
-    } catch (error) {
-      throw new HttpException(
-        'Error al obtener instructores sin asignaciones',
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
-    }
-  }
+      console.log(`🌐 PUT /instructor-assignments/${assignmentId}/toggle-status`);
+      
+      if (assignmentId <= 0) {
+        throw new BadRequestException('ID de asignación inválido');
+      }
 
-  // ⭐ OBTENER FICHAS SIN INSTRUCTORES
-  @Get('unassigned/fichas')
-  @Roles('Administrador')
-  async getUnassignedFichas() {
-    try {
-      // Esta funcionalidad requeriría acceso al servicio de fichas
-      // Por ahora retornamos un mensaje
+      // Por ahora retornar mensaje, implementar según necesidades
       return {
-        message: 'Funcionalidad pendiente - requiere integración con FichaService',
-        note: 'Necesita obtener todas las fichas y filtrar las que no tienen instructores asignados'
-      };
-    } catch (error) {
-      throw new HttpException(
-        'Error al obtener fichas sin instructores',
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
-    }
-  }
-
-  // ⭐ REACTIVAR UNA ASIGNACIÓN
-  @Put(':assignmentId/reactivate')
-  @Roles('Administrador')
-  async reactivateAssignment(@Param('assignmentId', ParseIntPipe) assignmentId: number) {
-    try {
-      // Implementar reactivación en el service
-      return {
-        message: 'Funcionalidad de reactivación pendiente de implementar',
+        message: 'Cambiar estado de asignación - Funcionalidad pendiente',
         assignmentId
       };
     } catch (error) {
+      console.error('❌ Error al cambiar estado de asignación:', error);
       throw new HttpException(
-        'Error al reactivar la asignación',
+        'Error al cambiar estado de la asignación',
         HttpStatus.INTERNAL_SERVER_ERROR
       );
     }
   }
 
-  // ⭐ OBTENER HISTORIAL DE ASIGNACIONES DE UN INSTRUCTOR
-  @Get('instructor/:instructorId/history')
-  @Roles('Administrador')
-  async getInstructorAssignmentHistory(@Param('instructorId', ParseIntPipe) instructorId: number) {
+  // ⭐ ENDPOINT DE SALUD DEL CONTROLADOR
+  @Get('health/check')
+  async healthCheck() {
     try {
-      const assignments = await this.attendanceService.getAllInstructorAssignments();
-      const instructorAssignments = assignments.filter(a => a.instructorId === instructorId);
-      
       return {
-        instructorId,
-        totalAssignments: instructorAssignments.length,
-        activeAssignments: instructorAssignments.filter(a => a.isActive).length,
-        assignments: instructorAssignments.sort((a, b) => 
-          new Date(b.assignedAt).getTime() - new Date(a.assignedAt).getTime()
-        )
+        status: 'OK',
+        timestamp: new Date().toISOString(),
+        controller: 'InstructorAssignmentController',
+        message: 'Controlador de asignaciones funcionando correctamente'
       };
     } catch (error) {
       throw new HttpException(
-        'Error al obtener historial de asignaciones del instructor',
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
-    }
-  }
-
-  // ⭐ OBTENER ASIGNACIONES DE UNA FICHA
-  @Get('ficha/:fichaId/assignments')
-  @Roles('Administrador')
-  async getFichaAssignments(@Param('fichaId', ParseIntPipe) fichaId: number) {
-    try {
-      const assignments = await this.attendanceService.getAllInstructorAssignments();
-      const fichaAssignments = assignments.filter(a => a.fichaId === fichaId);
-      
-      return {
-        fichaId,
-        totalAssignments: fichaAssignments.length,
-        activeAssignments: fichaAssignments.filter(a => a.isActive).length,
-        assignments: fichaAssignments.sort((a, b) => 
-          new Date(b.assignedAt).getTime() - new Date(a.assignedAt).getTime()
-        )
-      };
-    } catch (error) {
-      throw new HttpException(
-        'Error al obtener asignaciones de la ficha',
-        HttpStatus.INTERNAL_SERVER_ERROR
+        'Controlador de asignaciones no disponible',
+        HttpStatus.SERVICE_UNAVAILABLE
       );
     }
   }

@@ -1,5 +1,4 @@
 // backend/src/attendance/entities/attendance-record.entity.ts
-
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { ClassSchedule } from './class-schedule.entity';
 import { Profile } from '../../profiles/entities/profile.entity';
@@ -26,10 +25,10 @@ export class AttendanceRecord {
 
   @ManyToOne(() => AccessRecord, access => access.attendanceRecords, { nullable: true })
   @JoinColumn({ name: 'accessRecordId' })
-  accessRecord: AccessRecord;
+  accessRecord?: AccessRecord; // ⭐ CAMBIAR A OPCIONAL
 
   @Column({ nullable: true })
-  accessRecordId: number;
+  accessRecordId?: number; // ⭐ CAMBIAR A OPCIONAL
 
   @Column({
     type: 'enum',
@@ -39,20 +38,21 @@ export class AttendanceRecord {
   status: 'PRESENT' | 'LATE' | 'ABSENT';
 
   @Column({ type: 'timestamp', nullable: true })
-  markedAt: Date;
+  markedAt?: Date; // ⭐ CAMBIAR A OPCIONAL
 
   @Column({ type: 'timestamp', nullable: true })
-  manuallyMarkedAt: Date;
+  manuallyMarkedAt?: Date; // ⭐ CAMBIAR A OPCIONAL
 
   @Column({ nullable: true })
-  markedBy: number;
+  markedBy?: number; // ⭐ CAMBIAR A OPCIONAL
 
   @Column({ type: 'text', nullable: true })
-  notes: string;
+  notes?: string; // ⭐ CAMBIAR A OPCIONAL
 
   @Column({ default: false })
   isManual: boolean;
 
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;
+  
 }

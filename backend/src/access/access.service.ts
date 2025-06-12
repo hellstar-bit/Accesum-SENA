@@ -1,450 +1,871 @@
-// backend/src/access/access.service.ts - VERSIÃ“N MEJORADA
+// backend/src/access/access.service.ts - COMPLETO CORREGIDO
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, IsNull } from 'typeorm';
+import { Repository, IsNull } from 'typeorm';
 import { AccessRecord } from './entities/access-record.entity';
-import { User } from '../users/entities/user.entity';
 import { Profile } from '../profiles/entities/profile.entity';
+import { User } from '../users/entities/user.entity';
 import { AttendanceService } from '../attendance/attendance.service';
 
 @Injectable()
 export class AccessService {
   constructor(
     @InjectRepository(AccessRecord)
-    private accessRecordRepository: Repository<AccessRecord>,
-    @InjectRepository(User)
-    private userRepository: Repository<User>,
+    private readonly accessRecordRepository: Repository<AccessRecord>,
+    
     @InjectRepository(Profile)
-    private profileRepository: Repository<Profile>,
-    private attendanceService: AttendanceService,
+    private readonly profileRepository: Repository<Profile>,
+    
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+    
+    private readonly attendanceService: AttendanceService,
   ) {}
 
-  // â­ CHECK-IN MEJORADO CON MEJOR LOGGING
+  // ⭐ CHECK-IN - ENTRADA AL SISTEMA
   async checkIn(data: { profileId?: number; qrData?: string }): Promise<AccessRecord> {
     let profile: Profile | null = null;
 
-    console.log('ðŸšª Iniciando proceso de CHECK-IN:', { profileId: data.profileId, hasQrData: !!data.qrData });
+    console.log('🚪 Iniciando proceso de CHECK-IN:', { 
+      profileId: data.profileId, 
+      hasQrData: !!data.qrData 
+    });
 
-    // Buscar perfil por ID o por datos del QR
-    if (data.profileId) {
-      profile = await this.profileRepository.findOne({
-        where: { id: data.profileId },
-        relations: ['user', 'type', 'ficha']
-      });
-      console.log('ðŸ” BÃºsqueda por profileId:', profile ? 'Encontrado' : 'No encontrado');
-    } else if (data.qrData) {
-      try {
-        const qrInfo = JSON.parse(data.qrData);
-        console.log('ðŸ“± Datos del QR parseados:', { doc: qrInfo.doc, type: qrInfo.type });
-        
+    try {
+      // ⭐ BUSCAR PERFIL POR ID O QR
+      if (data.profileId) {
+        console.log('🔍 Buscando perfil por ID:', data.profileId);
         profile = await this.profileRepository.findOne({
-          where: { documentNumber: qrInfo.doc },
-          relations: ['user', 'type', 'ficha']
+          where: { id: data.profileId },
+          relations: ['user', 'type', 'ficha', 'regional', 'center']
         });
-        console.log('ðŸ” BÃºsqueda por documento QR:', profile ? 'Encontrado' : 'No encontrado');
-      } catch (error) {
-        console.error('âŒ Error al parsear QR:', error);
-        throw new BadRequestException('Datos QR invÃ¡lidos');
+      } else if (data.qrData) {
+        console.log('📱 Procesando datos QR...');
+        try {
+          const qrInfo = JSON.parse(data.qrData);
+          console.log('📋 Datos QR parseados:', qrInfo);
+          
+          if (qrInfo.doc) {
+            profile = await this.profileRepository.findOne({
+              where: { documentNumber: qrInfo.doc },
+              relations: ['user', 'type', 'ficha', 'regional', 'center']
+            });
+          }
+        } catch (qrError) {
+          console.error('❌ Error al parsear QR:', qrError);
+          throw new BadRequestException('Código QR inválido');
+        }
       }
-    } else {
-      throw new BadRequestException('Se requiere profileId o qrData');
-    }
 
-    if (!profile) {
-      console.log('âŒ Perfil no encontrado');
-      throw new NotFoundException('Perfil no encontrado');
-    }
+      if (!profile) {
+        console.error('❌ Perfil no encontrado');
+        throw new NotFoundException('Perfil no encontrado');
+      }
 
-    if (!profile.user) {
-      console.log('âŒ Usuario no encontrado para el perfil');
-      throw new NotFoundException('Usuario no encontrado para este perfil');
-    }
+      if (!profile.user || !profile.user.isActive) {
+        console.error('❌ Usuario inactivo:', profile.user?.id);
+        throw new BadRequestException('Usuario inactivo');
+      }
 
-    console.log('ðŸ‘¤ Perfil encontrado:', {
-      id: profile.id,
-      nombre: `${profile.firstName} ${profile.lastName}`,
-      documento: profile.documentNumber,
-      tipo: profile.type.name,
-      ficha: profile.ficha?.code || 'Sin ficha'
-    });
-
-    // Verificar si ya tiene un acceso activo
-    const activeAccess = await this.accessRecordRepository.findOne({
-      where: {
-        userId: profile.user.id,
-        exitTime: IsNull()
-      },
-      order: { entryTime: 'DESC' }
-    });
-
-    if (activeAccess) {
-      console.log('âš ï¸ Usuario ya tiene un acceso activo desde:', activeAccess.entryTime);
-      throw new BadRequestException('El usuario ya tiene un acceso activo');
-    }
-
-    // Crear nuevo registro de acceso
-    const newRecord = this.accessRecordRepository.create({
-      userId: profile.user.id,
-      entryTime: new Date(),
-      status: 'ENTRADA'
-    });
-
-    const accessRecord = await this.accessRecordRepository.save(newRecord);
-    console.log('âœ… Registro de acceso creado:', {
-      id: accessRecord.id,
-      userId: profile.user.id,
-      entryTime: accessRecord.entryTime
-    });
-
-    // â­ MARCAR ASISTENCIA AUTOMÃTICAMENTE PARA APRENDICES
-    if (profile.type.name === 'Aprendiz' && profile.ficha) {
-      console.log('ðŸŽ“ Iniciando marcado automÃ¡tico de asistencia...');
-      console.log('ðŸ“š Datos del aprendiz:', {
-        profileId: profile.id,
-        ficha: profile.ficha.code,
-        fichaId: profile.ficha.id
+      console.log('✅ Perfil encontrado:', {
+        id: profile.id,
+        name: `${profile.firstName} ${profile.lastName}`,
+        type: profile.type.name,
+        document: profile.documentNumber
       });
 
-      try {
-        const attendanceResults = await this.attendanceService.autoMarkAttendance(
-          profile.id, 
-          accessRecord.entryTime
-        );
+      // ⭐ VERIFICAR SI YA ESTÁ DENTRO (SIN CHECK-OUT)
+      const existingEntry = await this.accessRecordRepository.findOne({
+        where: {
+          userId: profile.user.id,
+          exitTime: IsNull()
+        },
+        order: { entryTime: 'DESC' }
+      });
 
-        if (attendanceResults && attendanceResults.length > 0) {
-          console.log('âœ… Asistencia marcada automÃ¡ticamente:', {
-            registros: attendanceResults.length,
-            clases: attendanceResults.map(r => ({ scheduleId: r.scheduleId, status: r.status }))
-          });
-        } else {
-          console.log('â„¹ï¸ No se encontraron clases activas para marcar asistencia');
-        }
-      } catch (error) {
-        console.error('âŒ Error al marcar asistencia automÃ¡tica:', {
-          message: error.message,
-          stack: error.stack
-        });
-        // No lanzar el error, solo loggear para no afectar el check-in
+      if (existingEntry) {
+        console.log('⚠️ Usuario ya tiene entrada activa:', existingEntry.id);
+        throw new BadRequestException('El usuario ya se encuentra dentro de las instalaciones');
       }
-    } else {
-      console.log('â„¹ï¸ No es aprendiz o no tiene ficha asignada, no se marca asistencia automÃ¡tica');
+
+      // ⭐ CREAR NUEVO REGISTRO DE ACCESO CON PROPIEDADES CORRECTAS
+      const newRecord = this.accessRecordRepository.create({
+        userId: profile.user.id,
+        entryTime: new Date(),
+        status: 'INSIDE',
+        notes: `Check-in realizado - ${profile.type.name}`
+      });
+
+      const accessRecord = await this.accessRecordRepository.save(newRecord);
+      console.log('✅ Registro de acceso creado:', {
+        id: accessRecord.id,
+        userId: profile.user.id,
+        entryTime: accessRecord.entryTime
+      });
+
+      // ⭐ MARCAR ASISTENCIA AUTOMÁTICAMENTE PARA APRENDICES
+      if (profile.type.name === 'Aprendiz' && profile.ficha) {
+        console.log('🎓 Iniciando marcado automático de asistencia...');
+        console.log('📚 Datos del aprendiz:', {
+          profileId: profile.id,
+          ficha: profile.ficha.code,
+          fichaId: profile.ficha.id
+        });
+
+        try {
+          const attendanceResults = await this.attendanceService.autoMarkAttendance(
+            profile.id, 
+            accessRecord.entryTime,
+            accessRecord.id
+          );
+
+          // ⭐ VERIFICAR EL TIPO DE RESPUESTA CORRECTAMENTE
+          if (attendanceResults && typeof attendanceResults === 'object') {
+            // Verificar si hay registros de asistencia
+            if ('records' in attendanceResults && Array.isArray(attendanceResults.records)) {
+              const records = attendanceResults.records;
+              if (records.length > 0) {
+                console.log('✅ Asistencia marcada automáticamente:', {
+                  registros: records.length,
+                  clases: records.map(r => ({ 
+                    scheduleId: r.scheduleId, 
+                    status: r.status,
+                    learnerId: r.learnerId 
+                  }))
+                });
+              } else {
+                console.log('ℹ️ No se crearon registros de asistencia (posiblemente ya existían)');
+              }
+            } else {
+              console.log('ℹ️ Respuesta de asistencia:', attendanceResults.message || 'Sin mensaje');
+            }
+          } else {
+            console.log('⚠️ Respuesta inesperada del servicio de asistencia');
+          }
+        } catch (error) {
+          console.error('❌ Error al marcar asistencia automática:', {
+            message: error.message,
+            stack: error.stack
+          });
+          // No lanzar el error, solo loggear para no afectar el check-in
+        }
+      } else {
+        console.log('ℹ️ No es aprendiz o no tiene ficha asignada, no se marca asistencia automática');
+      }
+
+      // ⭐ RETORNAR EL REGISTRO DE ACCESO
+      return accessRecord;
+
+    } catch (error) {
+      console.error('❌ Error en check-in:', error);
+      throw error;
     }
-
-    // Retornar con relaciones completas
-    const result = await this.accessRecordRepository.findOne({
-      where: { id: accessRecord.id },
-      relations: ['user', 'user.profile', 'user.profile.type', 'user.profile.ficha']
-    });
-
-    if (!result) {
-      throw new NotFoundException('Error al recuperar el registro de acceso');
-    }
-
-    console.log('ðŸŽ‰ CHECK-IN completado exitosamente para:', `${profile.firstName} ${profile.lastName}`);
-    return result;
   }
 
-  // â­ CHECK-OUT MEJORADO
+  // ⭐ CHECK-OUT - SALIDA DEL SISTEMA
   async checkOut(data: { profileId?: number; qrData?: string }): Promise<AccessRecord> {
     let profile: Profile | null = null;
 
-    console.log('ðŸšª Iniciando proceso de CHECK-OUT:', { profileId: data.profileId, hasQrData: !!data.qrData });
+    console.log('🚪 Iniciando proceso de CHECK-OUT:', { 
+      profileId: data.profileId, 
+      hasQrData: !!data.qrData 
+    });
 
-    if (data.profileId) {
-      profile = await this.profileRepository.findOne({
-        where: { id: data.profileId },
-        relations: ['user']
-      });
-    } else if (data.qrData) {
-      try {
-        const qrInfo = JSON.parse(data.qrData);
+    try {
+      // ⭐ BUSCAR PERFIL POR ID O QR
+      if (data.profileId) {
+        console.log('🔍 Buscando perfil por ID:', data.profileId);
         profile = await this.profileRepository.findOne({
-          where: { documentNumber: qrInfo.doc },
-          relations: ['user']
+          where: { id: data.profileId },
+          relations: ['user', 'type']
         });
-      } catch (error) {
-        throw new BadRequestException('Datos QR invÃ¡lidos');
-      }
-    } else {
-      throw new BadRequestException('Se requiere profileId o qrData');
-    }
-
-    if (!profile || !profile.user) {
-      throw new NotFoundException('Perfil o usuario no encontrado');
-    }
-
-    console.log('ðŸ‘¤ Perfil para CHECK-OUT:', `${profile.firstName} ${profile.lastName}`);
-
-    // Buscar acceso activo
-    const activeAccess = await this.accessRecordRepository.findOne({
-      where: {
-        userId: profile.user.id,
-        exitTime: IsNull()
-      },
-      order: { entryTime: 'DESC' }
-    });
-
-    if (!activeAccess) {
-      console.log('âŒ No se encontrÃ³ acceso activo');
-      throw new BadRequestException('No se encontrÃ³ un acceso activo para este usuario');
-    }
-
-    // Actualizar con hora de salida
-    activeAccess.exitTime = new Date();
-    activeAccess.status = 'SALIDA';
-
-    // Calcular duraciÃ³n
-    const entryTime = new Date(activeAccess.entryTime);
-    const exitTime = new Date(activeAccess.exitTime);
-    const durationMs = exitTime.getTime() - entryTime.getTime();
-    const hours = Math.floor(durationMs / (1000 * 60 * 60));
-    const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
-    activeAccess.duration = `${hours}h ${minutes}m`;
-
-    const updatedRecord = await this.accessRecordRepository.save(activeAccess);
-
-    console.log('âœ… CHECK-OUT completado:', {
-      usuario: `${profile.firstName} ${profile.lastName}`,
-      duracion: activeAccess.duration,
-      entrada: entryTime.toLocaleTimeString(),
-      salida: exitTime.toLocaleTimeString()
-    });
-
-    // Retornar con relaciones completas
-    const result = await this.accessRecordRepository.findOne({
-      where: { id: updatedRecord.id },
-      relations: ['user', 'user.profile', 'user.profile.type']
-    });
-
-    if (!result) {
-      throw new NotFoundException('Error al recuperar el registro actualizado');
-    }
-
-    return result;
-  }
-
-  // â­ RESTO DE MÃ‰TODOS SIN CAMBIOS SIGNIFICATIVOS
-  async getCurrentOccupancy() {
-    const currentRecords = await this.accessRecordRepository.find({
-      where: { exitTime: IsNull() },
-      relations: ['user', 'user.profile', 'user.profile.type'],
-      order: { entryTime: 'DESC' }
-    });
-
-    // Contar por tipo
-    const byType: Record<string, number> = {};
-    currentRecords.forEach(record => {
-      const type = record.user.profile.type.name;
-      byType[type] = (byType[type] || 0) + 1;
-    });
-
-    return {
-      total: currentRecords.length,
-      byType,
-      records: currentRecords.map(record => ({
-        id: record.id,
-        entryTime: record.entryTime,
-        status: record.status,
-        user: {
-          id: record.user.id,
-          email: record.user.email,
-          profile: {
-            firstName: record.user.profile.firstName,
-            lastName: record.user.profile.lastName,
-            documentNumber: record.user.profile.documentNumber,
-            profileImage: record.user.profile.profileImage,
-            type: record.user.profile.type.name,
-            center: record.user.profile.center?.name || 'N/A'
+      } else if (data.qrData) {
+        console.log('📱 Procesando datos QR...');
+        try {
+          const qrInfo = JSON.parse(data.qrData);
+          console.log('📋 Datos QR parseados:', qrInfo);
+          
+          if (qrInfo.doc) {
+            profile = await this.profileRepository.findOne({
+              where: { documentNumber: qrInfo.doc },
+              relations: ['user', 'type']
+            });
           }
+        } catch (qrError) {
+          console.error('❌ Error al parsear QR:', qrError);
+          throw new BadRequestException('Código QR inválido');
         }
-      }))
-    };
+      }
+
+      if (!profile) {
+        console.error('❌ Perfil no encontrado');
+        throw new NotFoundException('Perfil no encontrado');
+      }
+
+      if (!profile.user || !profile.user.isActive) {
+        console.error('❌ Usuario inactivo:', profile.user?.id);
+        throw new BadRequestException('Usuario inactivo');
+      }
+
+      console.log('✅ Perfil encontrado:', {
+        id: profile.id,
+        name: `${profile.firstName} ${profile.lastName}`,
+        type: profile.type.name,
+        document: profile.documentNumber
+      });
+
+      // ⭐ BUSCAR ENTRADA ACTIVA (SIN SALIDA)
+      const activeEntry = await this.accessRecordRepository.findOne({
+        where: {
+          userId: profile.user.id,
+          exitTime: IsNull()
+        },
+        order: { entryTime: 'DESC' }
+      });
+
+      if (!activeEntry) {
+        console.log('⚠️ No se encontró entrada activa para el usuario');
+        throw new BadRequestException('No se encontró una entrada activa para este usuario');
+      }
+
+      // ⭐ ACTUALIZAR REGISTRO CON HORA DE SALIDA Y DURACIÓN
+      const exitTime = new Date();
+      activeEntry.exitTime = exitTime;
+      activeEntry.status = 'OUTSIDE';
+      activeEntry.duration = this.calculateDuration(activeEntry.entryTime, exitTime);
+      activeEntry.notes = (activeEntry.notes || '') + ` | Check-out realizado`;
+
+      const updatedRecord = await this.accessRecordRepository.save(activeEntry);
+      console.log('✅ Check-out registrado:', {
+        id: updatedRecord.id,
+        userId: profile.user.id,
+        exitTime: updatedRecord.exitTime,
+        duration: updatedRecord.duration
+      });
+
+      // ⭐ RETORNAR REGISTRO CON RELACIONES COMPLETAS
+      const result = await this.accessRecordRepository.findOne({
+        where: { id: updatedRecord.id },
+        relations: ['user', 'user.profile', 'user.profile.type']
+      });
+
+      if (!result) {
+        throw new NotFoundException('Error al recuperar el registro actualizado');
+      }
+
+      return result;
+
+    } catch (error) {
+      console.error('❌ Error en check-out:', error);
+      throw error;
+    }
   }
 
-  async getHistory(params?: {
+  // ⭐ OBTENER ESTADÍSTICAS DE ACCESO
+  async getStats(filters: {
+    startDate?: string;
+    endDate?: string;
+    groupBy?: 'day' | 'week' | 'month';
+  }) {
+    try {
+      console.log('📊 Obteniendo estadísticas de acceso:', filters);
+
+      const startDate = filters.startDate ? new Date(filters.startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const endDate = filters.endDate ? new Date(filters.endDate) : new Date();
+
+      const queryBuilder = this.accessRecordRepository.createQueryBuilder('access')
+        .leftJoinAndSelect('access.user', 'user')
+        .leftJoinAndSelect('user.profile', 'profile')
+        .leftJoinAndSelect('profile.type', 'type')
+        .where('access.entryTime BETWEEN :startDate AND :endDate', { startDate, endDate });
+
+      const records = await queryBuilder.getMany();
+
+      // ⭐ CALCULAR ESTADÍSTICAS COMPLETAS
+      const totalEntries = records.length;
+      const totalAccess = totalEntries;
+      const uniqueUsers = new Set(records.map(r => r.user?.id)).size;
+      
+      const entriesByType = records.reduce((acc, record) => {
+        const userType = record.user?.profile?.type?.name || 'Desconocido';
+        acc[userType] = (acc[userType] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+      const entriesByDay = records.reduce((acc, record) => {
+        const day = record.entryTime.toISOString().split('T')[0];
+        acc[day] = (acc[day] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+      // ⭐ AGREGAR ESTADÍSTICAS POR HORA
+      const accessByHour = records.reduce((acc, record) => {
+        const hour = record.entryTime.getHours();
+        acc[hour] = (acc[hour] || 0) + 1;
+        return acc;
+      }, {} as Record<number, number>);
+
+      // Calcular promedio de tiempo dentro
+      const completedSessions = records.filter(r => r.exitTime);
+      const averageSessionTime = completedSessions.length > 0 
+        ? completedSessions.reduce((acc, record) => {
+            const duration = record.exitTime!.getTime() - record.entryTime.getTime();
+            return acc + duration;
+          }, 0) / completedSessions.length
+        : 0;
+
+      const averageHours = Math.floor(averageSessionTime / (1000 * 60 * 60));
+      const averageMinutes = Math.floor((averageSessionTime % (1000 * 60 * 60)) / (1000 * 60));
+      const averageDurationMinutes = Math.floor(averageSessionTime / (1000 * 60));
+
+      console.log('✅ Estadísticas calculadas:', { totalEntries, uniqueUsers });
+
+      return {
+        period: { startDate, endDate },
+        totalEntries,
+        totalAccess,
+        uniqueUsers,
+        currentlyInside: await this.getCurrentOccupancy().then(r => r.total),
+        averageDaily: totalEntries / Math.max(1, Object.keys(entriesByDay).length),
+        averageSessionTime: `${averageHours}h ${averageMinutes}m`,
+        averageDurationMinutes,
+        entriesByType,
+        entriesByDay,
+        accessByHour,
+        peakDay: Object.entries(entriesByDay).reduce((max, [day, count]) => 
+          count > max.count ? { day, count } : max, { day: '', count: 0 }
+        ),
+        peakHour: Object.entries(accessByHour).reduce((max, [hour, count]) => 
+          count > max.count ? { hour: parseInt(hour), count } : max, { hour: 0, count: 0 }
+        ),
+        completedSessions: completedSessions.length,
+        activeSessions: records.length - completedSessions.length
+      };
+
+    } catch (error) {
+      console.error('❌ Error al obtener estadísticas:', error);
+      throw error;
+    }
+  }
+
+  // ⭐ OBTENER HISTORIAL DE ACCESOS
+  async getHistory(filters: {
+    userId?: number;
+    startDate?: string;
+    endDate?: string;
+    status?: string;
     page?: number;
     limit?: number;
-    date?: Date;
-    userId?: number;
   }) {
-    const page = params?.page || 1;
-    const limit = params?.limit || 10;
-    const skip = (page - 1) * limit;
+    try {
+      console.log('📋 Obteniendo historial de acceso con filtros:', filters);
 
-    let whereConditions: any = {};
+      const page = filters.page || 1;
+      const limit = filters.limit || 50;
+      const skip = (page - 1) * limit;
 
-    if (params?.date) {
-      const startOfDay = new Date(params.date);
-      startOfDay.setHours(0, 0, 0, 0);
-      
-      const endOfDay = new Date(params.date);
-      endOfDay.setHours(23, 59, 59, 999);
+      const queryBuilder = this.accessRecordRepository.createQueryBuilder('access')
+        .leftJoinAndSelect('access.user', 'user')
+        .leftJoinAndSelect('user.profile', 'profile')
+        .leftJoinAndSelect('profile.type', 'type')
+        .orderBy('access.entryTime', 'DESC');
 
-      whereConditions.entryTime = Between(startOfDay, endOfDay);
+      // ⭐ APLICAR FILTROS
+      if (filters.userId) {
+        queryBuilder.andWhere('access.userId = :userId', { userId: filters.userId });
+      }
+
+      if (filters.startDate) {
+        queryBuilder.andWhere('access.entryTime >= :startDate', { 
+          startDate: new Date(filters.startDate) 
+        });
+      }
+
+      if (filters.endDate) {
+        queryBuilder.andWhere('access.entryTime <= :endDate', { 
+          endDate: new Date(filters.endDate) 
+        });
+      }
+
+      if (filters.status) {
+        queryBuilder.andWhere('access.status = :status', { 
+          status: filters.status 
+        });
+      }
+
+      // ⭐ OBTENER TOTAL Y REGISTROS
+      const [records, total] = await queryBuilder
+        .skip(skip)
+        .take(limit)
+        .getManyAndCount();
+
+      console.log('✅ Historial obtenido:', { total, page, limit });
+
+      return {
+        data: records,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+        hasNext: page * limit < total,
+        hasPrev: page > 1
+      };
+
+    } catch (error) {
+      console.error('❌ Error al obtener historial:', error);
+      throw error;
     }
-
-    if (params?.userId) {
-      whereConditions.userId = params.userId;
-    }
-
-    const [records, total] = await this.accessRecordRepository.findAndCount({
-      where: whereConditions,
-      relations: ['user', 'user.profile', 'user.profile.type'],
-      order: { entryTime: 'DESC' },
-      skip,
-      take: limit
-    });
-
-    const totalPages = Math.ceil(total / limit);
-
-    return {
-      data: records.map(record => ({
-        id: record.id,
-        entryTime: record.entryTime,
-        exitTime: record.exitTime,
-        status: record.status,
-        duration: record.duration,
-        user: {
-          id: record.user.id,
-          email: record.user.email,
-          profile: {
-            firstName: record.user.profile.firstName,
-            lastName: record.user.profile.lastName,
-            documentNumber: record.user.profile.documentNumber,
-            profileImage: record.user.profile.profileImage,
-            type: record.user.profile.type.name,
-            center: record.user.profile.center?.name || 'N/A'
-          }
-        }
-      })),
-      total,
-      page,
-      limit,
-      totalPages
-    };
   }
 
-  async getStats(date?: Date) {
-    const targetDate = date || new Date();
-    const startOfDay = new Date(targetDate);
-    startOfDay.setHours(0, 0, 0, 0);
-    
-    const endOfDay = new Date(targetDate);
-    endOfDay.setHours(23, 59, 59, 999);
+  // ⭐ BUSCAR POR NÚMERO DE DOCUMENTO
+  async searchByDocument(documentNumber: string) {
+    try {
+      console.log('🔍 Buscando accesos por documento:', documentNumber);
 
-    const totalAccess = await this.accessRecordRepository.count({
-      where: {
-        entryTime: Between(startOfDay, endOfDay)
+      // Buscar el perfil por documento
+      const profile = await this.profileRepository.findOne({
+        where: { documentNumber },
+        relations: ['user', 'type']
+      });
+
+      if (!profile) {
+        return {
+          found: false,
+          message: 'No se encontró un usuario con ese número de documento',
+          documentNumber
+        };
       }
-    });
 
-    const currentlyInside = await this.accessRecordRepository.count({
-      where: { exitTime: IsNull() }
-    });
+      // Obtener historial de accesos del usuario
+      const accessRecords = await this.accessRecordRepository.find({
+        where: { userId: profile.user.id },
+        relations: ['user', 'user.profile', 'user.profile.type'],
+        order: { entryTime: 'DESC' },
+        take: 50
+      });
 
-    const accessByHour: Array<{ hour: number; count: number }> = [];
-    
-    for (let hour = 0; hour < 24; hour++) {
-      const hourStart = new Date(startOfDay);
-      hourStart.setHours(hour, 0, 0, 0);
-      
-      const hourEnd = new Date(startOfDay);
-      hourEnd.setHours(hour, 59, 59, 999);
+      // Verificar estado actual
+      const currentStatus = await this.checkUserStatus(profile.user.id);
 
-      const count = await this.accessRecordRepository.count({
+      console.log('✅ Búsqueda por documento completada:', { 
+        document: documentNumber, 
+        records: accessRecords.length 
+      });
+
+      return {
+        found: true,
+        profile: {
+          id: profile.id,
+          firstName: profile.firstName,
+          lastName: profile.lastName,
+          documentNumber: profile.documentNumber,
+          type: profile.type.name,
+          user: {
+            id: profile.user.id,
+            email: profile.user.email,
+            isActive: profile.user.isActive
+          }
+        },
+        user: {
+          id: profile.user.id,
+          profile: {
+            id: profile.id,
+            firstName: profile.firstName,
+            lastName: profile.lastName,
+            documentNumber: profile.documentNumber,
+            type: profile.type.name
+          }
+        },
+        currentStatus,
+        accessHistory: accessRecords.map(record => ({
+          id: record.id,
+          entryTime: record.entryTime,
+          exitTime: record.exitTime,
+          status: record.status,
+          duration: record.duration,
+          notes: record.notes
+        })),
+        totalRecords: accessRecords.length
+      };
+
+    } catch (error) {
+      console.error('❌ Error al buscar por documento:', error);
+      return {
+        found: false,
+        message: 'Error interno del servidor',
+        error: error.message,
+        documentNumber
+      };
+    }
+  }
+
+  // ⭐ OBTENER ACCESOS ACTIVOS
+  async getActiveAccess() {
+    try {
+      console.log('📋 Obteniendo todos los accesos activos...');
+
+      const activeRecords = await this.accessRecordRepository.find({
         where: {
-          entryTime: Between(hourStart, hourEnd)
+          exitTime: IsNull()
+        },
+        relations: ['user', 'user.profile', 'user.profile.type'],
+        order: { entryTime: 'DESC' }
+      });
+
+      console.log('✅ Accesos activos obtenidos:', activeRecords.length);
+
+      return {
+        total: activeRecords.length,
+        records: activeRecords.map(record => ({
+          id: record.id,
+          user: {
+            id: record.user?.id || 0,
+            profile: {
+              id: record.user?.profile?.id || 0,
+              firstName: record.user?.profile?.firstName || 'Sin nombre',
+              lastName: record.user?.profile?.lastName || '',
+              documentNumber: record.user?.profile?.documentNumber || 'Sin documento',
+              type: record.user?.profile?.type?.name || 'Desconocido'
+            }
+          },
+          entryTime: record.entryTime,
+          status: record.status,
+          duration: this.calculateDurationFromEntry(record.entryTime),
+          notes: record.notes || ''
+        }))
+      };
+
+    } catch (error) {
+      console.error('❌ Error al obtener accesos activos:', error);
+      throw error;
+    }
+  }
+
+  // ⭐ OBTENER OCUPACIÓN ACTUAL
+  async getCurrentOccupancy() {
+    try {
+      console.log('📊 Obteniendo ocupación actual...');
+
+      const currentOccupancy = await this.accessRecordRepository.find({
+        where: {
+          exitTime: IsNull()
+        },
+        relations: ['user', 'user.profile', 'user.profile.type'],
+        order: { entryTime: 'DESC' }
+      });
+
+      // ⭐ AGRUPAR POR TIPO DE USUARIO
+      const occupancyByType = currentOccupancy.reduce((acc, record) => {
+        const userType = record.user?.profile?.type?.name || 'Desconocido';
+        if (!acc[userType]) {
+          acc[userType] = [];
+        }
+        acc[userType].push({
+          id: record.id,
+          userId: record.user?.id,
+          profileId: record.user?.profile?.id,
+          name: record.user?.profile 
+            ? `${record.user.profile.firstName} ${record.user.profile.lastName}`
+            : 'Sin nombre',
+          documentNumber: record.user?.profile?.documentNumber || 'Sin documento',
+          entryTime: record.entryTime,
+          status: record.status
+        });
+        return acc;
+      }, {} as Record<string, any[]>);
+
+      const totalOccupancy = currentOccupancy.length;
+
+      console.log('✅ Ocupación actual obtenida:', { total: totalOccupancy });
+
+      return {
+        total: totalOccupancy,
+        byType: occupancyByType,
+        details: currentOccupancy.map(record => ({
+          id: record.id,
+          user: {
+            id: record.user?.id,
+            profile: {
+              id: record.user?.profile?.id,
+              name: record.user?.profile 
+                ? `${record.user.profile.firstName} ${record.user.profile.lastName}`
+                : 'Sin nombre',
+              documentNumber: record.user?.profile?.documentNumber || 'Sin documento',
+              type: record.user?.profile?.type?.name || 'Desconocido'
+            }
+          },
+          entryTime: record.entryTime,
+          status: record.status,
+          duration: this.calculateDurationFromEntry(record.entryTime)
+        }))
+      };
+
+    } catch (error) {
+      console.error('❌ Error al obtener ocupación actual:', error);
+      throw error;
+    }
+  }
+
+  // ⭐ VERIFICAR ESTADO DE ACCESO DE UN USUARIO
+  async checkUserStatus(userId: number) {
+    try {
+      console.log('🔍 Verificando estado de acceso para usuario:', userId);
+
+      const activeEntry = await this.accessRecordRepository.findOne({
+        where: {
+          userId: userId,
+          exitTime: IsNull()
+        },
+        relations: ['user', 'user.profile', 'user.profile.type'],
+        order: { entryTime: 'DESC' }
+      });
+
+      const isInside = !!activeEntry;
+      const lastEntry = activeEntry || await this.accessRecordRepository.findOne({
+        where: { userId: userId },
+        relations: ['user', 'user.profile', 'user.profile.type'],
+        order: { entryTime: 'DESC' }
+      });
+
+      console.log('✅ Estado verificado:', { userId, isInside });
+
+      return {
+        userId,
+        isInside,
+        currentEntry: activeEntry ? {
+          id: activeEntry.id,
+          entryTime: activeEntry.entryTime,
+          status: activeEntry.status,
+          duration: this.calculateDurationFromEntry(activeEntry.entryTime)
+        } : null,
+        lastAccess: lastEntry ? {
+          id: lastEntry.id,
+          entryTime: lastEntry.entryTime,
+          exitTime: lastEntry.exitTime,
+          status: lastEntry.status,
+          duration: lastEntry.duration
+        } : null
+      };
+
+    } catch (error) {
+      console.error('❌ Error al verificar estado:', error);
+      throw error;
+    }
+  }
+
+  // ⭐ FORZAR CHECK-OUT (PARA ADMINISTRADORES)
+  async forceCheckOut(data: { 
+    userId?: number; 
+    accessRecordId?: number; 
+    reason?: string;
+    adminUserId: number;
+  }) {
+    try {
+      console.log('🔧 Forzando check-out:', data);
+
+      let activeEntry: AccessRecord | null = null;
+
+      // Buscar por ID de registro de acceso o por usuario
+      if (data.accessRecordId) {
+        activeEntry = await this.accessRecordRepository.findOne({
+          where: { 
+            id: data.accessRecordId,
+            exitTime: IsNull()
+          },
+          relations: ['user', 'user.profile']
+        });
+      } else if (data.userId) {
+        activeEntry = await this.accessRecordRepository.findOne({
+          where: { 
+            userId: data.userId,
+            exitTime: IsNull()
+          },
+          relations: ['user', 'user.profile'],
+          order: { entryTime: 'DESC' }
+        });
+      }
+
+      if (!activeEntry) {
+        throw new NotFoundException('No se encontró una entrada activa para forzar el check-out');
+      }
+
+      // Actualizar registro con check-out forzado
+      const exitTime = new Date();
+      activeEntry.exitTime = exitTime;
+      activeEntry.status = 'FORCED_OUT';
+      activeEntry.duration = this.calculateDuration(activeEntry.entryTime, exitTime);
+      activeEntry.notes = (activeEntry.notes || '') + 
+        ` | Check-out forzado por admin (ID: ${data.adminUserId})` +
+        (data.reason ? ` - Razón: ${data.reason}` : '');
+
+      const updatedRecord = await this.accessRecordRepository.save(activeEntry);
+
+      console.log('✅ Check-out forzado completado:', {
+        recordId: updatedRecord.id,
+        userId: activeEntry.userId,
+        adminUserId: data.adminUserId
+      });
+
+      return {
+        message: 'Check-out forzado exitosamente',
+        record: {
+          id: updatedRecord.id,
+          userId: updatedRecord.userId,
+          userName: activeEntry.user?.profile 
+            ? `${activeEntry.user.profile.firstName} ${activeEntry.user.profile.lastName}`
+            : 'Sin nombre',
+          entryTime: updatedRecord.entryTime,
+          exitTime: updatedRecord.exitTime,
+          duration: updatedRecord.duration || '',
+          status: updatedRecord.status,
+          reason: data.reason || 'Sin razón especificada'
+        }
+      };
+
+    } catch (error) {
+      console.error('❌ Error al forzar check-out:', error);
+      throw error;
+    }
+  }
+
+  // ⭐ OBTENER REPORTE DETALLADO DE ACCESOS
+  async getDetailedReport(filters: {
+    startDate?: string;
+    endDate?: string;
+    userType?: string;
+    includeActive?: boolean;
+  }) {
+    try {
+      console.log('📊 Generando reporte detallado:', filters);
+
+      const startDate = filters.startDate ? new Date(filters.startDate) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const endDate = filters.endDate ? new Date(filters.endDate) : new Date();
+
+      const queryBuilder = this.accessRecordRepository.createQueryBuilder('access')
+        .leftJoinAndSelect('access.user', 'user')
+        .leftJoinAndSelect('user.profile', 'profile')
+        .leftJoinAndSelect('profile.type', 'type')
+        .where('access.entryTime BETWEEN :startDate AND :endDate', { startDate, endDate });
+
+      if (filters.userType) {
+        queryBuilder.andWhere('type.name = :userType', { userType: filters.userType });
+      }
+
+      if (!filters.includeActive) {
+        queryBuilder.andWhere('access.exitTime IS NOT NULL');
+      }
+
+      const records = await queryBuilder
+        .orderBy('access.entryTime', 'DESC')
+        .getMany();
+
+      // Agrupar por usuario
+      const userSummary = records.reduce((acc, record) => {
+        const userId = record.user?.id;
+        if (!userId) return acc;
+
+        if (!acc[userId]) {
+          acc[userId] = {
+            user: {
+              id: userId,
+              name: record.user?.profile 
+                ? `${record.user.profile.firstName} ${record.user.profile.lastName}`
+                : 'Sin nombre',
+              documentNumber: record.user?.profile?.documentNumber || 'Sin documento',
+              type: record.user?.profile?.type?.name || 'Desconocido'
+            },
+            totalVisits: 0,
+            totalTime: 0,
+            averageTime: 0,
+            lastVisit: null as Date | null,
+            visits: []
+          };
+        }
+
+        acc[userId].totalVisits++;
+        acc[userId].lastVisit = record.entryTime;
+
+        if (record.exitTime) {
+          const sessionTime = record.exitTime.getTime() - record.entryTime.getTime();
+          acc[userId].totalTime += sessionTime;
+        }
+
+        acc[userId].visits.push({
+          id: record.id,
+          entryTime: record.entryTime,
+          exitTime: record.exitTime,
+          duration: record.duration,
+          status: record.status
+        });
+
+        return acc;
+      }, {} as Record<number, any>);
+
+      // Calcular promedios
+      Object.values(userSummary).forEach((summary: any) => {
+        if (summary.totalVisits > 0) {
+          summary.averageTime = summary.totalTime / summary.totalVisits;
+          const avgHours = Math.floor(summary.averageTime / (1000 * 60 * 60));
+          const avgMinutes = Math.floor((summary.averageTime % (1000 * 60 * 60)) / (1000 * 60));
+          summary.averageTimeFormatted = `${avgHours}h ${avgMinutes}m`;
         }
       });
 
-      accessByHour.push({ hour, count });
+      console.log('✅ Reporte detallado generado');
+
+      return {
+        period: { startDate, endDate },
+        totalRecords: records.length,
+        uniqueUsers: Object.keys(userSummary).length,
+        userSummary: Object.values(userSummary),
+        filters
+      };
+
+    } catch (error) {
+      console.error('❌ Error al generar reporte detallado:', error);
+      throw error;
     }
-
-    // DuraciÃ³n promedio
-    const completedRecords = await this.accessRecordRepository.find({
-      where: {
-        entryTime: Between(startOfDay, endOfDay),
-        exitTime: Between(startOfDay, endOfDay)
-      }
-    });
-
-    let averageDurationMinutes = 0;
-    if (completedRecords.length > 0) {
-      const totalMinutes = completedRecords.reduce((sum, record) => {
-        if (record.exitTime) {
-          const duration = new Date(record.exitTime).getTime() - new Date(record.entryTime).getTime();
-          return sum + (duration / (1000 * 60));
-        }
-        return sum;
-      }, 0);
-      
-      averageDurationMinutes = Math.round(totalMinutes / completedRecords.length);
-    }
-
-    return {
-      totalAccess,
-      currentlyInside,
-      accessByHour,
-      averageDurationMinutes
-    };
   }
 
-  async searchByDocument(documentNumber: string) {
-    const profile = await this.profileRepository.findOne({
-      where: { documentNumber },
-      relations: ['type']
-    });
+  // ⭐ LIMPIAR REGISTROS ANTIGUOS (MANTENIMIENTO)
+  async cleanupOldRecords(daysToKeep: number = 365) {
+    try {
+      console.log(`🧹 Limpiando registros anteriores a ${daysToKeep} días...`);
 
-    if (!profile) {
-      return { found: false };
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
+
+      const result = await this.accessRecordRepository
+        .createQueryBuilder()
+        .delete()
+        .where('entryTime < :cutoffDate', { cutoffDate })
+        .execute();
+
+      console.log('✅ Limpieza completada:', { recordsDeleted: result.affected });
+
+      return {
+        message: `Se eliminaron ${result.affected} registros antiguos`,
+        cutoffDate,
+        recordsDeleted: result.affected
+      };
+
+    } catch (error) {
+      console.error('❌ Error en limpieza:', error);
+      throw error;
     }
-
-    return {
-      found: true,
-      profile: {
-        id: profile.id,
-        fullName: `${profile.firstName} ${profile.lastName}`,
-        documentNumber: profile.documentNumber,
-        type: profile.type.name,
-        profileImage: profile.profileImage
-      }
-    };
   }
 
-  async getActiveAccess(userId: number) {
-    return await this.accessRecordRepository.findOne({
-      where: {
-        userId,
-        exitTime: IsNull()
-      },
-      relations: ['user', 'user.profile', 'user.profile.type'],
-      order: { entryTime: 'DESC' }
-    });
-  }
-
-  // â­ NUEVO: MÃ‰TODO PARA FORZAR SALIDA
-  async forceCheckOut(userId: number, reason?: string) {
-    const activeAccess = await this.getActiveAccess(userId);
+  // ⭐ MÉTODOS AUXILIARES - CALCULAR DURACIÓN
+  private calculateDuration(entryTime: Date, exitTime: Date): string {
+    const diffMs = exitTime.getTime() - entryTime.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
     
-    if (!activeAccess) {
-      throw new BadRequestException('No hay acceso activo para este usuario');
-    }
+    return `${diffHours}h ${diffMinutes}m`;
+  }
 
-    activeAccess.exitTime = new Date();
-    activeAccess.status = 'SALIDA';
-    
-    const entryTime = new Date(activeAccess.entryTime);
-    const exitTime = new Date(activeAccess.exitTime);
-    const durationMs = exitTime.getTime() - entryTime.getTime();
-    const hours = Math.floor(durationMs / (1000 * 60 * 60));
-    const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
-    activeAccess.duration = `${hours}h ${minutes}m`;
-
-    // Si hay razÃ³n, agregarla como nota (esto requerirÃ­a un campo notes en la entidad)
-    if (reason) {
-      console.log('ðŸ”§ Salida forzada:', { userId, reason, duration: activeAccess.duration });
-    }
-
-    return await this.accessRecordRepository.save(activeAccess);
+  private calculateDurationFromEntry(entryTime: Date): string {
+    const now = new Date();
+    return this.calculateDuration(entryTime, now);
   }
 }

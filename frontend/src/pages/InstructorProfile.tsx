@@ -1,7 +1,12 @@
-// pages/InstructorProfile.tsx
+// frontend/src/pages/InstructorProfile.tsx - COMPLETO MODIFICADO
 import { useState, useEffect, useRef } from 'react';
 import { instructorService } from '../services/instructorService';
-import type { InstructorProfile, UpdateInstructorProfileData } from '../services/instructorService';
+import type { 
+  InstructorProfile, 
+  UpdateInstructorProfileData, 
+  WeeklySchedule, 
+  InstructorSchedule
+} from '../services/instructorService';
 import Swal from 'sweetalert2';
 
 const InstructorProfile = () => {
@@ -13,8 +18,16 @@ const InstructorProfile = () => {
   const [formData, setFormData] = useState<UpdateInstructorProfileData>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // ⭐ NUEVOS ESTADOS PARA HORARIOS
+  const [schedules, setSchedules] = useState<WeeklySchedule | null>(null);
+  const [currentTrimester, setCurrentTrimester] = useState<string>('');
+  const [loadingSchedules, setLoadingSchedules] = useState(false);
+  const [assignments, setAssignments] = useState<any[]>([]);
+
   useEffect(() => {
     fetchProfile();
+    loadSchedules();
+    loadAssignments();
   }, []);
 
   const fetchProfile = async () => {
@@ -37,6 +50,40 @@ const InstructorProfile = () => {
       Swal.fire('Error', 'No se pudo cargar tu perfil', 'error');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // ⭐ CARGAR HORARIOS
+  const loadSchedules = async () => {
+    try {
+      setLoadingSchedules(true);
+      const response = await instructorService.getMySchedules();
+      setSchedules(response.schedules);
+      setCurrentTrimester(response.trimester);
+    } catch (error) {
+      console.error('Error cargando horarios:', error);
+      // No mostrar error si no hay horarios
+      setSchedules({
+        LUNES: [],
+        MARTES: [],
+        MIERCOLES: [],
+        JUEVES: [],
+        VIERNES: [],
+        SABADO: []
+      });
+    } finally {
+      setLoadingSchedules(false);
+    }
+  };
+
+  // ⭐ CARGAR ASIGNACIONES
+  const loadAssignments = async () => {
+    try {
+      const assignmentsData = await instructorService.getMyAssignments();
+      setAssignments(assignmentsData);
+    } catch (error) {
+      console.error('Error cargando asignaciones:', error);
+      setAssignments([]);
     }
   };
 
@@ -225,7 +272,7 @@ const InstructorProfile = () => {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-semibold text-gray-800">👨‍🏫 Mi Perfil</h1>
-          <p className="text-gray-600 mt-1">Gestiona tu información personal</p>
+          <p className="text-gray-600 mt-1">Gestiona tu información personal y horarios</p>
         </div>
         <div className="flex space-x-3">
           {!isEditing ? (
@@ -255,6 +302,97 @@ const InstructorProfile = () => {
           )}
         </div>
       </div>
+
+      {/* ⭐ SECCIÓN - MIS HORARIOS */}
+<div className="bg-white rounded-lg shadow-md p-6">
+  <div className="flex justify-between items-center mb-4">
+    <h3 className="text-xl font-semibold text-gray-800">
+      📅 Mis Horarios - Trimestre {currentTrimester}
+    </h3>
+    <button
+      onClick={loadSchedules}
+      disabled={loadingSchedules}
+      className="btn-secondary text-sm"
+    >
+      {loadingSchedules ? 'Cargando...' : '🔄 Actualizar'}
+    </button>
+  </div>
+  
+  {loadingSchedules ? (
+    <div className="flex items-center justify-center py-8">
+      <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-sena-green"></div>
+      <span className="ml-3 text-gray-600">Cargando horarios...</span>
+    </div>
+  ) : schedules ? (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {Object.entries(schedules).map(([day, daySchedules]) => (
+        <div key={day} className="border rounded-lg p-4 bg-gray-50">
+          <h4 className="font-semibold text-lg mb-3 text-blue-600 border-b pb-2">
+            {day}
+          </h4>
+          {daySchedules.length > 0 ? (
+            <div className="space-y-3">
+              {daySchedules.map((schedule: InstructorSchedule) => (
+                <div key={schedule.id} className="bg-white rounded-lg p-3 border-l-4 border-sena-green">
+                  <div className="font-medium text-gray-800 mb-1">
+                    ⏰ {schedule.startTime} - {schedule.endTime}
+                  </div>
+                  <div className="text-sm text-gray-700 mb-1">
+                    📚 {schedule.competence.name}
+                  </div>
+                  <div className="text-sm text-blue-600 mb-1">
+                    👥 {schedule.ficha.code} - {schedule.ficha.name}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    🏫 Aula: {schedule.classroom}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-gray-500 text-sm text-center py-4">
+              Sin clases programadas
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  ) : (
+    <div className="text-center py-8 text-gray-500">
+      No se pudieron cargar los horarios
+    </div>
+  )}
+</div>
+
+
+      {/* ⭐ NUEVA SECCIÓN - MIS ASIGNACIONES */}
+      {assignments.length > 0 && (
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <h3 className="text-xl font-semibold text-gray-800 mb-4">
+            📋 Mis Fichas Asignadas
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {assignments.map((assignment) => (
+              <div key={assignment.id} className="border rounded-lg p-4 bg-blue-50">
+                <div className="font-medium text-gray-800 mb-2">
+                  {assignment.ficha.code} - {assignment.ficha.name}
+                </div>
+                <div className="text-sm text-gray-600 mb-1">
+                  📖 Materia: {assignment.subject}
+                </div>
+                {assignment.description && (
+                  <div className="text-xs text-gray-500">
+                    {assignment.description}
+                  </div>
+                )}
+                <div className="text-xs text-green-600 mt-2">
+                  ✅ Activo desde: {new Date(assignment.assignedAt).toLocaleDateString()}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Columna izquierda - Foto y QR */}
@@ -509,9 +647,9 @@ const InstructorProfile = () => {
           <li>• Solo puedes editar tu información de contacto y datos personales adicionales</li>
           <li>• Tu nombre, documento, email y información institucional no se pueden modificar</li>
           <li>• El código QR es único y se usa para el control de acceso a las instalaciones</li>
+          <li>• Los horarios mostrados son asignados por el administrador del sistema</li>
           <li>• Mantén actualizada tu información de contacto para comunicaciones importantes</li>
           <li>• Las imágenes deben ser menores a 2MB y en formato JPEG, PNG, GIF o WebP</li>
-          <li>• Tu QR de acceso es independiente del sistema de asistencia de aprendices</li>
         </ul>
       </div>
     </div>

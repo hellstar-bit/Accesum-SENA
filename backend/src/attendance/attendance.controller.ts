@@ -10,6 +10,24 @@ import { AttendanceService } from './attendance.service';
 export class AttendanceController {
   constructor(private readonly attendanceService: AttendanceService) {}
 
+  @Get('my-classes')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('Instructor')
+  async getMyClasses(
+  @Request() req: any,
+  @Query('date') date?: string
+) {
+  try {
+    console.log(`🌐 GET /attendance/my-classes?date=${date}`);
+    const classes = await this.attendanceService.getMyClassesAttendance(req.user.id, date);
+    console.log('✅ Clases del instructor obtenidas exitosamente');
+    return classes;
+  } catch (error) {
+    console.error('❌ Error al obtener clases del instructor:', error);
+    throw error;
+  }
+}
+
   // ⭐ NUEVA RUTA - OBTENER MIS CLASES Y ASISTENCIA (INSTRUCTOR)
   @Get('my-classes')
   @Roles('Instructor')

@@ -34,9 +34,11 @@ Accesum-SENA
 │  │  │  ├─ entities
 │  │  │  │  ├─ attendance-record.entity.ts
 │  │  │  │  ├─ class-schedule.entity.ts
-│  │  │  │  └─ instructor-assignment.entity.ts
+│  │  │  │  ├─ instructor-assignment.entity.ts
+│  │  │  │  └─ trimester-schedule.entity.ts
 │  │  │  ├─ instructor-assignment.controller.ts
-│  │  │  └─ instructor-profile.controller.ts
+│  │  │  ├─ instructor-profile.controller.ts
+│  │  │  └─ TrimesterScheduleController.ts
 │  │  ├─ auth
 │  │  │  ├─ auth.controller.ts
 │  │  │  ├─ auth.module.ts
@@ -56,6 +58,8 @@ Accesum-SENA
 │  │  │  └─ types
 │  │  │     └─ user-role.type.ts
 │  │  ├─ config
+│  │  │  ├─ competence.controller.ts
+│  │  │  ├─ competence.service.ts
 │  │  │  ├─ config.controller.ts
 │  │  │  ├─ config.module.ts
 │  │  │  ├─ config.service.ts
@@ -63,11 +67,15 @@ Accesum-SENA
 │  │  │  ├─ datasource.config.ts
 │  │  │  ├─ entities
 │  │  │  │  ├─ center.entity.ts
+│  │  │  │  ├─ competence.entity.ts
 │  │  │  │  ├─ coordination.entity.ts
+│  │  │  │  ├─ ficha-competence.entity.ts
 │  │  │  │  ├─ ficha.entity.ts
 │  │  │  │  ├─ personnel-type.entity.ts
 │  │  │  │  ├─ program.entity.ts
 │  │  │  │  └─ regional.entity.ts
+│  │  │  ├─ ficha-competence.controller.ts
+│  │  │  ├─ ficha-competence.service.ts
 │  │  │  ├─ timezone.controller.ts
 │  │  │  ├─ timezone.module.ts
 │  │  │  └─ timezone.service.ts
@@ -79,7 +87,6 @@ Accesum-SENA
 │  │  │  └─ dashboard.service.ts
 │  │  ├─ database
 │  │  │  └─ seeders
-│  │  │     ├─ initial-data.seeder.ts
 │  │  │     ├─ seed-simple.command.ts
 │  │  │     ├─ seed.command.ts
 │  │  │     └─ simple-seed.ts
@@ -138,6 +145,8 @@ Accesum-SENA
 │  │  │  │  └─ AttendanceNotifications.tsx
 │  │  │  ├─ auth
 │  │  │  │  └─ PrivateRoute.tsx
+│  │  │  ├─ ficha
+│  │  │  │  └─ FichaCompetenceManagement.tsx
 │  │  │  ├─ import
 │  │  │  │  ├─ ExcelImport.tsx
 │  │  │  │  └─ ImportLearners.tsx
@@ -172,6 +181,7 @@ Accesum-SENA
 │  │  │  ├─ Login.tsx
 │  │  │  ├─ MyClasses.tsx
 │  │  │  ├─ ProfileManagement.tsx
+│  │  │  ├─ TrimesterScheduleManagement.tsx
 │  │  │  └─ UserManagement.tsx
 │  │  ├─ services
 │  │  │  ├─ accessService.ts
@@ -180,10 +190,13 @@ Accesum-SENA
 │  │  │  ├─ authService.ts
 │  │  │  ├─ configService.ts
 │  │  │  ├─ dashboardService.ts
+│  │  │  ├─ fichaCompetenceService.ts
 │  │  │  ├─ importService.ts
+│  │  │  ├─ instructorAssignmentService.ts
 │  │  │  ├─ instructorService.ts
 │  │  │  ├─ learnerService.ts
 │  │  │  ├─ profileService.ts
+│  │  │  ├─ scheduleService.ts
 │  │  │  ├─ timezoneService.ts
 │  │  │  └─ userService.ts
 │  │  ├─ styles

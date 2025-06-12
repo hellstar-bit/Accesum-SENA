@@ -1,5 +1,5 @@
-// services/instructorService.ts
-import  api  from './api';
+// frontend/src/services/instructorService.ts - COMPLETO MODIFICADO
+import api from './api';
 
 export interface InstructorProfile {
   id: number;
@@ -43,10 +43,58 @@ export interface UpdateInstructorProfileData {
   vaccine?: string;
 }
 
+export interface InstructorSchedule {
+  id: number;
+  startTime: string;
+  endTime: string;
+  classroom: string;
+  competence: {
+    id: number;
+    name: string;
+  };
+  ficha: {
+    id: number;
+    code: string;
+    name: string;
+  };
+}
+
+export interface WeeklySchedule {
+  LUNES: InstructorSchedule[];
+  MARTES: InstructorSchedule[];
+  MIERCOLES: InstructorSchedule[];
+  JUEVES: InstructorSchedule[];
+  VIERNES: InstructorSchedule[];
+  SABADO: InstructorSchedule[];
+}
+
+export interface InstructorScheduleResponse {
+  instructor: {
+    id: number;
+    name: string;
+    documentNumber: string;
+  };
+  trimester: string;
+  schedules: WeeklySchedule;
+}
+
 class InstructorService {
   // ⭐ OBTENER MI PERFIL
   async getMyProfile(): Promise<InstructorProfile> {
     const response = await api.get('/instructor-profile/me');
+    return response.data;
+  }
+
+  // ⭐ OBTENER MIS HORARIOS
+  async getMySchedules(trimester?: string): Promise<InstructorScheduleResponse> {
+    const params = trimester ? { trimester } : {};
+    const response = await api.get('/instructor-profile/me/schedules', { params });
+    return response.data;
+  }
+
+  // ⭐ OBTENER MIS ASIGNACIONES
+  async getMyAssignments(): Promise<any[]> {
+    const response = await api.get('/instructor-profile/me/assignments');
     return response.data;
   }
 

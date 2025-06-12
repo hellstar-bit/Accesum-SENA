@@ -28,6 +28,31 @@ export interface WeeklyScheduleResponse {
   SABADO: ScheduleResponse[];
 }
 
+interface ScheduleItem {
+  id: number;
+  startTime: string;
+  endTime: string;
+  classroom: string;
+  competence: {
+    id: number;
+    name: string;
+  };
+  ficha: {
+    id: number;
+    code: string;
+    name: string;
+  };
+}
+
+interface WeeklySchedule {
+  LUNES: ScheduleItem[];
+  MARTES: ScheduleItem[];
+  MIERCOLES: ScheduleItem[];
+  JUEVES: ScheduleItem[];
+  VIERNES: ScheduleItem[];
+  SABADO: ScheduleItem[];
+}
+
 @Injectable()
 export class AttendanceService {
   getInstructorTodayClasses: any;
@@ -834,6 +859,162 @@ async deleteTrimesterSchedule(id: number) {
       throw error;
     }
   }
+  async getInstructorTrimesterSchedules(instructorId: number, trimester: string) {
+  try {
+    console.log(`📋 Obteniendo horarios del instructor ${instructorId} para trimestre ${trimester}`);
+    
+    const schedules = await this.trimesterScheduleRepository.find({
+      where: {
+        instructorId,
+        trimester,
+        isActive: true
+      },
+      relations: ['competence', 'ficha', 'instructor', 'instructor.profile']
+    });
+
+    // ⭐ TIPAR EXPLÍCITAMENTE EL weeklySchedule
+    const weeklySchedule: WeeklySchedule = {
+      LUNES: [],
+      MARTES: [],
+      MIERCOLES: [],
+      JUEVES: [],
+      VIERNES: [],
+      SABADO: []
+    };
+
+    schedules.forEach(schedule => {
+      const scheduleItem: ScheduleItem = {
+        id: schedule.id,
+        startTime: schedule.startTime,
+        endTime: schedule.endTime,
+        classroom: schedule.classroom || 'Sin aula',
+        competence: {
+          id: schedule.competence?.id || 0,
+          name: schedule.competence?.name || 'Sin competencia'
+        },
+        ficha: {
+          id: schedule.ficha?.id || 0,
+          code: schedule.ficha?.code || 'Sin código',
+          name: schedule.ficha?.name || 'Sin nombre'
+        }
+      };
+
+      weeklySchedule[schedule.dayOfWeek].push(scheduleItem);
+    });
+
+    // Ordenar horarios por hora de inicio
+    Object.keys(weeklySchedule).forEach(day => {
+      weeklySchedule[day as keyof WeeklySchedule].sort((a, b) => a.startTime.localeCompare(b.startTime));
+    });
+
+    console.log('✅ Horarios del instructor obtenidos:', schedules.length);
+    return weeklySchedule;
+  } catch (error) {
+    console.error('❌ Error al obtener horarios del instructor:', error);
+    throw error;
+  }
+}
+
+async getMyClassesAttendance(instructorId: number, date?: string) {
+  try {
+    console.log(`📋 Obteniendo clases del instructor ${instructorId} para fecha ${date}`);
+    
+    // Si no se proporciona fecha, usar hoy
+    const targetDate = date ? new Date(date) : new Date();
+    
+    // Obtener el día de la semana en español
+    const dayNames = ['DOMINGO', 'LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES', 'SABADO'];
+    const dayOfWeek = dayNames[targetDate.getDay()];
+    
+    // Determinar el trimestre actual
+    const year = targetDate.getFullYear();
+    const month = targetDate.getMonth() + 1;
+    let trimester: string;
+    if (month >= 1 && month <= 4) trimester = `${year}-1`;
+    else if (month >= 5 && month <= 8) trimester = `${year}-2`;
+    else trimester = `${year}-3`;
+    
+    console.log(`📅 Buscando horarios para: ${dayOfWeek}, trimestre: ${trimester}`);
+    
+    // Buscar horarios de trimestre para ese día y instructor
+    const trimesterSchedules = await this.trimesterScheduleRepository.find({
+      where: {
+        instructorId,
+        dayOfWeek: dayOfWeek as any,
+        trimester,
+        isActive: true
+      },
+      relations: ['competence', 'ficha', 'instructor', 'instructor.profile']
+    });
+    
+    console.log(`✅ Encontrados ${trimesterSchedules.length} horarios de trimestre`);
+    
+    // Convertir trimester schedules a class schedules format
+    const classSchedules = await Promise.all(
+      trimesterSchedules.map(async (schedule) => {
+        // Buscar registros de asistencia existentes para esta fecha y horario
+        const attendanceRecords = await this.attendanceRepository.find({
+          where: {
+            // Aquí necesitarías tener una relación o buscar por otros criterios
+            // Por ahora retornamos array vacío
+          },
+          relations: ['learner']
+        });
+        
+        return {
+          id: schedule.id,
+          scheduleId: schedule.id,
+          date: targetDate.toISOString().split('T')[0],
+          startTime: schedule.startTime,
+          endTime: schedule.endTime,
+          classroom: schedule.classroom || 'Sin aula',
+          subject: schedule.competence?.name || 'Sin competencia',
+          ficha: {
+            id: schedule.ficha?.id || 0,
+            code: schedule.ficha?.code || 'Sin código',
+            name: schedule.ficha?.name || 'Sin nombre'
+          },
+          attendance: {
+            total: attendanceRecords.length,
+            present: attendanceRecords.filter(r => r.status === 'PRESENT').length,
+            late: attendanceRecords.filter(r => r.status === 'LATE').length,
+            absent: attendanceRecords.filter(r => r.status === 'ABSENT').length,
+            percentage: attendanceRecords.length > 0 
+              ? (((attendanceRecords.filter(r => r.status === 'PRESENT' || r.status === 'LATE').length) / attendanceRecords.length) * 100).toFixed(1)
+              : '0.0'
+          },
+          records: attendanceRecords.map(record => ({
+            id: record.id,
+            attendanceId: record.id,
+            learnerId: record.learnerId,
+            learnerName: record.learner 
+              ? `${record.learner.firstName} ${record.learner.lastName}`
+              : 'Sin nombre',
+            status: record.status,
+            markedAt: record.markedAt?.toISOString() || null,
+            isManual: record.isManual || false,
+            accessTime: record.accessRecord?.entryTime?.toISOString() || null,
+            notes: record.notes,
+            learner: {
+              id: record.learner?.id || record.learnerId,
+              firstName: record.learner?.firstName || '',
+              lastName: record.learner?.lastName || '',
+              documentNumber: record.learner?.documentNumber || ''
+            }
+          }))
+        };
+      })
+    );
+    
+    console.log(`📋 Retornando ${classSchedules.length} clases convertidas`);
+    return classSchedules;
+    
+  } catch (error) {
+    console.error('❌ Error al obtener clases del instructor:', error);
+    return [];
+  }
+}
+
   
 }
 

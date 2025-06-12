@@ -1,15 +1,55 @@
-// backend/src/attendance/instructor-profile.controller.ts - COMPLETO
-import { Controller, Get, Put, Post, Body, UseGuards, Request, BadRequestException } from '@nestjs/common';
+// backend/src/attendance/instructor-profile.controller.ts - COMPLETO CORREGIDO
+import { Controller, Get, Put, Post, Body, UseGuards, Request, BadRequestException, Query } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { ProfilesService } from '../profiles/profiles.service';
+import { AttendanceService } from './attendance.service';
+
+// ⭐ DEFINIR TIPOS LOCALMENTE PARA EVITAR EL ERROR TS4053
+interface ScheduleItem {
+  id: number;
+  startTime: string;
+  endTime: string;
+  classroom: string;
+  competence: {
+    id: number;
+    name: string;
+  };
+  ficha: {
+    id: number;
+    code: string;
+    name: string;
+  };
+}
+
+interface WeeklyScheduleLocal {
+  LUNES: ScheduleItem[];
+  MARTES: ScheduleItem[];
+  MIERCOLES: ScheduleItem[];
+  JUEVES: ScheduleItem[];
+  VIERNES: ScheduleItem[];
+  SABADO: ScheduleItem[];
+}
+
+interface InstructorScheduleResponse {
+  instructor: {
+    id: number;
+    name: string;
+    documentNumber: string;
+  };
+  trimester: string;
+  schedules: WeeklyScheduleLocal;
+}
 
 @Controller('instructor-profile')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('Instructor')
 export class InstructorProfileController {
-  constructor(private readonly profilesService: ProfilesService) {}
+  constructor(
+    private readonly profilesService: ProfilesService,
+    private readonly attendanceService: AttendanceService
+  ) {}
 
   // ⭐ VER MI PERFIL (INSTRUCTOR)
   @Get('me')
@@ -21,6 +61,59 @@ export class InstructorProfileController {
       }
       return profile;
     } catch (error) {
+      throw error;
+    }
+  }
+
+  // ⭐ OBTENER MIS HORARIOS DEL TRIMESTRE - CON TIPO LOCAL
+  @Get('me/schedules')
+  async getMySchedules(
+    @Request() req: any,
+    @Query('trimester') trimester?: string
+  ): Promise<InstructorScheduleResponse> {
+    try {
+      const profile = await this.profilesService.findByUserId(req.user.id);
+      if (!profile) {
+        throw new BadRequestException('Perfil no encontrado');
+      }
+
+      // Si no se proporciona trimestre, usar el actual
+      const currentTrimester = trimester || this.getCurrentTrimester();
+      
+      // Obtener horarios del instructor usando el AttendanceService
+      const schedules = await this.attendanceService.getInstructorTrimesterSchedules(
+        req.user.id, 
+        currentTrimester
+      );
+
+      return {
+        instructor: {
+          id: profile.id,
+          name: `${profile.firstName} ${profile.lastName}`,
+          documentNumber: profile.documentNumber
+        },
+        trimester: currentTrimester,
+        schedules: schedules as WeeklyScheduleLocal
+      };
+    } catch (error) {
+      console.error('Error al obtener horarios del instructor:', error);
+      throw error;
+    }
+  }
+
+  // ⭐ OBTENER MIS FICHAS ASIGNADAS
+  @Get('me/assignments')
+  async getMyAssignments(@Request() req: any): Promise<any[]> {
+    try {
+      const profile = await this.profilesService.findByUserId(req.user.id);
+      if (!profile) {
+        throw new BadRequestException('Perfil no encontrado');
+      }
+
+      const assignments = await this.attendanceService.getInstructorFichas(req.user.id);
+      return assignments;
+    } catch (error) {
+      console.error('Error al obtener asignaciones del instructor:', error);
       throw error;
     }
   }
@@ -141,5 +234,17 @@ export class InstructorProfileController {
       console.error('Error generando QR:', error);
       throw new BadRequestException('Error al generar código QR');
     }
+  }
+
+  // ⭐ MÉTODO PRIVADO PARA OBTENER TRIMESTRE ACTUAL
+  private getCurrentTrimester(): string {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1;
+    
+    // Lógica simple para determinar trimestre
+    if (month >= 1 && month <= 4) return `${year}-1`;
+    if (month >= 5 && month <= 8) return `${year}-2`;
+    return `${year}-3`;
   }
 }

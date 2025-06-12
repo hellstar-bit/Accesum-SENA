@@ -20,10 +20,13 @@ import { User } from '../users/entities/user.entity';
 import { TimezoneModule } from '../config/timezone.module';
 import { ProfilesModule } from '../profiles/profiles.module'; 
 import { TrimesterScheduleController } from './TrimesterScheduleController';
+import { TrimesterSchedule } from './entities/trimester-schedule.entity'; // ⭐ AGREGAR
+
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([
+      TrimesterSchedule,
       AttendanceRecord,
       ClassSchedule,
       InstructorAssignment,

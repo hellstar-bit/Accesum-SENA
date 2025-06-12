@@ -15,6 +15,9 @@ import { FichaCompetenceService } from './ficha-competence.service';
 import { FichaCompetence } from './entities/ficha-competence.entity';
 import { Ficha } from './entities/ficha.entity';
 import { Competence } from './entities/competence.entity';
+import { CompetenceController } from './competence.controller'; // ⭐ AGREGAR
+import { CompetenceService } from './competence.service';
+import { User } from '../users/entities/user.entity';
 
 @Module({
   imports: [
@@ -28,10 +31,11 @@ import { Competence } from './entities/competence.entity';
       Ficha,
       PersonnelType,
       Role,
+      User,
     ])
   ],
-  controllers: [ConfigController,FichaCompetenceController],
-  providers: [ConfigService,FichaCompetenceService],
-  exports: [ConfigService,FichaCompetenceService],
+  controllers: [ConfigController,FichaCompetenceController,CompetenceController],
+  providers: [ConfigService,FichaCompetenceService,CompetenceService],
+  exports: [ConfigService,FichaCompetenceService,CompetenceService],
 })
 export class ConfigModule {}

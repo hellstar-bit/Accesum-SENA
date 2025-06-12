@@ -41,6 +41,23 @@ class ScheduleService {
       throw error;
     }
   }
+
+  async createCompetence(data: {
+  code: string;
+  name: string;
+  description?: string;
+  hours: number;
+  programId: number;
+  instructorIds: number[];
+}) {
+  try {
+    const response = await api.post('/competences', data);
+    return response.data;
+  } catch (error) {
+    console.error('Error al crear competencia:', error);
+    throw error;
+  }
+}
   async getInstructorsWithCompetences() {
     try {
       // ⭐ CAMBIAR RUTA - AGREGAR /users/

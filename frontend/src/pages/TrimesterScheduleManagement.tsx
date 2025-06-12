@@ -1,16 +1,7 @@
 // frontend/src/pages/TrimesterScheduleManagement.tsx
 import React, { useState, useEffect } from 'react';
 import { scheduleService } from '../services/scheduleService';
-import FichaCompetenceManagement from '../components/ficha/FichaCompetenceManagement'; // ⭐ NUEVA IMPORTACIÓN
-
-interface Competence {
-  id: number;
-  name: string;
-  code: string;
-  programId: number;
-  hours?: number; // ⭐ AGREGAR PROPIEDAD OPCIONAL
-  description?: string; // ⭐ AGREGAR PROPIEDAD OPCIONAL
-}
+import FichaCompetenceManagement from '../components/ficha/FichaCompetenceManagement';
 
 interface TimeSlot {
   id?: number;
@@ -18,10 +9,10 @@ interface TimeSlot {
   endTime: string;
   fichaId: number;
   instructorId: number;
-  competenceId: number; // ⭐ AGREGAR ESTA PROPIEDAD
+  competenceId: number;
   classroom?: string;
   subject: string;
-  assignmentId?: number; // ⭐ HACER OPCIONAL YA QUE NO SIEMPRE SE USA
+  assignmentId?: number;
 }
 
 interface TrimesterSchedule {
@@ -31,7 +22,16 @@ interface TrimesterSchedule {
   JUEVES: TimeSlot[];
   VIERNES: TimeSlot[];
   SABADO: TimeSlot[];
-  [key: string]: TimeSlot[]; // ⭐ AGREGAR ESTA LÍNEA PARA INDEXACIÓN
+  [key: string]: TimeSlot[];
+}
+
+interface Competence {
+  id: number;
+  name: string;
+  code: string;
+  programId: number;
+  hours?: number;
+  description?: string;
 }
 
 interface Instructor {
@@ -47,18 +47,19 @@ interface Instructor {
   }>;
 }
 
-interface DaySchedule {
-  [key: string]: TimeSlot[];
-}
-
 interface Ficha {
   id: number;
   code: string;
   name: string;
   status: string;
+  programId?: number;
   competences: Competence[];
+  program?: {
+    id: number;
+    name: string;
+    code: string;
+  };
 }
-
 
 const TrimesterScheduleManagement: React.FC = () => {
   const [trimesterSchedule, setTrimesterSchedule] = useState<TrimesterSchedule>({
@@ -69,14 +70,15 @@ const TrimesterScheduleManagement: React.FC = () => {
     VIERNES: [],
     SABADO: []
   });
-  
+
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [fichas, setFichas] = useState<Ficha[]>([]);
   const [competences, setCompetences] = useState<Competence[]>([]);
   const [selectedTrimester, setSelectedTrimester] = useState<string>('2025-1');
   const [selectedFicha, setSelectedFicha] = useState<number | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [showCompetenceModal, setShowCompetenceModal] = useState(false); // ⭐ NUEVO ESTADO
+  const [showCompetenceModal, setShowCompetenceModal] = useState(false);
+  const [showCreateCompetenceModal, setShowCreateCompetenceModal] = useState(false);
   const [selectedDay, setSelectedDay] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -88,6 +90,14 @@ const TrimesterScheduleManagement: React.FC = () => {
     competenceId: '',
     instructorId: '',
     classroom: ''
+  });
+
+  const [newCompetence, setNewCompetence] = useState({
+    name: '',
+    code: '',
+    description: '',
+    hours: 240,
+    instructorIds: [] as number[]
   });
 
   const daysOfWeek = [
@@ -139,99 +149,131 @@ const TrimesterScheduleManagement: React.FC = () => {
   };
 
   const loadTrimesterSchedule = async () => {
-  if (!selectedFicha) return;
+    if (!selectedFicha) return;
 
-  try {
-    setLoading(true);
-    const scheduleData = await scheduleService.getTrimesterSchedule(
-      selectedFicha,
-      selectedTrimester
-    );
-    
-    // ⭐ MAPEO CON TIPADO CORRECTO
-    const mappedSchedule: TrimesterSchedule = {
-      LUNES: [],
-      MARTES: [],
-      MIERCOLES: [],
-      JUEVES: [],
-      VIERNES: [],
-      SABADO: []
-    };
+    try {
+      setLoading(true);
+      const scheduleData = await scheduleService.getTrimesterSchedule(
+        selectedFicha,
+        selectedTrimester
+      );
+      
+      const mappedSchedule: TrimesterSchedule = {
+        LUNES: [],
+        MARTES: [],
+        MIERCOLES: [],
+        JUEVES: [],
+        VIERNES: [],
+        SABADO: []
+      };
 
-    // ⭐ MAPEAR CON TIPADO EXPLÍCITO
-    Object.keys(scheduleData).forEach((day: string) => {
-      if (Array.isArray(scheduleData[day])) {
-        mappedSchedule[day] = scheduleData[day].map((block: any): TimeSlot => ({
-          id: block.id,
-          startTime: block.startTime,
-          endTime: block.endTime,
-          fichaId: block.fichaId || selectedFicha,
-          instructorId: block.instructorId,
-          competenceId: block.competenceId,
-          classroom: block.classroom,
-          subject: block.subject || getCompetenceName(block.competenceId),
-          assignmentId: block.assignmentId
-        }));
+      Object.keys(scheduleData).forEach((day: string) => {
+        if (Array.isArray(scheduleData[day])) {
+          mappedSchedule[day] = scheduleData[day].map((block: any): TimeSlot => ({
+            id: block.id,
+            startTime: block.startTime,
+            endTime: block.endTime,
+            fichaId: block.fichaId || selectedFicha,
+            instructorId: block.instructorId,
+            competenceId: block.competenceId,
+            classroom: block.classroom,
+            subject: block.subject || getCompetenceName(block.competenceId),
+            assignmentId: block.assignmentId
+          }));
+        }
+      });
+
+      setTrimesterSchedule(mappedSchedule);
+    } catch (error: any) {
+      setError('Error al cargar horarios del trimestre');
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCompetenceManagementClose = async () => {
+    setShowCompetenceModal(false);
+    try {
+      const fichasData = await scheduleService.getFichasWithCompetences();
+      setFichas(fichasData);
+      
+      if (selectedFicha) {
+        await loadTrimesterSchedule();
       }
-    });
+    } catch (error) {
+      console.error('Error al recargar fichas:', error);
+    }
+  };
 
-    setTrimesterSchedule(mappedSchedule);
-  } catch (error: any) {
-    setError('Error al cargar horarios del trimestre');
-    console.error(error);
-  } finally {
-    setLoading(false);
-  }
-};
+  const handleCreateCompetence = async () => {
+    if (!newCompetence.name || !newCompetence.code || newCompetence.instructorIds.length === 0) {
+      setError('Por favor completa todos los campos requeridos');
+      return;
+    }
+
+    try {
+      await scheduleService.createCompetence({
+        ...newCompetence,
+        programId: 1
+      });
+
+      await loadInitialData();
+      
+      setNewCompetence({ name: '', code: '', description: '', hours: 240, instructorIds: [] });
+      setShowCreateCompetenceModal(false);
+      setSuccess('Competencia creada exitosamente');
+      setTimeout(() => setSuccess(''), 3000);
+
+    } catch (error: any) {
+      setError(error.response?.data?.message || 'Error al crear competencia');
+    }
+  };
 
   const handleAddScheduleBlock = async () => {
-  if (!newScheduleBlock.startTime || !newScheduleBlock.endTime || 
-      !newScheduleBlock.competenceId || !newScheduleBlock.instructorId || !selectedFicha) {
-    setError('Por favor completa todos los campos requeridos');
-    return;
-  }
+    if (!newScheduleBlock.startTime || !newScheduleBlock.endTime || 
+        !newScheduleBlock.competenceId || !newScheduleBlock.instructorId || !selectedFicha) {
+      setError('Por favor completa todos los campos requeridos');
+      return;
+    }
 
-  try {
-    const result = await scheduleService.createTrimesterSchedule({
-      dayOfWeek: selectedDay as any,
-      startTime: newScheduleBlock.startTime,
-      endTime: newScheduleBlock.endTime,
-      competenceId: parseInt(newScheduleBlock.competenceId),
-      instructorId: parseInt(newScheduleBlock.instructorId),
-      fichaId: selectedFicha,
-      classroom: newScheduleBlock.classroom,
-      trimester: selectedTrimester
-    });
+    try {
+      const result = await scheduleService.createTrimesterSchedule({
+        dayOfWeek: selectedDay,
+        startTime: newScheduleBlock.startTime,
+        endTime: newScheduleBlock.endTime,
+        competenceId: parseInt(newScheduleBlock.competenceId),
+        instructorId: parseInt(newScheduleBlock.instructorId),
+        fichaId: selectedFicha,
+        classroom: newScheduleBlock.classroom,
+        trimester: selectedTrimester
+      });
 
-    // ⭐ AGREGAR EL NUEVO BLOQUE AL ESTADO LOCAL INMEDIATAMENTE
-    const newBlock: TimeSlot = {
-      id: result.id || Date.now(),
-      startTime: newScheduleBlock.startTime,
-      endTime: newScheduleBlock.endTime,
-      fichaId: selectedFicha,
-      instructorId: parseInt(newScheduleBlock.instructorId),
-      competenceId: parseInt(newScheduleBlock.competenceId), // ⭐ INCLUIR competenceId
-      classroom: newScheduleBlock.classroom,
-      subject: getCompetenceName(parseInt(newScheduleBlock.competenceId))
-    };
+      const newBlock: TimeSlot = {
+        id: result.id || Date.now(),
+        startTime: newScheduleBlock.startTime,
+        endTime: newScheduleBlock.endTime,
+        fichaId: selectedFicha,
+        instructorId: parseInt(newScheduleBlock.instructorId),
+        competenceId: parseInt(newScheduleBlock.competenceId),
+        classroom: newScheduleBlock.classroom,
+        subject: getCompetenceName(parseInt(newScheduleBlock.competenceId))
+      };
 
-    // Actualizar el estado local
-    setTrimesterSchedule(prev => ({
-      ...prev,
-      [selectedDay]: [...(prev[selectedDay] || []), newBlock]
-    }));
+      setTrimesterSchedule(prev => ({
+        ...prev,
+        [selectedDay]: [...(prev[selectedDay as keyof TrimesterSchedule] || []), newBlock]
+      }));
 
-    await loadTrimesterSchedule(); // Recargar desde el servidor
-    setShowAddModal(false);
-    setNewScheduleBlock({ startTime: '', endTime: '', competenceId: '', instructorId: '', classroom: '' });
-    setSuccess('Bloque de horario agregado exitosamente');
-    setTimeout(() => setSuccess(''), 3000);
+      setShowAddModal(false);
+      setNewScheduleBlock({ startTime: '', endTime: '', competenceId: '', instructorId: '', classroom: '' });
+      setSuccess('Bloque de horario agregado exitosamente');
+      setTimeout(() => setSuccess(''), 3000);
 
-  } catch (error: any) {
-    setError(error.response?.data?.message || 'Error al crear bloque de horario');
-  }
-};
-
+    } catch (error: any) {
+      setError(error.response?.data?.message || 'Error al crear bloque de horario');
+    }
+  };
 
   const handleDeleteScheduleBlock = async (scheduleId: number) => {
     if (!confirm('¿Estás seguro de eliminar este bloque de horario?')) return;
@@ -247,39 +289,19 @@ const TrimesterScheduleManagement: React.FC = () => {
   };
 
   const getCompetenceColor = (competenceId: number): string => {
-  const colors = [
-    'bg-blue-100 border-blue-300 text-blue-800',
-    'bg-green-100 border-green-300 text-green-800',
-    'bg-purple-100 border-purple-300 text-purple-800',
-    'bg-orange-100 border-orange-300 text-orange-800',
-    'bg-pink-100 border-pink-300 text-pink-800',
-    'bg-indigo-100 border-indigo-300 text-indigo-800',
-    'bg-yellow-100 border-yellow-300 text-yellow-800',
-    'bg-red-100 border-red-300 text-red-800'
-  ];
-  return colors[competenceId % colors.length];
-};
-    const getInstructorName = (instructorId: number): string => {
-    const instructor = instructors.find(i => i.id === instructorId);
-    return instructor ? instructor.name : 'Instructor no encontrado';
+    const colors = [
+      'bg-blue-100 border-blue-300 text-blue-800',
+      'bg-green-100 border-green-300 text-green-800',
+      'bg-purple-100 border-purple-300 text-purple-800',
+      'bg-orange-100 border-orange-300 text-orange-800',
+      'bg-pink-100 border-pink-300 text-pink-800',
+      'bg-indigo-100 border-indigo-300 text-indigo-800',
+      'bg-yellow-100 border-yellow-300 text-yellow-800',
+      'bg-red-100 border-red-300 text-red-800'
+    ];
+    return colors[competenceId % colors.length];
   };
 
-  const handleCompetenceManagementClose = async () => {
-    setShowCompetenceModal(false);
-    // Recargar fichas para actualizar las competencias
-    try {
-      const fichasData = await scheduleService.getFichasWithCompetences();
-      setFichas(fichasData);
-      
-      // Si hay una ficha seleccionada, recargar sus horarios también
-      if (selectedFicha) {
-        await loadTrimesterSchedule();
-      }
-    } catch (error) {
-      console.error('Error al recargar fichas:', error);
-    }
-  };
-  
   const checkTimeConflict = (day: string, startTime: string, endTime: string): boolean => {
     const daySchedule = trimesterSchedule[day] || [];
     return daySchedule.some(block => {
@@ -289,10 +311,15 @@ const TrimesterScheduleManagement: React.FC = () => {
     });
   };
 
+  const getInstructorName = (instructorId: number): string => {
+    const instructor = instructors.find(i => i.id === instructorId);
+    return instructor ? instructor.name : 'Instructor no encontrado';
+  };
+
   const getCompetenceName = (competenceId: number): string => {
-  const competence = competences.find(c => c.id === competenceId);
-  return competence ? competence.name : 'Competencia no encontrada';
-};
+    const competence = competences.find(c => c.id === competenceId);
+    return competence ? competence.name : 'Competencia no encontrada';
+  };
 
   const getAvailableInstructorsForCompetence = (competenceId: string) => {
     if (!competenceId) return [];
@@ -307,7 +334,6 @@ const TrimesterScheduleManagement: React.FC = () => {
     return ficha ? ficha.competences : [];
   };
 
-  // ⭐ FUNCIÓN PARA OBTENER NOMBRE DE FICHA SELECCIONADA
   const getSelectedFichaName = (): string => {
     const ficha = fichas.find(f => f.id === selectedFicha);
     return ficha ? `${ficha.code} - ${ficha.name}` : '';
@@ -376,11 +402,11 @@ const TrimesterScheduleManagement: React.FC = () => {
                 ))}
               </select>
             </div>
+            
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Ficha:
               </label>
-              {/* ⭐ SELECTOR DE FICHA CON BOTÓN DE COMPETENCIAS */}
               <div className="flex items-center gap-2">
                 <select
                   value={selectedFicha || ''}
@@ -394,7 +420,15 @@ const TrimesterScheduleManagement: React.FC = () => {
                     </option>
                   ))}
                 </select>
-                {/* ⭐ BOTÓN PARA GESTIONAR COMPETENCIAS */}
+                
+                <button
+                  onClick={() => setShowCreateCompetenceModal(true)}
+                  className="px-3 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-sm font-medium flex items-center gap-1"
+                  title="Crear nueva competencia"
+                >
+                  ➕ Nueva Competencia
+                </button>
+                
                 {selectedFicha && (
                   <button
                     onClick={() => setShowCompetenceModal(true)}
@@ -455,7 +489,7 @@ const TrimesterScheduleManagement: React.FC = () => {
                     <div className="space-y-2">
                       {(trimesterSchedule[day.key as keyof TrimesterSchedule] || [])
                         .sort((a, b) => a.startTime.localeCompare(b.startTime))
-                        .map((block, index) => (
+                        .map((block: TimeSlot, index: number) => (
                           <div
                             key={block.id || index}
                             className={`p-3 rounded border-l-4 text-xs ${getCompetenceColor(block.competenceId)}`}
@@ -614,7 +648,6 @@ const TrimesterScheduleManagement: React.FC = () => {
                   />
                 </div>
 
-                {/* Verificación de conflictos */}
                 {newScheduleBlock.startTime && newScheduleBlock.endTime && 
                  checkTimeConflict(selectedDay, newScheduleBlock.startTime, newScheduleBlock.endTime) && (
                   <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
@@ -649,13 +682,133 @@ const TrimesterScheduleManagement: React.FC = () => {
           </div>
         )}
 
-        {/* ⭐ MODAL DE GESTIÓN DE COMPETENCIAS */}
+        {/* Modal de gestión de competencias */}
         {showCompetenceModal && selectedFicha && (
           <FichaCompetenceManagement
             fichaId={selectedFicha}
             fichaName={getSelectedFichaName()}
             onClose={handleCompetenceManagementClose}
           />
+        )}
+
+        {/* Modal para crear competencia */}
+        {showCreateCompetenceModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-md">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                Crear Nueva Competencia
+              </h3>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Código *
+                  </label>
+                  <input
+                    type="text"
+                    value={newCompetence.code}
+                    onChange={(e) => setNewCompetence({...newCompetence, code: e.target.value})}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                    placeholder="Ej: 280101001"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Nombre *
+                  </label>
+                  <input
+                    type="text"
+                    value={newCompetence.name}
+                    onChange={(e) => setNewCompetence({...newCompetence, name: e.target.value})}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                    placeholder="Ej: DESARROLLAR SOFTWARE APLICANDO BUENAS PRÁCTICAS"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Horas
+                  </label>
+                  <input
+                    type="number"
+                    value={newCompetence.hours}
+                    onChange={(e) => setNewCompetence({...newCompetence, hours: parseInt(e.target.value)})}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                    min="1"
+                    max="1000"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Instructores Asignados *
+                  </label>
+                  <div className="max-h-32 overflow-y-auto border border-gray-300 rounded-md p-2">
+                    {instructors.map(instructor => (
+                      <label key={instructor.id} className="flex items-center space-x-2 py-1">
+                        <input
+                          type="checkbox"
+                          checked={newCompetence.instructorIds.includes(instructor.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setNewCompetence({
+                                ...newCompetence,
+                                instructorIds: [...newCompetence.instructorIds, instructor.id]
+                              });
+                            } else {
+                              setNewCompetence({
+                                ...newCompetence,
+                                instructorIds: newCompetence.instructorIds.filter(id => id !== instructor.id)
+                              });
+                            }
+                          }}
+                          className="rounded"
+                        />
+                        <span className="text-sm">{instructor.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Selecciona los instructores que pueden enseñar esta competencia
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Descripción
+                  </label>
+                  <textarea
+                    value={newCompetence.description}
+                    onChange={(e) => setNewCompetence({...newCompetence, description: e.target.value})}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                    rows={3}
+                    placeholder="Descripción de la competencia..."
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  onClick={() => {
+                    setShowCreateCompetenceModal(false);
+                    setNewCompetence({ name: '', code: '', description: '', hours: 240, instructorIds: [] });
+                    setError('');
+                  }}
+                  className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleCreateCompetence}
+                  disabled={!newCompetence.name || !newCompetence.code || newCompetence.instructorIds.length === 0}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50"
+                >
+                  Crear Competencia
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

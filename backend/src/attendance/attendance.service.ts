@@ -6,6 +6,27 @@ import { AttendanceRecord } from './entities/attendance-record.entity';
 import { ClassSchedule } from './entities/class-schedule.entity';
 import { InstructorAssignment } from './entities/instructor-assignment.entity';
 import { Profile } from '../profiles/entities/profile.entity';
+import { TrimesterSchedule } from './entities/trimester-schedule.entity'; 
+
+export interface ScheduleResponse {
+  id: number;
+  startTime: string;
+  endTime: string;
+  competenceId: number;
+  instructorId: number;
+  fichaId: number;
+  classroom: string;
+  subject: string;
+}
+
+export interface WeeklyScheduleResponse {
+  LUNES: ScheduleResponse[];
+  MARTES: ScheduleResponse[];
+  MIERCOLES: ScheduleResponse[];
+  JUEVES: ScheduleResponse[];
+  VIERNES: ScheduleResponse[];
+  SABADO: ScheduleResponse[];
+}
 
 @Injectable()
 export class AttendanceService {
@@ -17,6 +38,9 @@ export class AttendanceService {
     throw new Error('Method not implemented.');
   }
   constructor(
+    @InjectRepository(TrimesterSchedule)
+    private readonly trimesterScheduleRepository: Repository<TrimesterSchedule>,
+
     @InjectRepository(AttendanceRecord)
     private readonly attendanceRepository: Repository<AttendanceRecord>,
     
@@ -29,6 +53,7 @@ export class AttendanceService {
     @InjectRepository(Profile)
     private readonly profileRepository: Repository<Profile>,
   ) {}
+  
 
   // ⭐ OBTENER ASISTENCIA DE LAS CLASES DEL INSTRUCTOR
   async getInstructorAttendance(instructorId: number, date: Date = new Date()) {
@@ -696,13 +721,21 @@ async getScheduleById(scheduleId: number) {
       throw error;
     }
   }
-  async getTrimesterSchedule(fichaId: number, trimester: string) {
+  async getTrimesterSchedule(fichaId: number, trimester: string): Promise<WeeklyScheduleResponse> {
   try {
     console.log(`📋 Obteniendo horarios de trimestre para ficha ${fichaId}, trimestre ${trimester}`);
     
-    // Por ahora retornamos estructura vacía ya que no tienes la tabla trimester_schedules
-    // Cuando implementes la tabla, aquí harías la consulta real
-    const weeklySchedule = {
+    const schedules = await this.trimesterScheduleRepository.find({
+      where: {
+        fichaId,
+        trimester,
+        isActive: true
+      },
+      relations: ['competence', 'instructor', 'instructor.profile', 'ficha']
+    });
+
+    // ⭐ TIPADO EXPLÍCITO DEL OBJETO
+    const weeklySchedule: WeeklyScheduleResponse = {
       LUNES: [],
       MARTES: [],
       MIERCOLES: [],
@@ -711,11 +744,27 @@ async getScheduleById(scheduleId: number) {
       SABADO: []
     };
 
-    console.log('📋 Horarios obtenidos (estructura vacía por ahora)');
+    schedules.forEach(schedule => {
+      // ⭐ CREAR OBJETO CON TIPADO EXPLÍCITO
+      const scheduleItem: ScheduleResponse = {
+        id: schedule.id,
+        startTime: schedule.startTime,
+        endTime: schedule.endTime,
+        competenceId: schedule.competenceId,
+        instructorId: schedule.instructorId,
+        fichaId: schedule.fichaId,
+        classroom: schedule.classroom || '',
+        subject: schedule.competence?.name || 'Sin competencia'
+      };
+
+      // ⭐ AHORA EL PUSH FUNCIONARÁ CORRECTAMENTE
+      weeklySchedule[schedule.dayOfWeek].push(scheduleItem);
+    });
+
+    console.log('📋 Horarios obtenidos de BD:', schedules.length);
     return weeklySchedule;
   } catch (error) {
     console.error('❌ Error al obtener horarios de trimestre:', error);
-    // Retornar estructura vacía en caso de error
     return {
       LUNES: [],
       MARTES: [],
@@ -727,45 +776,64 @@ async getScheduleById(scheduleId: number) {
   }
 }
 
+
 async createTrimesterSchedule(data: {
-  dayOfWeek: string;
-  startTime: string;
-  endTime: string;
-  competenceId: number;
-  instructorId: number;
-  fichaId: number;
-  classroom?: string;
-  trimester: string;
-}) {
-  try {
-    console.log('📋 Creando horario de trimestre:', data);
-    
-    // Por ahora solo logueamos, cuando tengas la tabla implementarás la lógica real
-    console.log('✅ Horario creado (simulado por ahora)');
-    
-    return {
-      id: Date.now(), // ID temporal
-      ...data,
-      isActive: true,
-      createdAt: new Date()
-    };
-  } catch (error) {
-    console.error('❌ Error al crear horario de trimestre:', error);
-    throw error;
+    dayOfWeek: string;
+    startTime: string;
+    endTime: string;
+    competenceId: number;
+    instructorId: number;
+    fichaId: number;
+    classroom?: string;
+    trimester: string;
+  }) {
+    try {
+      console.log('📋 Creando horario de trimestre:', data);
+      
+      // ⭐ CREAR Y GUARDAR EN LA BASE DE DATOS REAL
+      const schedule = this.trimesterScheduleRepository.create({
+        dayOfWeek: data.dayOfWeek as any,
+        startTime: data.startTime,
+        endTime: data.endTime,
+        competenceId: data.competenceId,
+        instructorId: data.instructorId,
+        fichaId: data.fichaId,
+        classroom: data.classroom,
+        trimester: data.trimester,
+        isActive: true
+      });
+
+      const savedSchedule = await this.trimesterScheduleRepository.save(schedule);
+      console.log('✅ Horario guardado en BD con ID:', savedSchedule.id);
+      
+      return savedSchedule;
+    } catch (error) {
+      console.error('❌ Error al crear horario de trimestre:', error);
+      throw error;
+    }
   }
-}
 
 async deleteTrimesterSchedule(id: number) {
-  try {
-    console.log(`📋 Eliminando horario de trimestre ${id}`);
-    
-    // Por ahora solo logueamos
-    console.log('✅ Horario eliminado (simulado por ahora)');
-    
-    return { message: 'Horario eliminado exitosamente' };
-  } catch (error) {
-    console.error('❌ Error al eliminar horario de trimestre:', error);
-    throw error;
+    try {
+      console.log(`📋 Eliminando horario de trimestre ${id}`);
+      
+      const schedule = await this.trimesterScheduleRepository.findOne({
+        where: { id }
+      });
+
+      if (!schedule) {
+        throw new Error('Horario no encontrado');
+      }
+
+      await this.trimesterScheduleRepository.remove(schedule);
+      console.log('✅ Horario eliminado de BD');
+      
+      return { message: 'Horario eliminado exitosamente' };
+    } catch (error) {
+      console.error('❌ Error al eliminar horario de trimestre:', error);
+      throw error;
+    }
   }
+  
 }
-}
+

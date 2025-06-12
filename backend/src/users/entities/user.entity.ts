@@ -2,7 +2,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, OneToOne, ManyToOne, ManyToMany, JoinTable, JoinColumn } from 'typeorm';
 import { Profile } from '../../profiles/entities/profile.entity';
 import { Role } from './role.entity';
-import { Competence } from '../../config/entities/competence.entity'; // ⭐ AGREGAR IMPORTACIÓN
+import { Competence } from '../../config/entities/competence.entity';
 
 @Entity('users')
 export class User {
@@ -28,10 +28,10 @@ export class User {
   @Column()
   roleId: number;
 
-  // ⭐ AGREGAR ESTA RELACIÓN MANY-TO-MANY
+  // ✅ Relación many-to-many con Competence
   @ManyToMany(() => Competence, competence => competence.instructors)
   @JoinTable({
-    name: 'instructor_competences', // Nombre de la tabla intermedia
+    name: 'instructor_competences',
     joinColumn: {
       name: 'instructorId',
       referencedColumnName: 'id'

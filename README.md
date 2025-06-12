@@ -38,7 +38,9 @@ Accesum-SENA
 │  │  │  │  └─ trimester-schedule.entity.ts
 │  │  │  ├─ instructor-assignment.controller.ts
 │  │  │  ├─ instructor-profile.controller.ts
-│  │  │  └─ TrimesterScheduleController.ts
+│  │  │  ├─ TrimesterScheduleController.ts
+│  │  │  └─ types
+│  │  │     └─ attendance.types.ts
 │  │  ├─ auth
 │  │  │  ├─ auth.controller.ts
 │  │  │  ├─ auth.module.ts

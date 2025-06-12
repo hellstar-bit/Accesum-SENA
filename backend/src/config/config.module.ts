@@ -19,6 +19,7 @@ import { CompetenceController } from './competence.controller'; // ⭐ AGREGAR
 import { CompetenceService } from './competence.service';
 import { User } from '../users/entities/user.entity';
 
+
 @Module({
   imports: [
     TypeOrmModule.forFeature([

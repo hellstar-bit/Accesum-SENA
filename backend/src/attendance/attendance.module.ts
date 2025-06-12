@@ -27,6 +27,9 @@ import { ConfigModule } from '../config/config.module';
 // ⭐ SERVICIOS ADICIONALES
 import { AttendanceNotificationsService } from './attendance-notifications.service';
 
+import { Profile } from '../profiles/entities/profile.entity';
+import { PersonnelType } from '../config/entities/personnel-type.entity';
+
 @Module({
   imports: [
     // ⭐ IMPORTAR ENTIDADES PARA TYPEORM
@@ -35,6 +38,8 @@ import { AttendanceNotificationsService } from './attendance-notifications.servi
       TrimesterSchedule,
       AttendanceRecord,
       InstructorAssignment,
+      Profile,
+      PersonnelType, // Asegúrate de que esta entidad exista y sea necesaria
     ]),
     
     // ⭐ MÓDULOS EXTERNOS NECESARIOS

@@ -6,6 +6,9 @@ import { ClassSchedule } from './entities/class-schedule.entity';
 import { TrimesterSchedule } from './entities/trimester-schedule.entity';
 import { AttendanceRecord } from './entities/attendance-record.entity';
 import { InstructorAssignment } from './entities/instructor-assignment.entity';
+import { Profile } from '../profiles/entities/profile.entity';
+import { PersonnelType } from '../config/entities/personnel-type.entity';
+
 
 // ⭐ IMPORTAR TIPOS DESDE EL ARCHIVO COMPARTIDO
 import { 
@@ -21,6 +24,12 @@ import {
 @Injectable()
 export class AttendanceService {
   constructor(
+    @InjectRepository(Profile)
+    private readonly profileRepository: Repository<Profile>,
+
+    @InjectRepository(PersonnelType)
+    private readonly personnelTypeRepository: Repository<PersonnelType>,
+
     @InjectRepository(ClassSchedule)
     private readonly scheduleRepository: Repository<ClassSchedule>,
 
@@ -35,18 +44,28 @@ export class AttendanceService {
   ) {}
 
   // ⭐ MÉTODO PRINCIPAL - OBTENER CLASES DEL INSTRUCTOR POR FECHA
+  // ⭐ MÉTODO CORREGIDO - Debug completo de fechas
   async getMyClassesAttendance(instructorId: number, date?: string) {
     try {
-      console.log(`📋 Obteniendo clases del instructor ${instructorId} para fecha ${date}`);
+      console.log(`📋 === INICIANDO getMyClassesAttendance ===`);
+      console.log(`📋 Instructor ID: ${instructorId}, Fecha: ${date}`);
       
-      // Si no se proporciona fecha, usar hoy
-      const targetDate = date ? new Date(date) : new Date();
+      // Procesamiento de fecha (mantener la lógica actual)
+      let targetDate: Date;
+      if (date) {
+        if (date.includes('T')) {
+          targetDate = new Date(date);
+        } else {
+          targetDate = new Date(date + 'T12:00:00');
+        }
+      } else {
+        targetDate = new Date();
+      }
       
-      // Obtener el día de la semana en español
+      // Cálculo de día y trimestre
       const dayNames = ['DOMINGO', 'LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES', 'SABADO'];
       const dayOfWeek = dayNames[targetDate.getDay()];
       
-      // Determinar el trimestre actual
       const year = targetDate.getFullYear();
       const month = targetDate.getMonth() + 1;
       let trimester: string;
@@ -54,9 +73,9 @@ export class AttendanceService {
       else if (month >= 5 && month <= 8) trimester = `${year}-2`;
       else trimester = `${year}-3`;
       
-      console.log(`📅 Buscando horarios para: ${dayOfWeek}, trimestre: ${trimester}`);
+      console.log(`📅 Buscando: ${dayOfWeek}, trimestre: ${trimester}`);
       
-      // Buscar horarios de trimestre para ese día y instructor
+      // Buscar horarios del instructor
       const trimesterSchedules = await this.trimesterScheduleRepository.find({
         where: {
           instructorId,
@@ -69,9 +88,33 @@ export class AttendanceService {
       
       console.log(`✅ Encontrados ${trimesterSchedules.length} horarios de trimestre`);
       
-      // Convertir trimester schedules a class schedules format
-      const classSchedules = trimesterSchedules.map((schedule) => {
-        return {
+      if (trimesterSchedules.length === 0) {
+        return [];
+      }
+      
+      // ✅ CORRECCIÓN: Tipar correctamente el array
+      const classSchedules: any[] = [];
+      
+      for (const schedule of trimesterSchedules) {
+        console.log(`📋 Procesando horario ${schedule.id} para ficha ${schedule.fichaId}`);
+        
+        // 1. Obtener aprendices de la ficha
+        const learners = await this.getLearnersFromFicha(schedule.fichaId);
+        console.log(`👥 Encontrados ${learners.length} aprendices en la ficha`);
+        
+        // 2. Obtener/crear registros de asistencia
+        const attendanceRecords = await this.getOrCreateAttendanceRecords(
+          schedule.id, 
+          learners, 
+          targetDate.toISOString().split('T')[0]
+        );
+        console.log(`📝 Procesados ${attendanceRecords.length} registros de asistencia`);
+        
+        // 3. Calcular estadísticas
+        const stats = this.calculateAttendanceStats(attendanceRecords);
+        
+        // 4. Crear objeto de clase con tipo explícito
+        const classSchedule = {
           id: schedule.id,
           scheduleId: schedule.id,
           date: targetDate.toISOString().split('T')[0],
@@ -85,23 +128,129 @@ export class AttendanceService {
             name: schedule.ficha?.name || 'Sin nombre'
           },
           attendance: {
-            total: 0,
-            present: 0,
-            late: 0,
-            absent: 0,
-            percentage: '0.0'
+            total: stats.total,
+            present: stats.present,
+            late: stats.late,
+            absent: stats.absent,
+            percentage: stats.total > 0 ? ((stats.present + stats.late) / stats.total * 100).toFixed(1) : '0.0'
           },
-          records: []
+          records: attendanceRecords as any[] // ✅ Tipo explícito
         };
-      });
+        
+        classSchedules.push(classSchedule);
+      }
       
-      console.log(`📋 Retornando ${classSchedules.length} clases convertidas`);
+      console.log(`📋 Retornando ${classSchedules.length} clases con aprendices`);
       return classSchedules;
       
     } catch (error) {
       console.error('❌ Error al obtener clases del instructor:', error);
       return [];
     }
+  }
+  private async getLearnersFromFicha(fichaId: number): Promise<any[]> {
+    try {
+      // Buscar el tipo "Aprendiz" 
+      const learnerType = await this.personnelTypeRepository.findOne({
+        where: { name: 'Aprendiz' }
+      });
+      
+      if (!learnerType) {
+        console.log('⚠️ Tipo "Aprendiz" no encontrado en la base de datos');
+        return [];
+      }
+      
+      // Obtener aprendices activos de la ficha
+      const learners = await this.profileRepository.find({
+        where: {
+          fichaId,
+          typeId: learnerType.id,
+        },
+        relations: ['type', 'ficha'],
+        order: { lastName: 'ASC', firstName: 'ASC' }
+      });
+      
+      console.log(`👥 Encontrados ${learners.length} aprendices en ficha ${fichaId}`);
+      return learners;
+      
+    } catch (error) {
+      console.error('❌ Error al obtener aprendices:', error);
+      return [];
+    }
+  }
+
+  // ✅ NUEVO MÉTODO: Obtener o crear registros de asistencia
+  private async getOrCreateAttendanceRecords(scheduleId: number, learners: any[], date: string): Promise<any[]> {
+    try {
+      const records: any[] = []; // ✅ Tipo explícito
+      
+      for (const learner of learners) {
+        // Buscar registro existente
+        let attendanceRecord = await this.attendanceRepository.findOne({
+          where: {
+            scheduleId,
+            learnerId: learner.id
+          }
+        });
+        
+        // Si no existe, crear uno nuevo con estado ABSENT por defecto
+        if (!attendanceRecord) {
+          attendanceRecord = this.attendanceRepository.create({
+            scheduleId,
+            learnerId: learner.id,
+            status: 'ABSENT', // Por defecto ausente hasta que se marque
+            isManual: false,
+            markedAt: undefined,
+            manuallyMarkedAt: undefined,
+            markedBy: undefined,
+            notes: undefined,
+            accessRecordId: undefined
+          });
+          
+          // Guardar el nuevo registro
+          attendanceRecord = await this.attendanceRepository.save(attendanceRecord);
+        }
+        
+        // Formatear para el frontend
+        const formattedRecord = {
+          id: attendanceRecord.id,
+          attendanceId: attendanceRecord.id,
+          learnerId: learner.id,
+          learnerName: `${learner.firstName} ${learner.lastName}`,
+          status: attendanceRecord.status,
+          markedAt: attendanceRecord.markedAt?.toISOString() || null,
+          manuallyMarkedAt: attendanceRecord.manuallyMarkedAt?.toISOString() || null,
+          isManual: attendanceRecord.isManual,
+          accessTime: null, // Se llenará si hay registro de acceso
+          notes: attendanceRecord.notes,
+          markedBy: attendanceRecord.markedBy,
+          learner: {
+            id: learner.id,
+            firstName: learner.firstName,
+            lastName: learner.lastName,
+            documentNumber: learner.documentNumber
+          }
+        };
+        
+        records.push(formattedRecord);
+      }
+      
+      return records;
+      
+    } catch (error) {
+      console.error('❌ Error al procesar registros de asistencia:', error);
+      return [];
+    }
+  }
+
+  // ✅ NUEVO MÉTODO: Calcular estadísticas de asistencia
+  private calculateAttendanceStats(records: any[]) {
+    const total = records.length;
+    const present = records.filter(r => r.status === 'PRESENT').length;
+    const late = records.filter(r => r.status === 'LATE').length;
+    const absent = records.filter(r => r.status === 'ABSENT').length;
+    
+    return { total, present, late, absent };
   }
 
   // ⭐ OBTENER HORARIOS DE TRIMESTRE DEL INSTRUCTOR
@@ -570,7 +719,7 @@ export class AttendanceService {
   // ⭐ OBTENER HORARIO DE TRIMESTRE POR FICHA
   async getTrimesterSchedule(fichaId: number, trimester: string) {
     try {
-      console.log(`📋 Obteniendo horarios de trimestre para ficha ${fichaId}, trimestre ${trimester}`);
+      console.log(`📋 INICIANDO - Obteniendo horarios de trimestre para ficha ${fichaId}, trimestre ${trimester}`);
 
       const schedules = await this.trimesterScheduleRepository.find({
         where: {
@@ -579,6 +728,39 @@ export class AttendanceService {
           isActive: true
         },
         relations: ['competence', 'instructor', 'instructor.profile', 'ficha']
+      });
+
+      console.log(`🔍 QUERY RESULTADO - Se encontraron ${schedules.length} horarios en la base de datos`);
+
+      // ⭐ DEBUG DETALLADO: Mostrar cada horario encontrado
+      schedules.forEach((schedule, index) => {
+        console.log(`🔍 HORARIO ${index + 1}:`, {
+          id: schedule.id,
+          day: schedule.dayOfWeek,
+          time: `${schedule.startTime} - ${schedule.endTime}`,
+          competenceId: schedule.competenceId,
+          competence: schedule.competence ? {
+            id: schedule.competence.id,
+            name: schedule.competence.name,
+            code: schedule.competence.code
+          } : 'NULL - NO CARGADA',
+          instructorId: schedule.instructorId,
+          instructor: schedule.instructor ? {
+            id: schedule.instructor.id,
+            email: schedule.instructor.email,
+            profile: schedule.instructor.profile ? {
+              firstName: schedule.instructor.profile.firstName,
+              lastName: schedule.instructor.profile.lastName
+            } : 'NULL - SIN PERFIL'
+          } : 'NULL - NO CARGADO',
+          classroom: schedule.classroom,
+          fichaId: schedule.fichaId,
+          ficha: schedule.ficha ? {
+            id: schedule.ficha.id,
+            code: schedule.ficha.code,
+            name: schedule.ficha.name
+          } : 'NULL - NO CARGADA'
+        });
       });
 
       // ⭐ TIPAR EXPLÍCITAMENTE EL weeklySchedule
@@ -592,22 +774,31 @@ export class AttendanceService {
       };
 
       schedules.forEach(schedule => {
+        // ⭐ DEBUG: Antes de mapear cada item
+        console.log(`🔍 MAPEANDO HORARIO ${schedule.id}:`);
+        console.log(`  - Competencia: ${schedule.competence?.name || 'NO ENCONTRADA'}`);
+        console.log(`  - Instructor: ${schedule.instructor?.profile ? 
+          `${schedule.instructor.profile.firstName} ${schedule.instructor.profile.lastName}` : 'NO ENCONTRADO'}`);
+
         const scheduleItem: TrimesterScheduleItem = {
           id: schedule.id,
           startTime: schedule.startTime,
           endTime: schedule.endTime,
           classroom: schedule.classroom || 'Sin aula',
           competence: {
-            id: schedule.competence?.id || 0,
-            name: schedule.competence?.name || 'Sin competencia'
+            id: schedule.competence?.id || schedule.competenceId || 0,
+            name: schedule.competence?.name || 'Competencia no encontrada'
           },
           instructor: {
-            id: schedule.instructor?.id || 0,
+            id: schedule.instructor?.id || schedule.instructorId || 0,
             name: schedule.instructor?.profile 
               ? `${schedule.instructor.profile.firstName} ${schedule.instructor.profile.lastName}`
-              : 'Sin instructor'
+              : 'Instructor no encontrado'
           }
         };
+
+        // ⭐ DEBUG: Después de mapear
+        console.log(`🔍 ITEM MAPEADO:`, scheduleItem);
 
         weeklySchedule[schedule.dayOfWeek].push(scheduleItem);
       });
@@ -617,10 +808,20 @@ export class AttendanceService {
         weeklySchedule[day].sort((a, b) => a.startTime.localeCompare(b.startTime));
       });
 
-      console.log('✅ Horarios de trimestre obtenidos');
+      console.log('✅ RESULTADO FINAL - Horarios de trimestre obtenidos y mapeados');
+      console.log('🔍 ESTRUCTURA FINAL:', {
+        LUNES: weeklySchedule.LUNES.length,
+        MARTES: weeklySchedule.MARTES.length,
+        MIERCOLES: weeklySchedule.MIERCOLES.length,
+        JUEVES: weeklySchedule.JUEVES.length,
+        VIERNES: weeklySchedule.VIERNES.length,
+        SABADO: weeklySchedule.SABADO.length
+      });
+
       return weeklySchedule;
     } catch (error) {
-      console.error('❌ Error al obtener horarios de trimestre:', error);
+      console.error('❌ ERROR COMPLETO al obtener horarios de trimestre:', error);
+      console.error('❌ STACK TRACE:', error.stack);
       throw error;
     }
   }
@@ -713,4 +914,298 @@ export class AttendanceService {
       };
     }
   }
+  // backend/src/attendance/attendance.service.ts
+// AGREGAR ESTOS MÉTODOS AL FINAL DE LA CLASE AttendanceService
+
+// ⭐ ASIGNAR INSTRUCTOR A FICHA
+async assignInstructorToFicha(data: {
+  instructorId: number;
+  fichaId: number;
+  subject: string;
+  description?: string;
+}): Promise<InstructorAssignmentType> {
+  try {
+    console.log('📋 Asignando instructor a ficha:', data);
+
+    // Verificar si ya existe una asignación activa
+    const existingAssignment = await this.assignmentRepository.findOne({
+      where: {
+        instructorId: data.instructorId,
+        fichaId: data.fichaId,
+        isActive: true
+      }
+    });
+
+    if (existingAssignment) {
+      throw new Error('El instructor ya está asignado a esta ficha');
+    }
+
+    // Crear nueva asignación
+    const newAssignment = this.assignmentRepository.create({
+      instructorId: data.instructorId,
+      fichaId: data.fichaId,
+      subject: data.subject,
+      description: data.description,
+      isActive: true,
+      assignedAt: new Date()
+    });
+
+    const savedAssignment = await this.assignmentRepository.save(newAssignment);
+
+    console.log('✅ Instructor asignado exitosamente');
+    return {
+      id: savedAssignment.id,
+      instructorId: savedAssignment.instructorId,
+      fichaId: savedAssignment.fichaId,
+      subject: savedAssignment.subject,
+      description: savedAssignment.description,
+      isActive: savedAssignment.isActive,
+      assignedAt: savedAssignment.assignedAt
+    };
+  } catch (error) {
+    console.error('❌ Error al asignar instructor:', error);
+    throw error;
+  }
+}
+
+// ⭐ OBTENER TODAS LAS ASIGNACIONES
+async getAllInstructorAssignments(): Promise<InstructorAssignmentType[]> {
+  try {
+    console.log('📋 Obteniendo todas las asignaciones de instructores');
+
+    const assignments = await this.assignmentRepository.find({
+      relations: ['instructor', 'instructor.profile', 'ficha'],
+      order: { assignedAt: 'DESC' }
+    });
+
+    const formattedAssignments: InstructorAssignmentType[] = assignments.map(assignment => ({
+      id: assignment.id,
+      instructorId: assignment.instructorId,
+      fichaId: assignment.fichaId,
+      subject: assignment.subject,
+      description: assignment.description,
+      isActive: assignment.isActive,
+      assignedAt: assignment.assignedAt,
+      instructor: assignment.instructor?.profile ? {
+        id: assignment.instructor.id,
+        firstName: assignment.instructor.profile.firstName,
+        lastName: assignment.instructor.profile.lastName,
+        email: assignment.instructor.email
+      } : undefined,
+      ficha: assignment.ficha ? {
+        id: assignment.ficha.id,
+        code: assignment.ficha.code,
+        name: assignment.ficha.name
+      } : undefined
+    }));
+
+    console.log('✅ Asignaciones obtenidas:', formattedAssignments.length);
+    return formattedAssignments;
+  } catch (error) {
+    console.error('❌ Error al obtener asignaciones:', error);
+    return [];
+  }
+}
+
+// ⭐ ELIMINAR/DESACTIVAR ASIGNACIÓN
+async removeInstructorAssignment(assignmentId: number): Promise<{ message: string; assignmentId: number }> {
+  try {
+    console.log(`📋 Eliminando asignación ${assignmentId}`);
+
+    const assignment = await this.assignmentRepository.findOne({
+      where: { id: assignmentId }
+    });
+
+    if (!assignment) {
+      throw new Error('Asignación no encontrada');
+    }
+
+    // Desactivar en lugar de eliminar
+    assignment.isActive = false;
+    await this.assignmentRepository.save(assignment);
+
+    console.log('✅ Asignación desactivada exitosamente');
+    return {
+      message: 'Asignación desactivada exitosamente',
+      assignmentId
+    };
+  } catch (error) {
+    console.error('❌ Error al eliminar asignación:', error);
+    throw error;
+  }
+}
+
+// ⭐ ACTUALIZAR ASIGNACIÓN
+async updateInstructorAssignment(assignmentId: number, data: {
+  subject?: string;
+  description?: string;
+  isActive?: boolean;
+}): Promise<InstructorAssignmentType> {
+  try {
+    console.log(`📋 Actualizando asignación ${assignmentId}:`, data);
+
+    const assignment = await this.assignmentRepository.findOne({
+      where: { id: assignmentId },
+      relations: ['instructor', 'instructor.profile', 'ficha']
+    });
+
+    if (!assignment) {
+      throw new Error('Asignación no encontrada');
+    }
+
+    // Actualizar campos proporcionados
+    if (data.subject !== undefined) assignment.subject = data.subject;
+    if (data.description !== undefined) assignment.description = data.description;
+    if (data.isActive !== undefined) assignment.isActive = data.isActive;
+
+    const updatedAssignment = await this.assignmentRepository.save(assignment);
+
+    console.log('✅ Asignación actualizada exitosamente');
+    return {
+      id: updatedAssignment.id,
+      instructorId: updatedAssignment.instructorId,
+      fichaId: updatedAssignment.fichaId,
+      subject: updatedAssignment.subject,
+      description: updatedAssignment.description,
+      isActive: updatedAssignment.isActive,
+      assignedAt: updatedAssignment.assignedAt,
+      instructor: assignment.instructor?.profile ? {
+        id: assignment.instructor.id,
+        firstName: assignment.instructor.profile.firstName,
+        lastName: assignment.instructor.profile.lastName,
+        email: assignment.instructor.email
+      } : undefined,
+      ficha: assignment.ficha ? {
+        id: assignment.ficha.id,
+        code: assignment.ficha.code,
+        name: assignment.ficha.name
+      } : undefined
+    };
+  } catch (error) {
+    console.error('❌ Error al actualizar asignación:', error);
+    throw error;
+  }
+}
+
+// ⭐ OBTENER ASIGNACIÓN POR ID
+async getInstructorAssignmentById(assignmentId: number): Promise<InstructorAssignmentType> {
+  try {
+    console.log(`📋 Obteniendo asignación ${assignmentId}`);
+
+    const assignment = await this.assignmentRepository.findOne({
+      where: { id: assignmentId },
+      relations: ['instructor', 'instructor.profile', 'ficha']
+    });
+
+    if (!assignment) {
+      throw new Error('Asignación no encontrada');
+    }
+
+    console.log('✅ Asignación obtenida exitosamente');
+    return {
+      id: assignment.id,
+      instructorId: assignment.instructorId,
+      fichaId: assignment.fichaId,
+      subject: assignment.subject,
+      description: assignment.description,
+      isActive: assignment.isActive,
+      assignedAt: assignment.assignedAt,
+      instructor: assignment.instructor?.profile ? {
+        id: assignment.instructor.id,
+        firstName: assignment.instructor.profile.firstName,
+        lastName: assignment.instructor.profile.lastName,
+        email: assignment.instructor.email
+      } : undefined,
+      ficha: assignment.ficha ? {
+        id: assignment.ficha.id,
+        code: assignment.ficha.code,
+        name: assignment.ficha.name
+      } : undefined
+    };
+  } catch (error) {
+    console.error('❌ Error al obtener asignación:', error);
+    throw error;
+  }
+}
+
+// ⭐ OBTENER ASIGNACIONES POR INSTRUCTOR
+async getAssignmentsByInstructor(instructorId: number): Promise<InstructorAssignmentType[]> {
+  try {
+    console.log(`📋 Obteniendo asignaciones del instructor ${instructorId}`);
+
+    const assignments = await this.assignmentRepository.find({
+      where: { instructorId },
+      relations: ['instructor', 'instructor.profile', 'ficha'],
+      order: { assignedAt: 'DESC' }
+    });
+
+    const formattedAssignments = assignments.map(assignment => ({
+      id: assignment.id,
+      instructorId: assignment.instructorId,
+      fichaId: assignment.fichaId,
+      subject: assignment.subject,
+      description: assignment.description,
+      isActive: assignment.isActive,
+      assignedAt: assignment.assignedAt,
+      instructor: assignment.instructor?.profile ? {
+        id: assignment.instructor.id,
+        firstName: assignment.instructor.profile.firstName,
+        lastName: assignment.instructor.profile.lastName,
+        email: assignment.instructor.email
+      } : undefined,
+      ficha: assignment.ficha ? {
+        id: assignment.ficha.id,
+        code: assignment.ficha.code,
+        name: assignment.ficha.name
+      } : undefined
+    }));
+
+    console.log('✅ Asignaciones del instructor obtenidas:', formattedAssignments.length);
+    return formattedAssignments;
+  } catch (error) {
+    console.error('❌ Error al obtener asignaciones del instructor:', error);
+    return [];
+  }
+}
+
+// ⭐ OBTENER ASIGNACIONES POR FICHA
+async getAssignmentsByFicha(fichaId: number): Promise<InstructorAssignmentType[]> {
+  try {
+    console.log(`📋 Obteniendo asignaciones de la ficha ${fichaId}`);
+
+    const assignments = await this.assignmentRepository.find({
+      where: { fichaId },
+      relations: ['instructor', 'instructor.profile', 'ficha'],
+      order: { assignedAt: 'DESC' }
+    });
+
+    const formattedAssignments = assignments.map(assignment => ({
+      id: assignment.id,
+      instructorId: assignment.instructorId,
+      fichaId: assignment.fichaId,
+      subject: assignment.subject,
+      description: assignment.description,
+      isActive: assignment.isActive,
+      assignedAt: assignment.assignedAt,
+      instructor: assignment.instructor?.profile ? {
+        id: assignment.instructor.id,
+        firstName: assignment.instructor.profile.firstName,
+        lastName: assignment.instructor.profile.lastName,
+        email: assignment.instructor.email
+      } : undefined,
+      ficha: assignment.ficha ? {
+        id: assignment.ficha.id,
+        code: assignment.ficha.code,
+        name: assignment.ficha.name
+      } : undefined
+    }));
+
+    console.log('✅ Asignaciones de la ficha obtenidas:', formattedAssignments.length);
+    return formattedAssignments;
+  } catch (error) {
+    console.error('❌ Error al obtener asignaciones de la ficha:', error);
+    return [];
+  }
+}
+
 }

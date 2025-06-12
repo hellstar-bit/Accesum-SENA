@@ -1,5 +1,5 @@
 // backend/src/config/entities/ficha-competence.entity.ts
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, ManyToOne, JoinColumn, Column, CreateDateColumn } from 'typeorm';
 import { Ficha } from './ficha.entity';
 import { Competence } from './competence.entity';
 
@@ -8,7 +8,7 @@ export class FichaCompetence {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @ManyToOne(() => Ficha, ficha => ficha.competenceAssignments)
+  @ManyToOne(() => Ficha, ficha => ficha.fichaCompetences)
   @JoinColumn({ name: 'fichaId' })
   ficha: Ficha;
 
@@ -25,9 +25,10 @@ export class FichaCompetence {
   @Column({ default: true })
   isActive: boolean;
 
-  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+  // ⭐ AGREGAR LA PROPIEDAD assignedAt QUE FALTA
+  @CreateDateColumn()
   assignedAt: Date;
 
-  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+  @CreateDateColumn()
   createdAt: Date;
 }

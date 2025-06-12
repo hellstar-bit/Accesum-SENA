@@ -13,8 +13,17 @@ interface TimeSlot {
   classroom?: string;
   subject: string;
   assignmentId?: number;
+  // ✅ AGREGAR ESTAS PROPIEDADES PARA LOS DATOS DEL BACKEND
+  competence?: {
+    id: number;
+    name: string;
+    code?: string;
+  };
+  instructor?: {
+    id: number;
+    name: string;
+  };
 }
-
 interface TrimesterSchedule {
   LUNES: TimeSlot[];
   MARTES: TimeSlot[];
@@ -153,11 +162,15 @@ const TrimesterScheduleManagement: React.FC = () => {
 
     try {
       setLoading(true);
+      console.log(`🔄 Frontend: Cargando horarios para ficha ${selectedFicha}, trimestre ${selectedTrimester}`);
+      
       const scheduleData = await scheduleService.getTrimesterSchedule(
         selectedFicha,
         selectedTrimester
       );
       
+      console.log('🔍 Frontend: Datos recibidos del backend:', scheduleData);
+
       const mappedSchedule: TrimesterSchedule = {
         LUNES: [],
         MARTES: [],
@@ -169,24 +182,32 @@ const TrimesterScheduleManagement: React.FC = () => {
 
       Object.keys(scheduleData).forEach((day: string) => {
         if (Array.isArray(scheduleData[day])) {
-          mappedSchedule[day] = scheduleData[day].map((block: any): TimeSlot => ({
-            id: block.id,
-            startTime: block.startTime,
-            endTime: block.endTime,
-            fichaId: block.fichaId || selectedFicha,
-            instructorId: block.instructorId,
-            competenceId: block.competenceId,
-            classroom: block.classroom,
-            subject: block.subject || getCompetenceName(block.competenceId),
-            assignmentId: block.assignmentId
-          }));
+          mappedSchedule[day] = scheduleData[day].map((block: any): TimeSlot => {
+            console.log(`🔍 Frontend: Mapeando bloque para ${day}:`, block);
+            
+            return {
+              id: block.id,
+              startTime: block.startTime,
+              endTime: block.endTime,
+              fichaId: block.fichaId || selectedFicha,
+              instructorId: block.instructor?.id || block.instructorId,
+              competenceId: block.competence?.id || block.competenceId,
+              classroom: block.classroom,
+              subject: block.competence?.name || 'Sin competencia',
+              assignmentId: block.assignmentId,
+              // ✅ AGREGAR REFERENCIAS DIRECTAS PARA FÁCIL ACCESO
+              competence: block.competence,
+              instructor: block.instructor
+            };
+          });
         }
       });
 
+      console.log('✅ Frontend: Horarios mapeados exitosamente:', mappedSchedule);
       setTrimesterSchedule(mappedSchedule);
     } catch (error: any) {
       setError('Error al cargar horarios del trimestre');
-      console.error(error);
+      console.error('❌ Frontend: Error al cargar horarios:', error);
     } finally {
       setLoading(false);
     }
@@ -312,11 +333,13 @@ const TrimesterScheduleManagement: React.FC = () => {
   };
 
   const getInstructorName = (instructorId: number): string => {
+    // Buscar en la lista local de instructores
     const instructor = instructors.find(i => i.id === instructorId);
     return instructor ? instructor.name : 'Instructor no encontrado';
   };
 
   const getCompetenceName = (competenceId: number): string => {
+    // Buscar en la lista local de competencias
     const competence = competences.find(c => c.id === competenceId);
     return competence ? competence.name : 'Competencia no encontrada';
   };

@@ -3,7 +3,7 @@ import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, JoinColum
 import { Program } from './program.entity';
 import { Profile } from '../../profiles/entities/profile.entity';
 import { InstructorAssignment } from '../../attendance/entities/instructor-assignment.entity';
-import { FichaCompetence } from './ficha-competence.entity'; // ⭐ AGREGAR IMPORTACIÓN
+import { FichaCompetence } from './ficha-competence.entity';
 
 @Entity('fichas')
 export class Ficha {
@@ -35,15 +35,18 @@ export class Ficha {
   @Column()
   programId: number;
 
+  // ✅ MANTENER SOLO ESTA RELACIÓN (remover la duplicada)
+  @OneToMany(() => FichaCompetence, fichaCompetence => fichaCompetence.ficha)
+  fichaCompetences: FichaCompetence[];
+
   @OneToMany(() => Profile, profile => profile.ficha)
   profiles: Profile[];
 
   @OneToMany(() => InstructorAssignment, assignment => assignment.ficha)
   instructorAssignments: InstructorAssignment[];
 
-  // ⭐ AGREGAR ESTA RELACIÓN
-  @OneToMany(() => FichaCompetence, fichaCompetence => fichaCompetence.ficha)
-  competenceAssignments: FichaCompetence[];
+  @Column({ default: true })
+  isActive: boolean;
 
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;

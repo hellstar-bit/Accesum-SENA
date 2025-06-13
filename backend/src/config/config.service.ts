@@ -1,4 +1,4 @@
-// backend/src/config/config.service.ts - CON MÉTODO FALTANTE AGREGADO
+// backend/src/config/config.service.ts - VERSIÓN CORREGIDA
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -39,8 +39,347 @@ export class ConfigService {
     private readonly roleRepository: Repository<Role>,
   ) {}
 
-  // ✅ MÉTODOS PARA FICHAS
-  async getAllFichas() {
+  // ==================== REGIONALES ====================
+
+  async getAllRegionals(): Promise<Regional[]> {
+    try {
+      console.log('🔄 Obteniendo todas las regionales');
+      
+      const regionales = await this.regionalRepository.find({
+        relations: ['centers'],
+        order: { name: 'ASC' }
+      });
+
+      console.log(`✅ Se encontraron ${regionales.length} regionales`);
+      return regionales;
+    } catch (error) {
+      console.error('❌ Error al obtener regionales:', error);
+      throw error;
+    }
+  }
+
+  async createRegional(data: { name: string }): Promise<Regional> {
+    try {
+      console.log('🔄 Creando nueva regional:', data);
+      
+      const regional = this.regionalRepository.create({
+        name: data.name
+      });
+      
+      const savedRegional = await this.regionalRepository.save(regional);
+      console.log(`✅ Regional creada exitosamente con ID ${savedRegional.id}`);
+      
+      return savedRegional;
+    } catch (error) {
+      console.error('❌ Error al crear regional:', error);
+      throw error;
+    }
+  }
+
+  async updateRegional(id: number, data: { name: string }): Promise<Regional> {
+    try {
+      console.log(`🔄 Actualizando regional ${id}:`, data);
+      
+      const regional = await this.regionalRepository.findOne({ where: { id } });
+      if (!regional) {
+        throw new Error('Regional no encontrada');
+      }
+      
+      regional.name = data.name;
+      const updatedRegional = await this.regionalRepository.save(regional);
+      
+      console.log(`✅ Regional actualizada exitosamente`);
+      return updatedRegional;
+    } catch (error) {
+      console.error('❌ Error al actualizar regional:', error);
+      throw error;
+    }
+  }
+
+  async deleteRegional(id: number): Promise<void> {
+    try {
+      console.log(`🔄 Eliminando regional ${id}`);
+      
+      const regional = await this.regionalRepository.findOne({ where: { id } });
+      if (!regional) {
+        throw new Error('Regional no encontrada');
+      }
+      
+      await this.regionalRepository.remove(regional);
+      console.log(`✅ Regional eliminada exitosamente`);
+    } catch (error) {
+      console.error('❌ Error al eliminar regional:', error);
+      throw error;
+    }
+  }
+
+  // ==================== CENTROS ====================
+
+  async getAllCenters(): Promise<Center[]> {
+    try {
+      console.log('🔄 Obteniendo todos los centros');
+      
+      const centers = await this.centerRepository.find({
+        relations: ['regional', 'coordinations'],
+        order: { name: 'ASC' }
+      });
+
+      console.log(`✅ Se encontraron ${centers.length} centros`);
+      return centers;
+    } catch (error) {
+      console.error('❌ Error al obtener centros:', error);
+      throw error;
+    }
+  }
+
+  async getCentersByRegional(regionalId: number): Promise<Center[]> {
+    try {
+      console.log(`🔄 Obteniendo centros para regional ID ${regionalId}`);
+      
+      const centers = await this.centerRepository.find({
+        where: { regionalId },
+        relations: ['regional'],
+        order: { name: 'ASC' }
+      });
+
+      console.log(`✅ Se encontraron ${centers.length} centros para la regional ${regionalId}`);
+      return centers;
+    } catch (error) {
+      console.error(`❌ Error al obtener centros de regional ${regionalId}:`, error);
+      throw error;
+    }
+  }
+
+  async createCenter(data: { name: string; regionalId: number }): Promise<Center> {
+    try {
+      console.log('🔄 Creando nuevo centro:', data);
+      
+      const center = this.centerRepository.create({
+        name: data.name,
+        regionalId: data.regionalId
+      });
+      
+      const savedCenter = await this.centerRepository.save(center);
+      console.log(`✅ Centro creado exitosamente con ID ${savedCenter.id}`);
+      
+      // Retornar con relaciones
+      const centerWithRelations = await this.centerRepository.findOne({
+        where: { id: savedCenter.id },
+        relations: ['regional']
+      });
+      
+      return centerWithRelations!;
+    } catch (error) {
+      console.error('❌ Error al crear centro:', error);
+      throw error;
+    }
+  }
+
+  async updateCenter(id: number, data: { name?: string; regionalId?: number }): Promise<Center> {
+    try {
+      console.log(`🔄 Actualizando centro ${id}:`, data);
+      
+      const center = await this.centerRepository.findOne({ 
+        where: { id },
+        relations: ['regional']
+      });
+      if (!center) {
+        throw new Error('Centro no encontrado');
+      }
+      
+      if (data.name) center.name = data.name;
+      if (data.regionalId) center.regionalId = data.regionalId;
+      
+      const updatedCenter = await this.centerRepository.save(center);
+      
+      // Retornar con relaciones actualizadas
+      const centerWithRelations = await this.centerRepository.findOne({
+        where: { id: updatedCenter.id },
+        relations: ['regional']
+      });
+      
+      return centerWithRelations!;
+    } catch (error) {
+      console.error('❌ Error al actualizar centro:', error);
+      throw error;
+    }
+  }
+
+  async deleteCenter(id: number): Promise<void> {
+    try {
+      console.log(`🔄 Eliminando centro ${id}`);
+      
+      const center = await this.centerRepository.findOne({ where: { id } });
+      if (!center) {
+        throw new Error('Centro no encontrado');
+      }
+      
+      await this.centerRepository.remove(center);
+      console.log(`✅ Centro eliminado exitosamente`);
+    } catch (error) {
+      console.error('❌ Error al eliminar centro:', error);
+      throw error;
+    }
+  }
+
+  // ==================== COORDINACIONES ====================
+
+  async getAllCoordinations(): Promise<Coordination[]> {
+    try {
+      console.log('🔄 Obteniendo todas las coordinaciones');
+      
+      const coordinations = await this.coordinationRepository.find({
+        relations: ['center', 'center.regional', 'programs'],
+        order: { name: 'ASC' }
+      });
+
+      console.log(`✅ Se encontraron ${coordinations.length} coordinaciones`);
+      return coordinations;
+    } catch (error) {
+      console.error('❌ Error al obtener coordinaciones:', error);
+      throw error;
+    }
+  }
+
+  async createCoordination(data: { name: string; centerId: number }): Promise<Coordination> {
+    try {
+      console.log('🔄 Creando nueva coordinación:', data);
+      
+      const coordination = this.coordinationRepository.create({
+        name: data.name,
+        centerId: data.centerId
+      });
+      
+      const savedCoordination = await this.coordinationRepository.save(coordination);
+      console.log(`✅ Coordinación creada exitosamente con ID ${savedCoordination.id}`);
+      
+      // Retornar con relaciones
+      const coordinationWithRelations = await this.coordinationRepository.findOne({
+        where: { id: savedCoordination.id },
+        relations: ['center', 'center.regional']
+      });
+      
+      return coordinationWithRelations!;
+    } catch (error) {
+      console.error('❌ Error al crear coordinación:', error);
+      throw error;
+    }
+  }
+
+  async updateCoordination(id: number, data: { name?: string; centerId?: number }): Promise<Coordination> {
+    try {
+      console.log(`🔄 Actualizando coordinación ${id}:`, data);
+      
+      const coordination = await this.coordinationRepository.findOne({ 
+        where: { id },
+        relations: ['center', 'center.regional']
+      });
+      if (!coordination) {
+        throw new Error('Coordinación no encontrada');
+      }
+      
+      if (data.name) coordination.name = data.name;
+      if (data.centerId) coordination.centerId = data.centerId;
+      
+      const updatedCoordination = await this.coordinationRepository.save(coordination);
+      
+      const coordinationWithRelations = await this.coordinationRepository.findOne({
+        where: { id: updatedCoordination.id },
+        relations: ['center', 'center.regional']
+      });
+      
+      return coordinationWithRelations!;
+    } catch (error) {
+      console.error('❌ Error al actualizar coordinación:', error);
+      throw error;
+    }
+  }
+
+  async deleteCoordination(id: number): Promise<void> {
+    try {
+      console.log(`🔄 Eliminando coordinación ${id}`);
+      
+      const coordination = await this.coordinationRepository.findOne({ where: { id } });
+      if (!coordination) {
+        throw new Error('Coordinación no encontrada');
+      }
+      
+      await this.coordinationRepository.remove(coordination);
+      console.log(`✅ Coordinación eliminada exitosamente`);
+    } catch (error) {
+      console.error('❌ Error al eliminar coordinación:', error);
+      throw error;
+    }
+  }
+
+  // ==================== PROGRAMAS ====================
+
+  async getAllPrograms(): Promise<Program[]> {
+    try {
+      console.log('🔄 Obteniendo todos los programas');
+      
+      const programs = await this.programRepository.find({
+        relations: ['coordination', 'coordination.center', 'competences'],
+        order: { code: 'ASC' }
+      });
+
+      console.log(`✅ Se encontraron ${programs.length} programas`);
+      return programs;
+    } catch (error) {
+      console.error('❌ Error al obtener programas:', error);
+      throw error;
+    }
+  }
+
+  async createProgram(data: {
+    code: string;
+    name: string;
+    coordinationId: number;
+    description?: string;
+    totalHours?: number;
+    status?: string;
+  }): Promise<Program> {
+    try {
+      console.log('🔄 Creando nuevo programa:', data);
+
+      // Verificar que la coordinación existe
+      const coordination = await this.coordinationRepository.findOne({
+        where: { id: data.coordinationId }
+      });
+
+      if (!coordination) {
+        throw new Error('Coordinación no encontrada');
+      }
+
+      const programData = {
+        code: data.code,
+        name: data.name,
+        coordinationId: data.coordinationId,
+        description: data.description,
+        totalHours: data.totalHours || 0,
+        status: data.status || 'ACTIVO'
+      };
+
+      const program = this.programRepository.create(programData);
+      const savedProgram = await this.programRepository.save(program);
+      console.log(`✅ Programa creado exitosamente con ID ${savedProgram.id}`);
+
+      // Retornar el programa con sus relaciones
+      const programWithRelations = await this.programRepository.findOne({
+        where: { id: savedProgram.id },
+        relations: ['coordination', 'coordination.center']
+      });
+      
+      return programWithRelations!;
+    } catch (error) {
+      console.error('❌ Error al crear programa:', error);
+      throw error;
+    }
+  }
+
+  // ==================== FICHAS ====================
+
+  async getAllFichas(): Promise<Ficha[]> {
     try {
       console.log('🔄 Obteniendo todas las fichas');
       
@@ -57,7 +396,7 @@ export class ConfigService {
     }
   }
 
-  async getFichaById(id: number) {
+  async getFichaById(id: number): Promise<Ficha | null> {
     try {
       console.log(`🔄 Obteniendo ficha con ID ${id}`);
       
@@ -87,7 +426,7 @@ export class ConfigService {
     endDate?: string;
     reportDate?: string;
     status?: string;
-  }) {
+  }): Promise<Ficha> {
     try {
       console.log('🔄 Creando nueva ficha:', data);
 
@@ -115,148 +454,167 @@ export class ConfigService {
       const savedFicha = await this.fichaRepository.save(ficha);
       console.log(`✅ Ficha creada exitosamente con ID ${savedFicha.id}`);
 
-      return await this.getFichaById(savedFicha.id);
+      // Retornar la ficha con sus relaciones
+      const fichaWithRelations = await this.getFichaById(savedFicha.id);
+      return fichaWithRelations!;
     } catch (error) {
       console.error('❌ Error al crear ficha:', error);
       throw error;
     }
   }
 
-  // ✅ MÉTODOS PARA PROGRAMAS
-  async getAllPrograms() {
+  // ==================== ROLES ====================
+
+  async getAllRoles(): Promise<Role[]> {
     try {
-      console.log('🔄 Obteniendo todos los programas');
+      console.log('🔄 Obteniendo todos los roles');
       
-      const programs = await this.programRepository.find({
-        relations: ['coordination', 'coordination.center', 'competences'],
-        order: { code: 'ASC' }
+      const roles = await this.roleRepository.find({
+        order: { name: 'ASC' }
       });
 
-      console.log(`✅ Se encontraron ${programs.length} programas`);
-      return programs;
+      console.log(`✅ Se encontraron ${roles.length} roles`);
+      return roles;
     } catch (error) {
-      console.error('❌ Error al obtener programas:', error);
+      console.error('❌ Error al obtener roles:', error);
       throw error;
     }
   }
 
-  async createProgram(data: {
-    code: string;
-    name: string;
-    coordinationId: number;
-    description?: string;
-    totalHours?: number;
-    status?: string;
-  }) {
+  async createRole(data: { name: string; description?: string }): Promise<Role> {
     try {
-      console.log('🔄 Creando nuevo programa:', data);
-
-      const coordination = await this.coordinationRepository.findOne({
-        where: { id: data.coordinationId }
-      });
-
-      if (!coordination) {
-        throw new Error('Coordinación no encontrada');
-      }
-
-      const programData = {
-        code: data.code,
+      console.log('🔄 Creando nuevo rol:', data);
+      
+      const role = this.roleRepository.create({
         name: data.name,
-        coordinationId: data.coordinationId,
-        description: data.description,
-        totalHours: data.totalHours || 0,
-        status: data.status || 'ACTIVO'
-      };
-
-      const program = this.programRepository.create(programData);
-      const savedProgram = await this.programRepository.save(program);
-      console.log(`✅ Programa creado exitosamente con ID ${savedProgram.id}`);
-
-      return await this.programRepository.findOne({
-        where: { id: savedProgram.id },
-        relations: ['coordination', 'coordination.center']
+        description: data.description
       });
+      
+      const savedRole = await this.roleRepository.save(role);
+      console.log(`✅ Rol creado exitosamente con ID ${savedRole.id}`);
+      
+      return savedRole;
     } catch (error) {
-      console.error('❌ Error al crear programa:', error);
+      console.error('❌ Error al crear rol:', error);
       throw error;
     }
   }
 
-  // ✅ MÉTODOS PARA COORDINACIONES
-  async getAllCoordinations() {
+  async updateRole(id: number, data: { name?: string; description?: string }): Promise<Role> {
     try {
-      console.log('🔄 Obteniendo todas las coordinaciones');
+      console.log(`🔄 Actualizando rol ${id}:`, data);
       
-      const coordinations = await this.coordinationRepository.find({
-        relations: ['center', 'center.regional', 'programs'],
+      const role = await this.roleRepository.findOne({ where: { id } });
+      if (!role) {
+        throw new Error('Rol no encontrado');
+      }
+      
+      if (data.name) role.name = data.name;
+      if (data.description !== undefined) role.description = data.description;
+      
+      const updatedRole = await this.roleRepository.save(role);
+      console.log(`✅ Rol actualizado exitosamente`);
+      
+      return updatedRole;
+    } catch (error) {
+      console.error('❌ Error al actualizar rol:', error);
+      throw error;
+    }
+  }
+
+  async deleteRole(id: number): Promise<void> {
+    try {
+      console.log(`🔄 Eliminando rol ${id}`);
+      
+      const role = await this.roleRepository.findOne({ where: { id } });
+      if (!role) {
+        throw new Error('Rol no encontrado');
+      }
+      
+      await this.roleRepository.remove(role);
+      console.log(`✅ Rol eliminado exitosamente`);
+    } catch (error) {
+      console.error('❌ Error al eliminar rol:', error);
+      throw error;
+    }
+  }
+
+  // ==================== TIPOS DE PERSONAL ====================
+
+  async getAllPersonnelTypes(): Promise<PersonnelType[]> {
+    try {
+      console.log('🔄 Obteniendo todos los tipos de personal');
+      
+      const types = await this.personnelTypeRepository.find({
         order: { name: 'ASC' }
       });
 
-      console.log(`✅ Se encontraron ${coordinations.length} coordinaciones`);
-      return coordinations;
+      console.log(`✅ Se encontraron ${types.length} tipos de personal`);
+      return types;
     } catch (error) {
-      console.error('❌ Error al obtener coordinaciones:', error);
+      console.error('❌ Error al obtener tipos de personal:', error);
       throw error;
     }
   }
 
-  // ✅ MÉTODOS PARA CENTROS
-  async getAllCenters() {
+  async createPersonnelType(data: { name: string }): Promise<PersonnelType> {
     try {
-      console.log('🔄 Obteniendo todos los centros');
+      console.log('🔄 Creando nuevo tipo de personal:', data);
       
-      const centers = await this.centerRepository.find({
-        relations: ['regional', 'coordinations'],
-        order: { name: 'ASC' }
+      const personnelType = this.personnelTypeRepository.create({
+        name: data.name
       });
-
-      console.log(`✅ Se encontraron ${centers.length} centros`);
-      return centers;
+      
+      const savedPersonnelType = await this.personnelTypeRepository.save(personnelType);
+      console.log(`✅ Tipo de personal creado exitosamente con ID ${savedPersonnelType.id}`);
+      
+      return savedPersonnelType;
     } catch (error) {
-      console.error('❌ Error al obtener centros:', error);
+      console.error('❌ Error al crear tipo de personal:', error);
       throw error;
     }
   }
 
-  // 🆕 NUEVO: OBTENER CENTROS POR REGIONAL
-  async getCentersByRegional(regionalId: number) {
+  async updatePersonnelType(id: number, data: { name: string }): Promise<PersonnelType> {
     try {
-      console.log(`🔄 Obteniendo centros para regional ID ${regionalId}`);
+      console.log(`🔄 Actualizando tipo de personal ${id}:`, data);
       
-      const centers = await this.centerRepository.find({
-        where: { regionalId }, // o { regional: { id: regionalId } } dependiendo de tu schema
-        relations: ['regional'],
-        order: { name: 'ASC' }
-      });
-
-      console.log(`✅ Se encontraron ${centers.length} centros para la regional ${regionalId}`);
-      return centers;
+      const personnelType = await this.personnelTypeRepository.findOne({ where: { id } });
+      if (!personnelType) {
+        throw new Error('Tipo de personal no encontrado');
+      }
+      
+      personnelType.name = data.name;
+      const updatedPersonnelType = await this.personnelTypeRepository.save(personnelType);
+      
+      console.log(`✅ Tipo de personal actualizado exitosamente`);
+      return updatedPersonnelType;
     } catch (error) {
-      console.error(`❌ Error al obtener centros de regional ${regionalId}:`, error);
+      console.error('❌ Error al actualizar tipo de personal:', error);
       throw error;
     }
   }
 
-  // ✅ MÉTODOS PARA REGIONALES
-  async getAllRegionals() {
+  async deletePersonnelType(id: number): Promise<void> {
     try {
-      console.log('🔄 Obteniendo todas las regionales');
+      console.log(`🔄 Eliminando tipo de personal ${id}`);
       
-      const regionals = await this.regionalRepository.find({
-        relations: ['centers'],
-        order: { name: 'ASC' }
-      });
-
-      console.log(`✅ Se encontraron ${regionals.length} regionales`);
-      return regionals;
+      const personnelType = await this.personnelTypeRepository.findOne({ where: { id } });
+      if (!personnelType) {
+        throw new Error('Tipo de personal no encontrado');
+      }
+      
+      await this.personnelTypeRepository.remove(personnelType);
+      console.log(`✅ Tipo de personal eliminado exitosamente`);
     } catch (error) {
-      console.error('❌ Error al obtener regionales:', error);
+      console.error('❌ Error al eliminar tipo de personal:', error);
       throw error;
     }
   }
 
-  // ✅ MÉTODO PARA OBTENER COMPETENCIAS
-  async getAllCompetences() {
+  // ==================== COMPETENCIAS ====================
+
+  async getAllCompetences(): Promise<Competence[]> {
     try {
       console.log('🔄 Obteniendo todas las competencias desde ConfigService');
       
@@ -274,41 +632,8 @@ export class ConfigService {
     }
   }
 
-  // ✅ MÉTODOS PARA TIPOS DE PERSONAL
-  async getAllPersonnelTypes() {
-    try {
-      console.log('🔄 Obteniendo todos los tipos de personal');
-      
-      const types = await this.personnelTypeRepository.find({
-        order: { name: 'ASC' }
-      });
+  // ==================== ESTADÍSTICAS GENERALES ====================
 
-      console.log(`✅ Se encontraron ${types.length} tipos de personal`);
-      return types;
-    } catch (error) {
-      console.error('❌ Error al obtener tipos de personal:', error);
-      throw error;
-    }
-  }
-
-  // ✅ MÉTODOS PARA ROLES
-  async getAllRoles() {
-    try {
-      console.log('🔄 Obteniendo todos los roles');
-      
-      const roles = await this.roleRepository.find({
-        order: { name: 'ASC' }
-      });
-
-      console.log(`✅ Se encontraron ${roles.length} roles`);
-      return roles;
-    } catch (error) {
-      console.error('❌ Error al obtener roles:', error);
-      throw error;
-    }
-  }
-
-  // ✅ MÉTODO DE ESTADÍSTICAS GENERALES
   async getSystemStats() {
     try {
       console.log('🔄 Obteniendo estadísticas del sistema');

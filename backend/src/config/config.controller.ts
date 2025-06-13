@@ -1,5 +1,5 @@
 // backend/src/config/config.controller.ts - CON ENDPOINT FALTANTE AGREGADO
-import { Controller, Get, Post, Body, UseGuards, Param, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, UseGuards, Param, ParseIntPipe } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -235,6 +235,327 @@ export class ConfigController {
       };
     } catch (error) {
       console.error('❌ Error al crear programa:', error);
+      throw error;
+    }
+  }
+
+  // 🆕 CREAR NUEVA REGIONAL
+  @Post('regionales')
+  @Roles('Administrador')
+  async createRegional(@Body() data: {
+    name: string;
+  }) {
+    try {
+      console.log('🌐 POST /config/regionales', data);
+      const result = await this.configService.createRegional(data);
+      console.log('✅ Regional creada exitosamente');
+      
+      return {
+        success: true,
+        data: result,
+        message: 'Regional creada exitosamente'
+      };
+    } catch (error) {
+      console.error('❌ Error al crear regional:', error);
+      throw error;
+    }
+  }
+
+  // 🆕 ACTUALIZAR REGIONAL
+  @Put('regionales/:id')
+  @Roles('Administrador')
+  async updateRegional(@Param('id', ParseIntPipe) id: number, @Body() data: {
+    name: string;
+  }) {
+    try {
+      console.log(`🌐 PUT /config/regionales/${id}`, data);
+      const result = await this.configService.updateRegional(id, data);
+      console.log('✅ Regional actualizada exitosamente');
+      
+      return {
+        success: true,
+        data: result,
+        message: 'Regional actualizada exitosamente'
+      };
+    } catch (error) {
+      console.error('❌ Error al actualizar regional:', error);
+      throw error;
+    }
+  }
+
+  // 🆕 ELIMINAR REGIONAL
+  @Delete('regionales/:id')
+  @Roles('Administrador')
+  async deleteRegional(@Param('id', ParseIntPipe) id: number) {
+    try {
+      console.log(`🌐 DELETE /config/regionales/${id}`);
+      await this.configService.deleteRegional(id);
+      console.log('✅ Regional eliminada exitosamente');
+      
+      return {
+        success: true,
+        message: 'Regional eliminada exitosamente'
+      };
+    } catch (error) {
+      console.error('❌ Error al eliminar regional:', error);
+      throw error;
+    }
+  }
+
+  // 🆕 CREAR NUEVO CENTRO
+  @Post('centers')
+  @Roles('Administrador')
+  async createCenter(@Body() data: {
+    name: string;
+    regionalId: number;
+  }) {
+    try {
+      console.log('🌐 POST /config/centers', data);
+      const result = await this.configService.createCenter(data);
+      console.log('✅ Centro creado exitosamente');
+      
+      return {
+        success: true,
+        data: result,
+        message: 'Centro creado exitosamente'
+      };
+    } catch (error) {
+      console.error('❌ Error al crear centro:', error);
+      throw error;
+    }
+  }
+
+  // 🆕 ACTUALIZAR CENTRO
+  @Put('centers/:id')
+  @Roles('Administrador')
+  async updateCenter(@Param('id', ParseIntPipe) id: number, @Body() data: {
+    name?: string;
+    regionalId?: number;
+  }) {
+    try {
+      console.log(`🌐 PUT /config/centers/${id}`, data);
+      const result = await this.configService.updateCenter(id, data);
+      console.log('✅ Centro actualizado exitosamente');
+      
+      return {
+        success: true,
+        data: result,
+        message: 'Centro actualizado exitosamente'
+      };
+    } catch (error) {
+      console.error('❌ Error al actualizar centro:', error);
+      throw error;
+    }
+  }
+
+  // 🆕 ELIMINAR CENTRO
+  @Delete('centers/:id')
+  @Roles('Administrador')
+  async deleteCenter(@Param('id', ParseIntPipe) id: number) {
+    try {
+      console.log(`🌐 DELETE /config/centers/${id}`);
+      await this.configService.deleteCenter(id);
+      console.log('✅ Centro eliminado exitosamente');
+      
+      return {
+        success: true,
+        message: 'Centro eliminado exitosamente'
+      };
+    } catch (error) {
+      console.error('❌ Error al eliminar centro:', error);
+      throw error;
+    }
+  }
+
+  // 🆕 CREAR NUEVA COORDINACIÓN
+  @Post('coordinations')
+  @Roles('Administrador')
+  async createCoordination(@Body() data: {
+    name: string;
+    centerId: number;
+  }) {
+    try {
+      console.log('🌐 POST /config/coordinations', data);
+      const result = await this.configService.createCoordination(data);
+      console.log('✅ Coordinación creada exitosamente');
+      
+      return {
+        success: true,
+        data: result,
+        message: 'Coordinación creada exitosamente'
+      };
+    } catch (error) {
+      console.error('❌ Error al crear coordinación:', error);
+      throw error;
+    }
+  }
+
+  // 🆕 ACTUALIZAR COORDINACIÓN
+  @Put('coordinations/:id')
+  @Roles('Administrador')
+  async updateCoordination(@Param('id', ParseIntPipe) id: number, @Body() data: {
+    name?: string;
+    centerId?: number;
+  }) {
+    try {
+      console.log(`🌐 PUT /config/coordinations/${id}`, data);
+      const result = await this.configService.updateCoordination(id, data);
+      console.log('✅ Coordinación actualizada exitosamente');
+      
+      return {
+        success: true,
+        data: result,
+        message: 'Coordinación actualizada exitosamente'
+      };
+    } catch (error) {
+      console.error('❌ Error al actualizar coordinación:', error);
+      throw error;
+    }
+  }
+
+  // 🆕 ELIMINAR COORDINACIÓN
+  @Delete('coordinations/:id')
+  @Roles('Administrador')
+  async deleteCoordination(@Param('id', ParseIntPipe) id: number) {
+    try {
+      console.log(`🌐 DELETE /config/coordinations/${id}`);
+      await this.configService.deleteCoordination(id);
+      console.log('✅ Coordinación eliminada exitosamente');
+      
+      return {
+        success: true,
+        message: 'Coordinación eliminada exitosamente'
+      };
+    } catch (error) {
+      console.error('❌ Error al eliminar coordinación:', error);
+      throw error;
+    }
+  }
+
+  // 🆕 CREAR NUEVO ROL
+  @Post('roles')
+  @Roles('Administrador')
+  async createRole(@Body() data: {
+    name: string;
+    description?: string;
+  }) {
+    try {
+      console.log('🌐 POST /config/roles', data);
+      const result = await this.configService.createRole(data);
+      console.log('✅ Rol creado exitosamente');
+      
+      return {
+        success: true,
+        data: result,
+        message: 'Rol creado exitosamente'
+      };
+    } catch (error) {
+      console.error('❌ Error al crear rol:', error);
+      throw error;
+    }
+  }
+
+  // 🆕 ACTUALIZAR ROL
+  @Put('roles/:id')
+  @Roles('Administrador')
+  async updateRole(@Param('id', ParseIntPipe) id: number, @Body() data: {
+    name?: string;
+    description?: string;
+  }) {
+    try {
+      console.log(`🌐 PUT /config/roles/${id}`, data);
+      const result = await this.configService.updateRole(id, data);
+      console.log('✅ Rol actualizado exitosamente');
+      
+      return {
+        success: true,
+        data: result,
+        message: 'Rol actualizado exitosamente'
+      };
+    } catch (error) {
+      console.error('❌ Error al actualizar rol:', error);
+      throw error;
+    }
+  }
+
+  // 🆕 ELIMINAR ROL
+  @Delete('roles/:id')
+  @Roles('Administrador')
+  async deleteRole(@Param('id', ParseIntPipe) id: number) {
+    try {
+      console.log(`🌐 DELETE /config/roles/${id}`);
+      await this.configService.deleteRole(id);
+      console.log('✅ Rol eliminado exitosamente');
+      
+      return {
+        success: true,
+        message: 'Rol eliminado exitosamente'
+      };
+    } catch (error) {
+      console.error('❌ Error al eliminar rol:', error);
+      throw error;
+    }
+  }
+
+  // 🆕 CREAR NUEVO TIPO DE PERSONAL
+  @Post('personnel-types')
+  @Roles('Administrador')
+  async createPersonnelType(@Body() data: {
+    name: string;
+  }) {
+    try {
+      console.log('🌐 POST /config/personnel-types', data);
+      const result = await this.configService.createPersonnelType(data);
+      console.log('✅ Tipo de personal creado exitosamente');
+      
+      return {
+        success: true,
+        data: result,
+        message: 'Tipo de personal creado exitosamente'
+      };
+    } catch (error) {
+      console.error('❌ Error al crear tipo de personal:', error);
+      throw error;
+    }
+  }
+
+  // 🆕 ACTUALIZAR TIPO DE PERSONAL
+  @Put('personnel-types/:id')
+  @Roles('Administrador')
+  async updatePersonnelType(@Param('id', ParseIntPipe) id: number, @Body() data: {
+    name: string;
+  }) {
+    try {
+      console.log(`🌐 PUT /config/personnel-types/${id}`, data);
+      const result = await this.configService.updatePersonnelType(id, data);
+      console.log('✅ Tipo de personal actualizado exitosamente');
+      
+      return {
+        success: true,
+        data: result,
+        message: 'Tipo de personal actualizado exitosamente'
+      };
+    } catch (error) {
+      console.error('❌ Error al actualizar tipo de personal:', error);
+      throw error;
+    }
+  }
+
+  // 🆕 ELIMINAR TIPO DE PERSONAL
+  @Delete('personnel-types/:id')
+  @Roles('Administrador')
+  async deletePersonnelType(@Param('id', ParseIntPipe) id: number) {
+    try {
+      console.log(`🌐 DELETE /config/personnel-types/${id}`);
+      await this.configService.deletePersonnelType(id);
+      console.log('✅ Tipo de personal eliminado exitosamente');
+      
+      return {
+        success: true,
+        message: 'Tipo de personal eliminado exitosamente'
+      };
+    } catch (error) {
+      console.error('❌ Error al eliminar tipo de personal:', error);
       throw error;
     }
   }

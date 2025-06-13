@@ -75,42 +75,53 @@ const Configuration = () => {
       switch (activeTab) {
         case 'roles':
           const rolesData = await configService.getRoles();
-          setRoles(rolesData);
+          // Asegurar que sea un array
+          setRoles(Array.isArray(rolesData) ? rolesData : []);
           break;
         case 'personnel-types':
           const typesData = await configService.getPersonnelTypes();
-          setPersonnelTypes(typesData);
+          setPersonnelTypes(Array.isArray(typesData) ? typesData : []);
           break;
         case 'regionales':
           const regionalesData = await configService.getRegionales();
-          setRegionales(regionalesData);
+          setRegionales(Array.isArray(regionalesData) ? regionalesData : []);
           break;
         case 'centers':
           const [centersData, regionalesForCenters] = await Promise.all([
             configService.getCenters(),
             configService.getRegionales()
           ]);
-          setCenters(centersData);
-          setRegionales(regionalesForCenters);
+          setCenters(Array.isArray(centersData) ? centersData : []);
+          setRegionales(Array.isArray(regionalesForCenters) ? regionalesForCenters : []);
           break;
         case 'coordinations':
           const [coordinationsData, centersForCoordinations] = await Promise.all([
-            Promise.all((await configService.getCenters()).map(center => 
-              configService.getCoordinationsByCenter(center.id)
-            )).then(arrays => arrays.flat()),
+            configService.getCoordinations(),
             configService.getCenters()
           ]);
-          setCoordinations(coordinationsData);
-          setCenters(centersForCoordinations);
+          setCoordinations(Array.isArray(coordinationsData) ? coordinationsData : []);
+          setCenters(Array.isArray(centersForCoordinations) ? centersForCoordinations : []);
           break;
         case 'programs':
-          const hierarchy = await configService.getHierarchy();
-          setPrograms(hierarchy.programs);
-          setCoordinations(hierarchy.coordinations);
+          const [programsData, coordinationsForPrograms] = await Promise.all([
+            configService.getPrograms(),
+            configService.getCoordinations()
+          ]);
+          setPrograms(Array.isArray(programsData) ? programsData : []);
+          setCoordinations(Array.isArray(coordinationsForPrograms) ? coordinationsForPrograms : []);
           break;
       }
     } catch (error) {
       console.error('Error loading data:', error);
+      // Establecer arrays vacíos en caso de error
+      switch (activeTab) {
+        case 'roles': setRoles([]); break;
+        case 'personnel-types': setPersonnelTypes([]); break;
+        case 'regionales': setRegionales([]); break;
+        case 'centers': setCenters([]); break;
+        case 'coordinations': setCoordinations([]); break;
+        case 'programs': setPrograms([]); break;
+      }
     } finally {
       setLoading(false);
     }

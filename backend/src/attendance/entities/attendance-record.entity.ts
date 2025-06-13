@@ -1,20 +1,26 @@
-// backend/src/attendance/entities/attendance-record.entity.ts
+// backend/src/attendance/entities/attendance-record.entity.ts - VERSIÓN FINAL CORREGIDA
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
-import { ClassSchedule } from './class-schedule.entity';
+import { TrimesterSchedule } from './trimester-schedule.entity';
 import { Profile } from '../../profiles/entities/profile.entity';
-import { AccessRecord } from '../../access/entities/access-record.entity';
+import { User } from '../../users/entities/user.entity';
+import { ClassSchedule } from './class-schedule.entity';
 
 @Entity('attendance_records')
 export class AttendanceRecord {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @ManyToOne(() => ClassSchedule, schedule => schedule.attendanceRecords)
-  @JoinColumn({ name: 'scheduleId' })
-  schedule: ClassSchedule;
+  // ⭐ NUEVA RELACIÓN: trimesterScheduleId (principal)
+  @Column({ nullable: true })
+  trimesterScheduleId?: number;
 
-  @Column()
-  scheduleId: number;
+  @ManyToOne(() => TrimesterSchedule, { nullable: true })
+  @JoinColumn({ name: 'trimesterScheduleId' })
+  trimesterSchedule?: TrimesterSchedule;
+
+  // ⭐ MANTENER scheduleId como nullable (para compatibilidad)
+  @Column({ nullable: true })
+  scheduleId?: number;
 
   @ManyToOne(() => Profile)
   @JoinColumn({ name: 'learnerId' })
@@ -23,12 +29,8 @@ export class AttendanceRecord {
   @Column()
   learnerId: number;
 
-  @ManyToOne(() => AccessRecord, access => access.attendanceRecords, { nullable: true })
-  @JoinColumn({ name: 'accessRecordId' })
-  accessRecord?: AccessRecord; // ⭐ CAMBIAR A OPCIONAL
-
   @Column({ nullable: true })
-  accessRecordId?: number; // ⭐ CAMBIAR A OPCIONAL
+  accessRecordId?: number;
 
   @Column({
     type: 'enum',
@@ -38,21 +40,31 @@ export class AttendanceRecord {
   status: 'PRESENT' | 'LATE' | 'ABSENT';
 
   @Column({ type: 'timestamp', nullable: true })
-  markedAt?: Date; // ⭐ CAMBIAR A OPCIONAL
+  markedAt?: Date;
 
   @Column({ type: 'timestamp', nullable: true })
-  manuallyMarkedAt?: Date; // ⭐ CAMBIAR A OPCIONAL
+  manuallyMarkedAt?: Date;
+
+  @ManyToOne(() => User, { nullable: true })
+  @JoinColumn({ name: 'markedBy' })
+  marker?: User;
 
   @Column({ nullable: true })
-  markedBy?: number; // ⭐ CAMBIAR A OPCIONAL
+  markedBy?: number;
 
   @Column({ type: 'text', nullable: true })
-  notes?: string; // ⭐ CAMBIAR A OPCIONAL
+  notes?: string;
 
   @Column({ default: false })
   isManual: boolean;
 
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;
-  
+
+  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP', onUpdate: 'CURRENT_TIMESTAMP' })
+  updatedAt: Date;
+
+  @ManyToOne(() => ClassSchedule, schedule => schedule.attendanceRecords)
+  @JoinColumn({ name: 'scheduleId' })
+  schedule: ClassSchedule;
 }

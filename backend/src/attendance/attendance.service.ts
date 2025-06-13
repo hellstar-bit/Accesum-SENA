@@ -217,77 +217,79 @@ export class AttendanceService {
     }
   }
   // ✅ NUEVO MÉTODO: Obtener o crear registros de asistencia
-  private async getOrCreateAttendanceRecords(scheduleId: number, learners: any[], date: string): Promise<any[]> {
-    try {
-      console.log(`📝 === INICIANDO getOrCreateAttendanceRecords ===`);
-      console.log(`📝 Schedule ID: ${scheduleId}, Learners: ${learners.length}, Date: ${date}`);
+  private async getOrCreateAttendanceRecords(trimesterScheduleId: number, learners: any[], date: string): Promise<any[]> {
+  try {
+    console.log(`📝 === INICIANDO getOrCreateAttendanceRecords ===`);
+    console.log(`📝 TrimesterSchedule ID: ${trimesterScheduleId}, Learners: ${learners.length}, Date: ${date}`);
+    
+    const records: any[] = [];
+    
+    for (const learner of learners) {
+      console.log(`📝 Procesando aprendiz: ${learner.firstName} ${learner.lastName} (ID: ${learner.id})`);
       
-      const records: any[] = [];
+      // ⭐ USAR trimesterScheduleId EN LUGAR DE scheduleId
+      let attendanceRecord = await this.attendanceRepository.findOne({
+        where: {
+          trimesterScheduleId,
+          learnerId: learner.id
+        }
+      });
       
-      for (const learner of learners) {
-        console.log(`📝 Procesando aprendiz: ${learner.firstName} ${learner.lastName} (ID: ${learner.id})`);
+      if (!attendanceRecord) {
+        console.log(`📝 No existe registro, creando nuevo para aprendiz ${learner.id}`);
         
-        // Buscar registro existente
-        let attendanceRecord = await this.attendanceRepository.findOne({
-          where: {
-            scheduleId,
-            learnerId: learner.id
-          }
+        // ⭐ CREAR USANDO trimesterScheduleId (scheduleId = undefined)
+        attendanceRecord = this.attendanceRepository.create({
+          trimesterScheduleId,
+          learnerId: learner.id,
+          status: 'ABSENT',
+          isManual: false,
+          scheduleId: undefined, // NO usar scheduleId para evitar foreign key constraint
+          markedAt: undefined,
+          manuallyMarkedAt: undefined,
+          markedBy: undefined,
+          notes: undefined,
+          accessRecordId: undefined
         });
         
-        if (!attendanceRecord) {
-          console.log(`📝 No existe registro, creando nuevo para aprendiz ${learner.id}`);
-          
-          attendanceRecord = this.attendanceRepository.create({
-            scheduleId,
-            learnerId: learner.id,
-            status: 'ABSENT',
-            isManual: false,
-            markedAt: undefined,
-            manuallyMarkedAt: undefined,
-            markedBy: undefined,
-            notes: undefined,
-            accessRecordId: undefined
-          });
-          
-          attendanceRecord = await this.attendanceRepository.save(attendanceRecord);
-          console.log(`✅ Registro creado con ID: ${attendanceRecord.id}`);
-        } else {
-          console.log(`📝 Registro existente encontrado con ID: ${attendanceRecord.id}, Status: ${attendanceRecord.status}`);
-        }
-        
-        // Formatear para el frontend
-        const formattedRecord = {
-          id: attendanceRecord.id,
-          attendanceId: attendanceRecord.id,
-          learnerId: learner.id,
-          learnerName: `${learner.firstName} ${learner.lastName}`,
-          status: attendanceRecord.status,
-          markedAt: attendanceRecord.markedAt?.toISOString() || null,
-          manuallyMarkedAt: attendanceRecord.manuallyMarkedAt?.toISOString() || null,
-          isManual: attendanceRecord.isManual,
-          accessTime: null,
-          notes: attendanceRecord.notes,
-          markedBy: attendanceRecord.markedBy,
-          learner: {
-            id: learner.id,
-            firstName: learner.firstName,
-            lastName: learner.lastName,
-            documentNumber: learner.documentNumber
-          }
-        };
-        
-        records.push(formattedRecord);
+        attendanceRecord = await this.attendanceRepository.save(attendanceRecord);
+        console.log(`✅ Registro creado con ID: ${attendanceRecord.id}`);
+      } else {
+        console.log(`📝 Registro existente encontrado con ID: ${attendanceRecord.id}, Status: ${attendanceRecord.status}`);
       }
       
-      console.log(`📝 Retornando ${records.length} registros de asistencia`);
-      return records;
+      // Formatear para el frontend
+      const formattedRecord = {
+        id: attendanceRecord.id,
+        attendanceId: attendanceRecord.id,
+        learnerId: learner.id,
+        learnerName: `${learner.firstName} ${learner.lastName}`,
+        status: attendanceRecord.status,
+        markedAt: attendanceRecord.markedAt?.toISOString() || null,
+        manuallyMarkedAt: attendanceRecord.manuallyMarkedAt?.toISOString() || null,
+        isManual: attendanceRecord.isManual,
+        accessTime: null,
+        notes: attendanceRecord.notes || null,
+        markedBy: attendanceRecord.markedBy || null,
+        learner: {
+          id: learner.id,
+          firstName: learner.firstName,
+          lastName: learner.lastName,
+          documentNumber: learner.documentNumber
+        }
+      };
       
-    } catch (error) {
-      console.error('❌ Error al procesar registros de asistencia:', error);
-      return [];
+      records.push(formattedRecord);
     }
+    
+    console.log(`📝 Retornando ${records.length} registros de asistencia`);
+    return records;
+    
+  } catch (error) {
+    console.error('❌ Error al procesar registros de asistencia:', error);
+    return [];
   }
+}
 
   // ✅ MÉTODO PARA CALCULAR ESTADÍSTICAS
   private calculateAttendanceStats(records: any[]) {
@@ -556,109 +558,72 @@ export class AttendanceService {
   }
 
   // ⭐ MARCAR ASISTENCIA
-  async markAttendance(data: {
-    scheduleId: number;
-    profileId: number;
-    status: 'PRESENTE' | 'AUSENTE' | 'TARDE';
-    notes?: string;
-    markedBy?: number;
-  }) {
-    try {
-      console.log('📋 Marcando asistencia:', data);
-
-      // ⭐ CONVERTIR ESTADOS DE ESPAÑOL A INGLÉS
-      const statusMapping = {
-        'PRESENTE': 'PRESENT' as const,
-        'AUSENTE': 'ABSENT' as const,
-        'TARDE': 'LATE' as const
-      };
-
-      const englishStatus = statusMapping[data.status];
-
-      // Verificar si ya existe un registro de asistencia
-      const existingRecord = await this.attendanceRepository.findOne({
-        where: {
-          scheduleId: data.scheduleId,
-          learnerId: data.profileId
-        }
-      });
-
-      if (existingRecord) {
-        // Actualizar registro existente
-        existingRecord.status = englishStatus;
-        existingRecord.notes = data.notes;
-        existingRecord.manuallyMarkedAt = new Date();
-        existingRecord.markedAt = new Date();
-        existingRecord.markedBy = data.markedBy;
-        existingRecord.isManual = true;
-
-        const updatedRecord = await this.attendanceRepository.save(existingRecord);
-        console.log('✅ Asistencia actualizada exitosamente');
-        return updatedRecord;
-      } else {
-        // ⭐ CREAR NUEVO REGISTRO CON TIPOS CORRECTOS
-        const newRecord = this.attendanceRepository.create({
-          scheduleId: data.scheduleId,
-          learnerId: data.profileId,
-          status: englishStatus,
-          notes: data.notes,
-          markedAt: new Date(),
-          manuallyMarkedAt: new Date(),
-          markedBy: data.markedBy,
-          isManual: true,
-          accessRecordId: undefined
-        });
-
-        const savedRecord = await this.attendanceRepository.save(newRecord);
-        console.log('✅ Asistencia marcada exitosamente');
-        return savedRecord;
-      }
-    } catch (error) {
-      console.error('❌ Error al marcar asistencia:', error);
-      throw error;
-    }
-  }
+  
 
   // ⭐ OBTENER ASISTENCIA POR HORARIO
-  async getAttendanceBySchedule(scheduleId: number) {
-    try {
-      console.log(`📋 Obteniendo asistencia para horario ${scheduleId}`);
+  async markAttendance(data: {
+  scheduleId: number;
+  profileId: number;
+  status: 'PRESENTE' | 'AUSENTE' | 'TARDE';
+  notes?: string;
+  markedBy?: number;
+}) {
+  try {
+    console.log('📋 Marcando asistencia:', data);
 
-      const records = await this.attendanceRepository.find({
-        where: { scheduleId },
-        relations: ['learner', 'schedule', 'accessRecord']
+    // ⭐ CONVERTIR ESTADOS DE ESPAÑOL A INGLÉS
+    const statusMapping = {
+      'PRESENTE': 'PRESENT' as const,
+      'AUSENTE': 'ABSENT' as const,
+      'TARDE': 'LATE' as const
+    };
+
+    const englishStatus = statusMapping[data.status];
+
+    // ⭐ BUSCAR USANDO trimesterScheduleId (data.scheduleId es en realidad trimesterScheduleId)
+    const existingRecord = await this.attendanceRepository.findOne({
+      where: {
+        trimesterScheduleId: data.scheduleId, // scheduleId viene del frontend pero es trimesterScheduleId
+        learnerId: data.profileId
+      }
+    });
+
+    if (existingRecord) {
+      // Actualizar registro existente
+      existingRecord.status = englishStatus;
+      existingRecord.notes = data.notes || undefined;
+      existingRecord.manuallyMarkedAt = new Date();
+      existingRecord.markedAt = new Date();
+      existingRecord.markedBy = data.markedBy || undefined;
+      existingRecord.isManual = true;
+
+      const updatedRecord = await this.attendanceRepository.save(existingRecord);
+      console.log('✅ Asistencia actualizada exitosamente');
+      return updatedRecord;
+    } else {
+      // ⭐ CREAR NUEVO REGISTRO CON trimesterScheduleId
+      const newRecord = this.attendanceRepository.create({
+        trimesterScheduleId: data.scheduleId, // scheduleId del frontend es trimesterScheduleId
+        learnerId: data.profileId,
+        status: englishStatus,
+        notes: data.notes || undefined,
+        markedAt: new Date(),
+        manuallyMarkedAt: new Date(),
+        markedBy: data.markedBy || undefined,
+        isManual: true,
+        scheduleId: undefined, // No usar scheduleId
+        accessRecordId: undefined
       });
 
-      // ⭐ FORMATEAR REGISTROS PARA EL FRONTEND
-      const formattedRecords = records.map(record => ({
-        id: record.id,
-        attendanceId: record.id,
-        learnerId: record.learnerId,
-        learnerName: record.learner 
-          ? `${record.learner.firstName} ${record.learner.lastName}`
-          : 'Sin nombre',
-        status: record.status,
-        markedAt: record.markedAt?.toISOString() || null,
-        manuallyMarkedAt: record.manuallyMarkedAt?.toISOString() || null,
-        isManual: record.isManual,
-        accessTime: record.accessRecord?.entryTime?.toISOString() || null,
-        notes: record.notes,
-        markedBy: record.markedBy,
-        learner: {
-          id: record.learner?.id || record.learnerId,
-          firstName: record.learner?.firstName || '',
-          lastName: record.learner?.lastName || '',
-          documentNumber: record.learner?.documentNumber || ''
-        }
-      }));
-
-      console.log('✅ Registros de asistencia obtenidos:', formattedRecords.length);
-      return formattedRecords;
-    } catch (error) {
-      console.error('❌ Error al obtener asistencia:', error);
-      return [];
+      const savedRecord = await this.attendanceRepository.save(newRecord);
+      console.log('✅ Asistencia marcada exitosamente');
+      return savedRecord;
     }
+  } catch (error) {
+    console.error('❌ Error al marcar asistencia:', error);
+    throw error;
   }
+}
 
   // ⭐ MARCAR ASISTENCIA AUTOMÁTICA
   async autoMarkAttendance(profileId: number, entryTime: Date, accessRecordId?: number) {

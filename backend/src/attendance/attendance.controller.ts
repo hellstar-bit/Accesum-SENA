@@ -10,6 +10,29 @@ import { AttendanceService } from './attendance.service';
 export class AttendanceController {
   constructor(private readonly attendanceService: AttendanceService) {}
 
+  @Get('debug/ficha/:fichaId')
+  @Roles('Administrador', 'Instructor')
+  async debugFicha(@Param('fichaId') fichaId: number) {
+    try {
+      console.log(`🔍 DEBUG: Diagnosticando ficha ${fichaId}`);
+      const debugData = await this.attendanceService.debugFichaData(fichaId);
+      
+      return {
+        success: true,
+        fichaId,
+        debugData,
+        message: 'Diagnóstico completado - revisar logs del servidor'
+      };
+    } catch (error) {
+      console.error('❌ Error en diagnóstico:', error);
+      return {
+        success: false,
+        error: error.message,
+        message: 'Error en diagnóstico'
+      };
+    }
+  }
+
   // ⭐ OBTENER MIS CLASES Y ASISTENCIA (INSTRUCTOR)
   @Get('my-classes')
   @Roles('Instructor')
@@ -20,19 +43,18 @@ export class AttendanceController {
     try {
       console.log(`🌐 GET /attendance/my-classes?date=${date}`);
       
-      // Obtener el ID del instructor desde el token JWT
       const instructorId = req.user.id;
+      console.log(`👨‍🏫 Instructor ID desde token: ${instructorId}`);
       
       const result = await this.attendanceService.getMyClassesAttendance(
         instructorId,
         date
       );
       
-      console.log('✅ Clases del instructor obtenidas exitosamente');
+      console.log(`✅ Retornando ${result.length} clases del instructor`);
       return result;
     } catch (error) {
       console.error('❌ Error al obtener clases del instructor:', error);
-      // Retornar array vacío en lugar de error para no romper el frontend
       return [];
     }
   }
@@ -72,6 +94,7 @@ export class AttendanceController {
       throw error;
     }
   }
+
 
   // ⭐ OBTENER ESTADÍSTICAS DE ASISTENCIA
   @Get('stats/:assignmentId')
@@ -119,9 +142,10 @@ export class AttendanceController {
     }
   }
 
+
   // ⭐ MARCAR ASISTENCIA AUTOMÁTICA (desde control de acceso)
   @Post('auto-mark')
-  @Roles('Administrador',) // Sistema para llamadas internas
+  @Roles('Administrador')
   async autoMarkAttendance(@Body() data: {
     profileId: number;
     entryTime: Date;
@@ -141,7 +165,6 @@ export class AttendanceController {
       throw error;
     }
   }
-
   // ⭐ OBTENER DASHBOARD DEL INSTRUCTOR
   @Get('instructor-dashboard')
   @Roles('Instructor')
@@ -157,6 +180,7 @@ export class AttendanceController {
       throw error;
     }
   }
+
 
   // ⭐ OBTENER CLASES DE HOY PARA INSTRUCTOR
   @Get('today-classes')
@@ -273,6 +297,7 @@ export class AttendanceController {
       throw new Error('Servicio de asistencia no disponible');
     }
   }
+
 
   // ⭐ OBTENER RESUMEN DE ASISTENCIA PARA DASHBOARD
   @Get('summary')

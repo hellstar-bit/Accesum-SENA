@@ -1,4 +1,4 @@
-// backend/src/config/config.controller.ts - CON ENDPOINTS FALTANTES
+// backend/src/config/config.controller.ts - CON ENDPOINT FALTANTE AGREGADO
 import { Controller, Get, Post, Body, UseGuards, Param, ParseIntPipe } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -116,22 +116,70 @@ export class ConfigController {
     }
   }
 
-  // ✅ OBTENER TODAS LAS REGIONALES
-  @Get('regionals')
+  // 🆕 NUEVO: OBTENER CENTROS POR REGIONAL
+  @Get('regionales/:regionalId/centers')
+  @Roles('Administrador', 'Instructor')
+  async getCentersByRegional(@Param('regionalId', ParseIntPipe) regionalId: number) {
+    try {
+      console.log(`🌐 GET /config/regionales/${regionalId}/centers`);
+      const result = await this.configService.getCentersByRegional(regionalId);
+      console.log(`✅ ${result.length} centros encontrados para regional ${regionalId}`);
+      
+      // Retornar directamente el array para compatibilidad con frontend
+      return result;
+    } catch (error) {
+      console.error(`❌ Error al obtener centros de regional ${regionalId}:`, error);
+      throw error;
+    }
+  }
+
+  // ✅ OBTENER TODOS LOS ROLES - RESPUESTA DIRECTA
+  @Get('roles')
   @Roles('Administrador')
+  async getAllRoles() {
+    try {
+      console.log('🌐 GET /config/roles');
+      const result = await this.configService.getAllRoles();
+      console.log(`✅ ${result.length} roles obtenidos exitosamente`);
+      
+      // ✅ RETORNAR DIRECTAMENTE EL ARRAY para compatibilidad con frontend
+      return result;
+    } catch (error) {
+      console.error('❌ Error al obtener roles:', error);
+      throw error;
+    }
+  }
+
+  // ✅ OBTENER TODAS LAS REGIONALES - RESPUESTA DIRECTA  
+  @Get('regionales')
+  @Roles('Administrador', 'Instructor')
   async getAllRegionals() {
     try {
-      console.log('🌐 GET /config/regionals');
+      console.log('🌐 GET /config/regionales');
       const result = await this.configService.getAllRegionals();
       console.log(`✅ ${result.length} regionales obtenidas exitosamente`);
       
-      return {
-        success: true,
-        data: result,
-        count: result.length
-      };
+      // ✅ RETORNAR DIRECTAMENTE EL ARRAY
+      return result;
     } catch (error) {
       console.error('❌ Error al obtener regionales:', error);
+      throw error;
+    }
+  }
+
+  // ✅ OBTENER TODOS LOS TIPOS DE PERSONAL - RESPUESTA DIRECTA
+  @Get('personnel-types')
+  @Roles('Administrador', 'Instructor')
+  async getAllPersonnelTypes() {
+    try {
+      console.log('🌐 GET /config/personnel-types');
+      const result = await this.configService.getAllPersonnelTypes();
+      console.log(`✅ ${result.length} tipos de personal obtenidos exitosamente`);
+      
+      // ✅ RETORNAR DIRECTAMENTE EL ARRAY
+      return result;
+    } catch (error) {
+      console.error('❌ Error al obtener tipos de personal:', error);
       throw error;
     }
   }

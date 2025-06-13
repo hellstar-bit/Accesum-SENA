@@ -1,35 +1,74 @@
-// frontend/src/pages/InstructorAttendance.tsx
+// frontend/src/pages/InstructorAttendance.tsx - CORREGIDO PARA BOGOTÁ
 import React, { useState, useEffect } from 'react';
 import { attendanceService, type ClassSchedule, type AttendanceRecord } from '../services/attendanceService';
-
-// ⭐ Eliminar las interfaces duplicadas del componente
-// Ya no necesitas definir AttendanceRecord ni ClassSchedule aquí
-// porque las estás importando del servicio
+import { useDateSyncWithServer } from '../hooks/useDateSync';
 
 const InstructorAttendance: React.FC = () => {
   const [schedules, setSchedules] = useState<ClassSchedule[]>([]);
-  const [selectedDate, setSelectedDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
-  );
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
 
+  // ⭐ USAR HOOK DE SINCRONIZACIÓN CON SERVIDOR
+  const { 
+    currentDate, 
+    formatDate, 
+    refreshDate, 
+    isServerSynced, 
+    syncStatus,
+    forceServerSync 
+  } = useDateSyncWithServer();
+
+  // ⭐ ESTADO PARA FECHA SELECCIONADA (inicializar con fecha del servidor)
+  const [selectedDate, setSelectedDate] = useState<string>(currentDate);
+
+  // ⭐ ACTUALIZAR selectedDate cuando currentDate cambie
   useEffect(() => {
-    loadAttendance();
+    if (currentDate && !selectedDate) {
+      setSelectedDate(currentDate);
+    }
+  }, [currentDate, selectedDate]);
+
+  useEffect(() => {
+    if (selectedDate) {
+      loadAttendance();
+    }
   }, [selectedDate]);
+
+  // ⭐ FUNCIÓN PARA SINCRONIZAR FECHA
+  const handleSyncDate = async () => {
+    try {
+      await forceServerSync();
+      await refreshDate();
+      console.log('✅ Fecha sincronizada con el servidor');
+    } catch (error) {
+      console.error('❌ Error al sincronizar fecha:', error);
+    }
+  };
 
   const loadAttendance = async () => {
     try {
       setLoading(true);
       setError('');
       
+      console.log(`🔄 Cargando asistencia para fecha: ${selectedDate}`);
       const response = await attendanceService.getMyClassesAttendance(selectedDate);
       setSchedules(response);
+      console.log(`✅ ${response.length} clases cargadas`);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Error al cargar la asistencia');
       console.error('Error loading attendance:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // ⭐ FUNCIÓN PARA IR A HOY (fecha del servidor)
+  const goToToday = async () => {
+    try {
+      await refreshDate();
+      setSelectedDate(currentDate);
+    } catch (error) {
+      console.error('Error al ir a hoy:', error);
     }
   };
 
@@ -65,16 +104,18 @@ const InstructorAttendance: React.FC = () => {
     if (!timeString) return 'N/A';
     
     try {
-      return new Date(timeString).toLocaleTimeString('es-CO', {
+      // ⭐ FORMATEAR TIEMPO EN ZONA HORARIA DE COLOMBIA
+      const date = new Date(timeString);
+      return date.toLocaleTimeString('es-CO', {
         hour: '2-digit',
-        minute: '2-digit'
+        minute: '2-digit',
+        timeZone: 'America/Bogota'
       });
     } catch {
       return 'N/A';
     }
   };
 
-  // ⭐ Actualizar función para usar la nueva estructura
   const calculateAttendanceStats = (records: AttendanceRecord[]) => {
     const total = records.length;
     const present = records.filter(a => a.status === 'PRESENT').length;
@@ -105,26 +146,65 @@ const InstructorAttendance: React.FC = () => {
           </p>
         </div>
 
-        {/* Selector de fecha */}
+        {/* ⭐ SELECTOR DE FECHA MEJORADO CON SINCRONIZACIÓN */}
         <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
-          <div className="flex items-center gap-4">
-            <label htmlFor="date" className="text-sm font-medium text-gray-700">
-              Fecha:
-            </label>
-            <input
-              type="date"
-              id="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <button
-              onClick={loadAttendance}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium"
-            >
-              Actualizar
-            </button>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <label htmlFor="date" className="text-sm font-medium text-gray-700">
+                Fecha:
+              </label>
+              <input
+                type="date"
+                id="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <button
+                onClick={goToToday}
+                className="px-3 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 text-sm font-medium"
+              >
+                Hoy
+              </button>
+              <button
+                onClick={loadAttendance}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium"
+              >
+                Actualizar
+              </button>
+            </div>
+
+            {/* ⭐ INFORMACIÓN DE SINCRONIZACIÓN */}
+            <div className="flex items-center gap-3 text-sm">
+              <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full ${isServerSynced ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+                <span className="text-gray-600">
+                  {syncStatus}
+                </span>
+              </div>
+              
+              {currentDate && (
+                <div className="text-gray-600">
+                  Fecha actual: {formatDate(currentDate)}
+                </div>
+              )}
+              
+              <button
+                onClick={handleSyncDate}
+                className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                title="Sincronizar con servidor"
+              >
+                🔄 Sync
+              </button>
+            </div>
           </div>
+
+          {/* ⭐ ADVERTENCIA SI NO ESTÁ SINCRONIZADO */}
+          {!isServerSynced && (
+            <div className="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
+              ⚠️ Usando fecha local. La sincronización con el servidor no está disponible.
+            </div>
+          )}
         </div>
 
         {/* Error Message */}
@@ -151,13 +231,12 @@ const InstructorAttendance: React.FC = () => {
               No hay clases programadas
             </h3>
             <p className="text-gray-500">
-              No se encontraron clases para la fecha seleccionada.
+              No se encontraron clases para el {formatDate(selectedDate)}.
             </p>
           </div>
         ) : (
           <div className="space-y-6">
             {schedules.map((schedule) => {
-              // ⭐ Usar records en lugar de attendance
               const stats = calculateAttendanceStats(schedule.records);
               
               return (
@@ -214,7 +293,6 @@ const InstructorAttendance: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
-                        {/* ⭐ Usar schedule.records en lugar de schedule.attendance */}
                         {schedule.records.map((record) => (
                           <tr key={record.attendanceId} className="hover:bg-gray-50">
                             <td className="px-6 py-4 whitespace-nowrap">

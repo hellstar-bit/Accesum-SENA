@@ -50,7 +50,7 @@ export class AttendanceService {
       console.log(`📋 === INICIANDO getMyClassesAttendance ===`);
       console.log(`📋 Instructor ID: ${instructorId}, Fecha: ${date}`);
       
-      // Procesamiento de fecha (mantener la lógica actual)
+      // Procesamiento de fecha
       let targetDate: Date;
       if (date) {
         if (date.includes('T')) {
@@ -89,10 +89,10 @@ export class AttendanceService {
       console.log(`✅ Encontrados ${trimesterSchedules.length} horarios de trimestre`);
       
       if (trimesterSchedules.length === 0) {
+        console.log(`⚠️ No se encontraron horarios para el instructor ${instructorId} en ${dayOfWeek} del trimestre ${trimester}`);
         return [];
       }
       
-      // ✅ CORRECCIÓN: Tipar correctamente el array
       const classSchedules: any[] = [];
       
       for (const schedule of trimesterSchedules) {
@@ -113,7 +113,7 @@ export class AttendanceService {
         // 3. Calcular estadísticas
         const stats = this.calculateAttendanceStats(attendanceRecords);
         
-        // 4. Crear objeto de clase con tipo explícito
+        // 4. Crear objeto de clase
         const classSchedule = {
           id: schedule.id,
           scheduleId: schedule.id,
@@ -134,7 +134,7 @@ export class AttendanceService {
             absent: stats.absent,
             percentage: stats.total > 0 ? ((stats.present + stats.late) / stats.total * 100).toFixed(1) : '0.0'
           },
-          records: attendanceRecords as any[] // ✅ Tipo explícito
+          records: attendanceRecords
         };
         
         classSchedules.push(classSchedule);
@@ -150,27 +150,65 @@ export class AttendanceService {
   }
   private async getLearnersFromFicha(fichaId: number): Promise<any[]> {
     try {
-      // Buscar el tipo "Aprendiz" 
+      console.log(`🔍 === INICIANDO getLearnersFromFicha para ficha ${fichaId} ===`);
+      
+      // 1. Verificar todos los tipos de personal disponibles
+      const allPersonnelTypes = await this.personnelTypeRepository.find();
+      console.log(`🔍 TIPOS DE PERSONAL DISPONIBLES:`, allPersonnelTypes.map(t => ({
+        id: t.id,
+        name: t.name
+      })));
+      
+      // 2. Buscar específicamente el tipo "Aprendiz"
       const learnerType = await this.personnelTypeRepository.findOne({
         where: { name: 'Aprendiz' }
       });
       
       if (!learnerType) {
-        console.log('⚠️ Tipo "Aprendiz" no encontrado en la base de datos');
+        console.log('⚠️ PROBLEMA: Tipo "Aprendiz" no encontrado en personnel_types');
+        console.log('💡 SOLUCIÓN: Crear registro en personnel_types con name="Aprendiz"');
         return [];
       }
       
-      // Obtener aprendices activos de la ficha
-      const learners = await this.profileRepository.find({
-        where: {
-          fichaId,
-          typeId: learnerType.id,
-        },
-        relations: ['type', 'ficha'],
+      console.log(`✅ Tipo "Aprendiz" encontrado con ID: ${learnerType.id}`);
+      
+      // 3. Buscar todos los perfiles que coincidan con la ficha
+      console.log(`🔍 Buscando perfiles para ficha ${fichaId}...`);
+      
+      const allProfilesInFicha = await this.profileRepository.find({
+        where: { fichaId },
+        relations: ['type', 'ficha', 'user'],
         order: { lastName: 'ASC', firstName: 'ASC' }
       });
       
-      console.log(`👥 Encontrados ${learners.length} aprendices en ficha ${fichaId}`);
+      console.log(`🔍 TODOS LOS PERFILES EN FICHA ${fichaId}:`, allProfilesInFicha.map(p => ({
+        id: p.id,
+        name: `${p.firstName} ${p.lastName}`,
+        typeId: p.typeId,
+        typeName: p.type?.name || 'SIN TIPO',
+        fichaId: p.fichaId,
+        documentNumber: p.documentNumber
+      })));
+      
+      // 4. Filtrar solo los aprendices
+      const learners = allProfilesInFicha.filter(profile => profile.typeId === learnerType.id);
+      
+      console.log(`👥 APRENDICES FILTRADOS:`, learners.map(l => ({
+        id: l.id,
+        name: `${l.firstName} ${l.lastName}`,
+        documentNumber: l.documentNumber,
+        typeId: l.typeId
+      })));
+      
+      if (learners.length === 0) {
+        console.log(`⚠️ PROBLEMA: No se encontraron aprendices en la ficha ${fichaId}`);
+        console.log(`💡 VERIFICAR:`);
+        console.log(`   - ¿Existen perfiles con fichaId = ${fichaId}?`);
+        console.log(`   - ¿Algunos perfiles tienen typeId = ${learnerType.id}?`);
+        console.log(`   - ¿Los aprendices están asignados correctamente a esta ficha?`);
+      }
+      
+      console.log(`✅ Retornando ${learners.length} aprendices para la ficha ${fichaId}`);
       return learners;
       
     } catch (error) {
@@ -178,13 +216,17 @@ export class AttendanceService {
       return [];
     }
   }
-
   // ✅ NUEVO MÉTODO: Obtener o crear registros de asistencia
   private async getOrCreateAttendanceRecords(scheduleId: number, learners: any[], date: string): Promise<any[]> {
     try {
-      const records: any[] = []; // ✅ Tipo explícito
+      console.log(`📝 === INICIANDO getOrCreateAttendanceRecords ===`);
+      console.log(`📝 Schedule ID: ${scheduleId}, Learners: ${learners.length}, Date: ${date}`);
+      
+      const records: any[] = [];
       
       for (const learner of learners) {
+        console.log(`📝 Procesando aprendiz: ${learner.firstName} ${learner.lastName} (ID: ${learner.id})`);
+        
         // Buscar registro existente
         let attendanceRecord = await this.attendanceRepository.findOne({
           where: {
@@ -193,12 +235,13 @@ export class AttendanceService {
           }
         });
         
-        // Si no existe, crear uno nuevo con estado ABSENT por defecto
         if (!attendanceRecord) {
+          console.log(`📝 No existe registro, creando nuevo para aprendiz ${learner.id}`);
+          
           attendanceRecord = this.attendanceRepository.create({
             scheduleId,
             learnerId: learner.id,
-            status: 'ABSENT', // Por defecto ausente hasta que se marque
+            status: 'ABSENT',
             isManual: false,
             markedAt: undefined,
             manuallyMarkedAt: undefined,
@@ -207,8 +250,10 @@ export class AttendanceService {
             accessRecordId: undefined
           });
           
-          // Guardar el nuevo registro
           attendanceRecord = await this.attendanceRepository.save(attendanceRecord);
+          console.log(`✅ Registro creado con ID: ${attendanceRecord.id}`);
+        } else {
+          console.log(`📝 Registro existente encontrado con ID: ${attendanceRecord.id}, Status: ${attendanceRecord.status}`);
         }
         
         // Formatear para el frontend
@@ -221,7 +266,7 @@ export class AttendanceService {
           markedAt: attendanceRecord.markedAt?.toISOString() || null,
           manuallyMarkedAt: attendanceRecord.manuallyMarkedAt?.toISOString() || null,
           isManual: attendanceRecord.isManual,
-          accessTime: null, // Se llenará si hay registro de acceso
+          accessTime: null,
           notes: attendanceRecord.notes,
           markedBy: attendanceRecord.markedBy,
           learner: {
@@ -235,6 +280,7 @@ export class AttendanceService {
         records.push(formattedRecord);
       }
       
+      console.log(`📝 Retornando ${records.length} registros de asistencia`);
       return records;
       
     } catch (error) {
@@ -243,7 +289,7 @@ export class AttendanceService {
     }
   }
 
-  // ✅ NUEVO MÉTODO: Calcular estadísticas de asistencia
+  // ✅ MÉTODO PARA CALCULAR ESTADÍSTICAS
   private calculateAttendanceStats(records: any[]) {
     const total = records.length;
     const present = records.filter(r => r.status === 'PRESENT').length;
@@ -251,6 +297,48 @@ export class AttendanceService {
     const absent = records.filter(r => r.status === 'ABSENT').length;
     
     return { total, present, late, absent };
+  }
+
+  async debugFichaData(fichaId: number) {
+    try {
+      console.log(`🔍 === DIAGNÓSTICO COMPLETO DE FICHA ${fichaId} ===`);
+      
+      // 1. Verificar que la ficha existe
+      const ficha = await this.profileRepository.manager.query(
+        'SELECT * FROM fichas WHERE id = ?', [fichaId]
+      );
+      console.log('🔍 FICHA:', ficha);
+      
+      // 2. Ver todos los tipos de personal
+      const personnelTypes = await this.profileRepository.manager.query(
+        'SELECT * FROM personnel_types'
+      );
+      console.log('🔍 TIPOS DE PERSONAL:', personnelTypes);
+      
+      // 3. Ver todos los perfiles relacionados con la ficha
+      const profiles = await this.profileRepository.manager.query(
+        'SELECT p.*, pt.name as type_name FROM profiles p LEFT JOIN personnel_types pt ON p.typeId = pt.id WHERE p.fichaId = ?', 
+        [fichaId]
+      );
+      console.log('🔍 PERFILES EN FICHA:', profiles);
+      
+      // 4. Verificar trimester_schedules
+      const schedules = await this.profileRepository.manager.query(
+        'SELECT * FROM trimester_schedules WHERE fichaId = ?', 
+        [fichaId]
+      );
+      console.log('🔍 HORARIOS DE TRIMESTRE:', schedules);
+      
+      return {
+        ficha,
+        personnelTypes,
+        profiles,
+        schedules
+      };
+    } catch (error) {
+      console.error('❌ Error en diagnóstico:', error);
+      return null;
+    }
   }
 
   // ⭐ OBTENER HORARIOS DE TRIMESTRE DEL INSTRUCTOR

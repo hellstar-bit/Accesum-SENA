@@ -1,4 +1,4 @@
-// frontend/src/services/timezoneService.ts
+// frontend/src/services/timezoneService.ts - MEJORADO CON AUTO-SYNC
 import api from './api';
 
 interface ServerTimeInfo {
@@ -22,6 +22,33 @@ class TimezoneService {
   private cachedServerTime: ServerTimeInfo | null = null;
   private lastSync: number = 0;
   private syncInterval: number = 5 * 60 * 1000; // 5 minutos
+  private autoSyncStarted: boolean = false;
+
+  constructor() {
+    // ⭐ AUTO-INICIALIZAR SINCRONIZACIÓN AL CREAR LA INSTANCIA
+    this.initializeAutoSync();
+  }
+
+  // ⭐ INICIALIZAR SINCRONIZACIÓN AUTOMÁTICA
+  private initializeAutoSync() {
+    if (!this.autoSyncStarted) {
+      this.autoSyncStarted = true;
+      
+      // Sincronizar inmediatamente (sin await para no bloquear)
+      this.syncWithServer().catch(error => {
+        console.warn('⚠️ Sincronización inicial falló, usando tiempo local:', error.message);
+      });
+      
+      // Configurar sincronización periódica
+      setInterval(() => {
+        this.syncWithServer().catch(error => {
+          console.warn('⚠️ Sincronización periódica falló:', error.message);
+        });
+      }, this.syncInterval);
+      
+      console.log(`🔄 Auto-sincronización iniciada (cada ${this.syncInterval / 1000 / 60} minutos)`);
+    }
+  }
 
   // ⭐ SINCRONIZAR TIEMPO CON EL SERVIDOR
   async syncWithServer(): Promise<ServerTimeInfo> {
@@ -130,19 +157,6 @@ class TimezoneService {
     }
   }
 
-  // ⭐ SINCRONIZACIÓN AUTOMÁTICA PERIÓDICA
-  startAutoSync(): void {
-    // Sincronizar inmediatamente
-    this.syncWithServer();
-    
-    // Configurar sincronización periódica
-    setInterval(() => {
-      this.syncWithServer();
-    }, this.syncInterval);
-    
-    console.log(`🔄 Auto-sincronización iniciada (cada ${this.syncInterval / 1000 / 60} minutos)`);
-  }
-
   // ⭐ FORZAR NUEVA SINCRONIZACIÓN
   async forceSync(): Promise<ServerTimeInfo> {
     this.cachedServerTime = null;
@@ -209,6 +223,30 @@ class TimezoneService {
       hasCachedData: !!this.cachedServerTime
     };
   }
+
+  // ⭐ OBTENER FECHA ACTUAL SINCRONIZADA (MÉTODO PRINCIPAL)
+  async getCurrentDate(): Promise<string> {
+    try {
+      const serverTime = await this.syncWithServer();
+      return serverTime.currentDate;
+    } catch (error) {
+      // Fallback a fecha local de Colombia
+      const fallback = this.getFallbackTime();
+      return fallback.currentDate;
+    }
+  }
+
+  // ⭐ MÉTODO SÍNCRONO PARA OBTENER FECHA (USA CACHE O FALLBACK)
+  getCurrentDateSync(): string {
+    if (this.cachedServerTime) {
+      return this.cachedServerTime.currentDate;
+    }
+    
+    // Fallback inmediato
+    const fallback = this.getFallbackTime();
+    return fallback.currentDate;
+  }
 }
 
+// ⭐ EXPORTAR INSTANCIA SINGLETON CON AUTO-INICIALIZACIÓN
 export const timezoneService = new TimezoneService();

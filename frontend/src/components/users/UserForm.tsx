@@ -49,9 +49,12 @@ const UserForm = ({ user, onSave, onCancel }: UserFormProps) => {
     }
   }, [user]);
 
+  // ✅ FUNCIÓN CORREGIDA: loadOptions
   const loadOptions = async () => {
     try {
       setLoadingOptions(true);
+      console.log('🔄 Cargando opciones del formulario...');
+      
       const [rolesData, typesData, regionalesData, centersData] = await Promise.all([
         configService.getRoles(),
         configService.getPersonnelTypes(),
@@ -59,13 +62,35 @@ const UserForm = ({ user, onSave, onCancel }: UserFormProps) => {
         configService.getCenters(),
       ]);
 
-      setRoles(rolesData);
-      setPersonnelTypes(typesData);
-      setRegionales(regionalesData);
-      setCenters(centersData);
+      // ✅ CORRECCIÓN: Manejo seguro de las respuestas del backend
+      console.log('🔍 Datos recibidos:', { rolesData, typesData, regionalesData, centersData });
+      
+      // Verificar si vienen envueltos en objetos con propiedad 'data' o son arrays directos
+      const rolesArray = Array.isArray(rolesData) ? rolesData : (rolesData as any)?.data || [];
+      const typesArray = Array.isArray(typesData) ? typesData : (typesData as any)?.data || [];
+      const regionalesArray = Array.isArray(regionalesData) ? regionalesData : (regionalesData as any)?.data || [];
+      const centersArray = Array.isArray(centersData) ? centersData : (centersData as any)?.data || [];
+
+      console.log('✅ Arrays procesados:', {
+        roles: rolesArray.length,
+        types: typesArray.length,
+        regionales: regionalesArray.length,
+        centers: centersArray.length
+      });
+
+      setRoles(rolesArray);
+      setPersonnelTypes(typesArray);
+      setRegionales(regionalesArray);
+      setCenters(centersArray);
+      
     } catch (error) {
-      console.error('Error al cargar opciones:', error);
+      console.error('❌ Error al cargar opciones:', error);
       setErrors(['Error al cargar las opciones del formulario']);
+      // ✅ FALLBACKS en caso de error
+      setRoles([]);
+      setPersonnelTypes([]);
+      setRegionales([]);
+      setCenters([]);
     } finally {
       setLoadingOptions(false);
     }
@@ -109,16 +134,22 @@ const UserForm = ({ user, onSave, onCancel }: UserFormProps) => {
     }
   };
 
+  // ✅ FUNCIÓN CORREGIDA: handleRegionalChange
   const handleRegionalChange = async (regionalId: string) => {
     handleInputChange('profile.regionalId', regionalId);
     handleInputChange('profile.centerId', ''); // Reset center selection
     
     if (regionalId) {
       try {
+        console.log(`🔄 Cargando centros para regional ${regionalId}`);
         const centersData = await configService.getCentersByRegional(parseInt(regionalId));
-        setCenters(centersData);
+        // ✅ CORRECCIÓN: Manejar la respuesta correctamente
+        const centersArray = Array.isArray(centersData) ? centersData : (centersData as any)?.data || [];
+        console.log(`✅ ${centersArray.length} centros cargados`);
+        setCenters(centersArray);
       } catch (error) {
-        console.error('Error al cargar centros:', error);
+        console.error('❌ Error al cargar centros:', error);
+        setCenters([]); // ✅ Fallback
       }
     } else {
       setCenters([]);
@@ -417,8 +448,15 @@ const UserForm = ({ user, onSave, onCancel }: UserFormProps) => {
                     disabled={!formData.profile.regionalId}
                   >
                     <option value="">Seleccionar centro</option>
+                    {/* ✅ CORRECCIÓN: Filtrar centros por regional usando la propiedad correcta */}
                     {centers
-                      .filter(center => center.regionalId === parseInt(formData.profile.regionalId))
+                      .filter(center => {
+                        // Verificar si el centro tiene la propiedad regional o regionalId
+                        const centerRegionalId = (center as any).regionalId || 
+                                               (center as any).regional?.id || 
+                                               center.regional?.id;
+                        return centerRegionalId === parseInt(formData.profile.regionalId);
+                      })
                       .map((center) => (
                         <option key={center.id} value={center.id}>
                           {center.name}

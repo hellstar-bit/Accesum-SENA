@@ -18,6 +18,8 @@ import { Competence } from './entities/competence.entity';
 import { CompetenceController } from './competence.controller'; // ⭐ AGREGAR
 import { CompetenceService } from './competence.service';
 import { User } from '../users/entities/user.entity';
+import { TimezoneService } from './timezone.service';
+import { TimezoneController } from './timezone.controller';
 
 
 @Module({
@@ -35,8 +37,8 @@ import { User } from '../users/entities/user.entity';
       User,
     ])
   ],
-  controllers: [ConfigController,FichaCompetenceController,CompetenceController],
-  providers: [ConfigService,FichaCompetenceService,CompetenceService],
-  exports: [ConfigService,FichaCompetenceService,CompetenceService],
+  controllers: [ConfigController,FichaCompetenceController,CompetenceController,TimezoneController],
+  providers: [ConfigService,FichaCompetenceService,CompetenceService,TimezoneService],
+  exports: [ConfigService,FichaCompetenceService,CompetenceService,TimezoneService],
 })
 export class ConfigModule {}

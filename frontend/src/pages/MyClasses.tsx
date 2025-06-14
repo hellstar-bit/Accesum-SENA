@@ -1,74 +1,140 @@
-// frontend/src/pages/MyClasses.tsx - CORREGIDO
+// frontend/src/pages/MyClasses.tsx - COMPLETAMENTE FUNCIONAL CON DATOS REALES
 import { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext'; // ✅ Importación corregida
+import { useAuth } from '../context/AuthContext';
+import { learnerService } from '../services/learnerService';
+import { useDateSyncWithServer } from '../hooks/useDateSync';
+import SweetAlertUtils, { 
+  showProcessingAlert, 
+  hideProcessingAlert, 
+  showQuickToast, 
+  handleApiError 
+} from '../utils/sweetAlertUtils';
 
-interface MyClass {
-  id: number;
+interface LearnerClassSchedule {
+  scheduleId: number;
   subject: string;
-  instructor: string;
-  date: Date;
+  instructor: {
+    firstName: string;
+    lastName: string;
+  };
   startTime: string;
   endTime: string;
-  classroom?: string;
-  status: 'PRESENT' | 'LATE' | 'ABSENT' | 'PENDING';
+  classroom: string;
+  ficha: {
+    code: string;
+    name: string;
+  };
+  competence: {
+    name: string;
+  };
+  attendance?: {
+    attendanceId: number;
+    status: 'PRESENT' | 'LATE' | 'ABSENT' | 'EXCUSED';
+    accessTime: string | null;
+    isManual: boolean;
+    notes?: string;
+  };
+}
+
+interface WeeklyStats {
+  totalClasses: number;
+  presentClasses: number;
+  lateClasses: number;
+  absentClasses: number;
+  attendancePercentage: number;
 }
 
 const MyClasses = () => {
-  const { user } = useAuth(); // ✅ Ahora debería funcionar
-  const [classes, setClasses] = useState<MyClass[]>([]);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const { user } = useAuth();
+  const [classes, setClasses] = useState<LearnerClassSchedule[]>([]);
+  const [selectedDate, setSelectedDate] = useState('');
   const [loading, setLoading] = useState(false);
   const [currentWeek, setCurrentWeek] = useState(new Date());
+  const [weeklyStats, setWeeklyStats] = useState<WeeklyStats | null>(null);
+  const [loadingStats, setLoadingStats] = useState(false);
+
+  // ⭐ USAR HOOK DE SINCRONIZACIÓN CON SERVIDOR
+  const { 
+    currentDate, 
+    formatDate, 
+    refreshDate, 
+    isServerSynced, 
+    syncStatus 
+  } = useDateSyncWithServer();
+
+  // ⭐ INICIALIZAR selectedDate con currentDate
+  useEffect(() => {
+    if (currentDate && !selectedDate) {
+      setSelectedDate(currentDate);
+    }
+  }, [currentDate, selectedDate]);
 
   useEffect(() => {
-    fetchMyClasses();
+    if (selectedDate) {
+      fetchMyClasses();
+    }
   }, [selectedDate]);
 
+  useEffect(() => {
+    if (currentDate) {
+      loadWeeklyStats();
+    }
+  }, [currentWeek, currentDate]);
+
   const fetchMyClasses = async () => {
+    if (!selectedDate) return;
+    
     setLoading(true);
     try {
-      // TODO: Implementar servicio para obtener clases del aprendiz
-      // const data = await learnerService.getMyClasses(selectedDate);
-      // setClasses(data);
+      console.log(`🔄 Cargando clases para fecha: ${selectedDate}`);
       
-      // Datos de ejemplo mientras se implementa el backend
-      const mockClasses: MyClass[] = [
-        {
-          id: 1,
-          subject: 'Programación Web',
-          instructor: 'Juan Pérez',
-          date: new Date(selectedDate),
-          startTime: '08:00',
-          endTime: '12:00',
-          classroom: 'Aula 101',
-          status: 'PRESENT'
-        },
-        {
-          id: 2,
-          subject: 'Bases de Datos',
-          instructor: 'María García',
-          date: new Date(selectedDate),
-          startTime: '14:00',
-          endTime: '17:00',
-          classroom: 'Aula 205',
-          status: 'LATE'
-        }
-      ];
-      setClasses(mockClasses);
+      // ⭐ LLAMAR AL SERVICIO REAL
+      const data = await learnerService.getMyClassesForDate(selectedDate);
+      setClasses(data);
+      
+      console.log(`✅ ${data.length} clases cargadas para ${selectedDate}`);
     } catch (error) {
       console.error('Error al cargar clases:', error);
+      handleApiError(error, 'No se pudieron cargar tus clases');
+      setClasses([]);
     } finally {
       setLoading(false);
     }
   };
 
+  const loadWeeklyStats = async () => {
+    if (!currentDate) return;
+    
+    setLoadingStats(true);
+    try {
+      const weekStart = getWeekStart(currentWeek);
+      const weekEnd = getWeekEnd(currentWeek);
+      
+      console.log(`📊 Cargando estadísticas semanales: ${weekStart} - ${weekEnd}`);
+      
+      const stats = await learnerService.getWeeklyAttendanceStats(
+        weekStart.toISOString().split('T')[0],
+        weekEnd.toISOString().split('T')[0]
+      );
+      
+      setWeeklyStats(stats);
+      console.log('✅ Estadísticas semanales cargadas:', stats);
+    } catch (error) {
+      console.error('Error cargando estadísticas:', error);
+      // No mostrar error para estadísticas, solo log
+      setWeeklyStats(null);
+    } finally {
+      setLoadingStats(false);
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'PRESENT': return 'bg-green-100 text-green-800';
-      case 'LATE': return 'bg-yellow-100 text-yellow-800';
-      case 'ABSENT': return 'bg-red-100 text-red-800';
-      case 'PENDING': return 'bg-gray-100 text-gray-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'PRESENT': return 'bg-green-100 text-green-800 border-green-200';
+      case 'LATE': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'ABSENT': return 'bg-red-100 text-red-800 border-red-200';
+      case 'EXCUSED': return 'bg-blue-100 text-blue-800 border-blue-200';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
 
@@ -77,17 +143,38 @@ const MyClasses = () => {
       case 'PRESENT': return '✅ Presente';
       case 'LATE': return '⏰ Tarde';
       case 'ABSENT': return '❌ Ausente';
-      case 'PENDING': return '⏳ Pendiente';
-      default: return status;
+      case 'EXCUSED': return '📝 Excusa';
+      default: return '⏳ Pendiente';
     }
   };
 
-  const getWeekDays = () => {
-    const start = new Date(currentWeek);
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'PRESENT': return '✅';
+      case 'LATE': return '⏰';
+      case 'ABSENT': return '❌';
+      case 'EXCUSED': return '📝';
+      default: return '⏳';
+    }
+  };
+
+  const getWeekStart = (date: Date) => {
+    const start = new Date(date);
     start.setDate(start.getDate() - start.getDay() + 1); // Lunes
+    return start;
+  };
+
+  const getWeekEnd = (date: Date) => {
+    const end = new Date(date);
+    end.setDate(end.getDate() - end.getDay() + 6); // Domingo
+    return end;
+  };
+
+  const getWeekDays = () => {
+    const start = getWeekStart(currentWeek);
     const days = [];
     
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 6; i++) { // Solo lunes a sábado
       const day = new Date(start);
       day.setDate(start.getDate() + i);
       days.push(day);
@@ -100,29 +187,137 @@ const MyClasses = () => {
     return date.toDateString() === today.toDateString();
   };
 
+  const formatTime = (timeString: string | null) => {
+    if (!timeString) return 'N/A';
+    
+    try {
+      const date = new Date(timeString);
+      return date.toLocaleTimeString('es-CO', {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'America/Bogota'
+      });
+    } catch {
+      return timeString;
+    }
+  };
+
+  const refreshCurrentDate = async () => {
+    try {
+      showProcessingAlert('Actualizando', 'Sincronizando fecha con el servidor...');
+      await refreshDate();
+      setSelectedDate(currentDate);
+      await fetchMyClasses();
+      hideProcessingAlert();
+      showQuickToast('Fecha actualizada', 'success');
+    } catch (error) {
+      hideProcessingAlert();
+      handleApiError(error, 'No se pudo actualizar la fecha');
+    }
+  };
+
+  const goToToday = async () => {
+    try {
+      await refreshDate();
+      setCurrentWeek(new Date());
+      setSelectedDate(currentDate);
+    } catch (error) {
+      console.error('Error al ir a hoy:', error);
+    }
+  };
+
+  if (!user?.profile) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+        <p className="text-red-700">No se pudo cargar la información del perfil</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-semibold text-gray-800">📚 Mis Clases</h1>
-        <p className="text-gray-600 mt-1">Consulta tus horarios y asistencia</p>
-      </div>
-
-      {/* Información del aprendiz */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex items-center space-x-4">
-          <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white text-xl font-bold">
-            {user?.profile?.firstName?.charAt(0)}{user?.profile?.lastName?.charAt(0)}
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-semibold text-gray-800">📚 Mis Clases</h1>
+          <p className="text-gray-600 mt-1">Consulta tus horarios y asistencia</p>
+        </div>
+        
+        {/* ⭐ CONTROLES DE FECHA */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 text-sm">
+            <div className={`w-2 h-2 rounded-full ${isServerSynced ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+            <span className="text-gray-600">{syncStatus}</span>
           </div>
-          <div>
-            <h2 className="text-lg font-semibold text-gray-800">
-              {user?.profile?.firstName} {user?.profile?.lastName}
-            </h2>
-            <p className="text-gray-600">Ficha: {user?.profile?.ficha?.code || 'Sin asignar'}</p>
-            <p className="text-sm text-gray-500">{user?.profile?.ficha?.name}</p>
-          </div>
+          <button
+            onClick={refreshCurrentDate}
+            className="btn-secondary text-sm"
+            title="Actualizar fecha"
+          >
+            🔄 Actualizar
+          </button>
         </div>
       </div>
+
+      {/* ⭐ INFORMACIÓN DEL APRENDIZ MEJORADA */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg shadow p-6 border border-blue-200">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white text-xl font-bold shadow-lg">
+              {user.profile.firstName?.charAt(0)}{user.profile.lastName?.charAt(0)}
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-800">
+                {user.profile.firstName} {user.profile.lastName}
+              </h2>
+              <p className="text-blue-600 font-medium">
+                Ficha: {user.profile.ficha?.code || 'Sin asignar'}
+              </p>
+              <p className="text-sm text-gray-600">{user.profile.ficha?.name}</p>
+            </div>
+          </div>
+          
+          {/* ⭐ ESTADÍSTICAS RÁPIDAS */}
+          {weeklyStats && (
+            <div className="text-right">
+              <div className="text-sm text-gray-600 mb-1">Asistencia Semanal</div>
+              <div className="text-2xl font-bold text-blue-600">
+                {weeklyStats.attendancePercentage.toFixed(1)}%
+              </div>
+              <div className="text-xs text-gray-500">
+                {weeklyStats.presentClasses + weeklyStats.lateClasses} de {weeklyStats.totalClasses} clases
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ⭐ ESTADÍSTICAS SEMANALES DETALLADAS */}
+      {weeklyStats && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">
+            📊 Resumen de la Semana
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="text-center p-3 bg-green-50 rounded-lg border border-green-200">
+              <div className="text-2xl font-bold text-green-600">{weeklyStats.presentClasses}</div>
+              <div className="text-sm text-green-700">Presente</div>
+            </div>
+            <div className="text-center p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+              <div className="text-2xl font-bold text-yellow-600">{weeklyStats.lateClasses}</div>
+              <div className="text-sm text-yellow-700">Tarde</div>
+            </div>
+            <div className="text-center p-3 bg-red-50 rounded-lg border border-red-200">
+              <div className="text-2xl font-bold text-red-600">{weeklyStats.absentClasses}</div>
+              <div className="text-sm text-red-700">Ausente</div>
+            </div>
+            <div className="text-center p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="text-2xl font-bold text-blue-600">{weeklyStats.totalClasses}</div>
+              <div className="text-sm text-blue-700">Total</div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Navegación por semana */}
       <div className="bg-white rounded-lg shadow p-6">
@@ -140,7 +335,7 @@ const MyClasses = () => {
               ← Semana anterior
             </button>
             <button
-              onClick={() => setCurrentWeek(new Date())}
+              onClick={goToToday}
               className="btn-primary"
             >
               Hoy
@@ -158,14 +353,14 @@ const MyClasses = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-7 gap-2">
+        <div className="grid grid-cols-6 gap-2">
           {getWeekDays().map((day, index) => (
             <button
               key={index}
               onClick={() => setSelectedDate(day.toISOString().split('T')[0])}
               className={`p-3 text-center rounded-lg transition-colors ${
                 selectedDate === day.toISOString().split('T')[0]
-                  ? 'bg-sena-green text-white'
+                  ? 'bg-sena-green text-white shadow-lg'
                   : isToday(day)
                   ? 'bg-blue-100 text-blue-800 border-2 border-blue-300'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -185,17 +380,19 @@ const MyClasses = () => {
         </div>
       </div>
 
-      {/* Clases del día */}
+      {/* ⭐ CLASES DEL DÍA MEJORADAS */}
       <div className="bg-white rounded-lg shadow">
-        <div className="px-6 py-4 border-b">
-          <h3 className="text-lg font-semibold text-gray-800">
-            📅 Clases del {new Date(selectedDate).toLocaleDateString('es-CO', {
-              weekday: 'long',
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric'
-            })}
-          </h3>
+        <div className="px-6 py-4 border-b border-gray-200">
+          <div className="flex justify-between items-center">
+            <h3 className="text-lg font-semibold text-gray-800">
+              📅 Clases del {formatDate(selectedDate)}
+            </h3>
+            {!isServerSynced && (
+              <div className="text-xs text-yellow-600 bg-yellow-50 px-2 py-1 rounded">
+                ⚠️ Usando fecha local
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="p-6">
@@ -217,22 +414,74 @@ const MyClasses = () => {
           ) : (
             <div className="space-y-4">
               {classes.map((classItem) => (
-                <div key={classItem.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                <div key={classItem.scheduleId} className="border rounded-lg p-6 hover:shadow-md transition-shadow">
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
-                      <div className="flex items-center space-x-3 mb-2">
-                        <h4 className="text-lg font-medium text-gray-900">{classItem.subject}</h4>
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(classItem.status)}`}>
-                          {getStatusText(classItem.status)}
-                        </span>
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-xl font-semibold text-gray-900">{classItem.subject}</h4>
+                        {classItem.attendance && (
+                          <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full border ${getStatusColor(classItem.attendance.status)}`}>
+                            {getStatusText(classItem.attendance.status)}
+                          </span>
+                        )}
                       </div>
                       
-                      <div className="text-sm text-gray-600 space-y-1">
-                        <div className="flex items-center space-x-4">
-                          <span>👨‍🏫 {classItem.instructor}</span>
-                          <span>🕒 {classItem.startTime} - {classItem.endTime}</span>
-                          {classItem.classroom && <span>📍 {classItem.classroom}</span>}
+                      <div className="space-y-2">
+                        <div className="flex items-center text-gray-600">
+                          <span className="text-lg mr-2">👨‍🏫</span>
+                          <span>{classItem.instructor.firstName} {classItem.instructor.lastName}</span>
                         </div>
+                        
+                        <div className="flex items-center text-gray-600">
+                          <span className="text-lg mr-2">📚</span>
+                          <span>{classItem.competence.name}</span>
+                        </div>
+                        
+                        <div className="flex items-center space-x-6 text-gray-600">
+                          <div className="flex items-center">
+                            <span className="text-lg mr-2">🕒</span>
+                            <span>{classItem.startTime} - {classItem.endTime}</span>
+                          </div>
+                          
+                          <div className="flex items-center">
+                            <span className="text-lg mr-2">📍</span>
+                            <span>{classItem.classroom}</span>
+                          </div>
+                        </div>
+                        
+                        {/* ⭐ INFORMACIÓN DE ASISTENCIA DETALLADA */}
+                        {classItem.attendance && (
+                          <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                            <div className="text-sm text-gray-600">
+                              <div className="flex items-center justify-between">
+                                <span>
+                                  <strong>Estado:</strong> {getStatusIcon(classItem.attendance.status)} {getStatusText(classItem.attendance.status)}
+                                </span>
+                                {classItem.attendance.accessTime && (
+                                  <span>
+                                    <strong>Hora de llegada:</strong> {formatTime(classItem.attendance.accessTime)}
+                                  </span>
+                                )}
+                              </div>
+                              
+                              <div className="mt-2 text-xs">
+                                <span className={`px-2 py-1 rounded-full ${
+                                  classItem.attendance.isManual 
+                                    ? 'bg-blue-100 text-blue-700' 
+                                    : 'bg-green-100 text-green-700'
+                                }`}>
+                                  {classItem.attendance.isManual ? '✏️ Marcado manualmente' : '📱 Registrado automáticamente'}
+                                </span>
+                              </div>
+                              
+                              {classItem.attendance.notes && (
+                                <div className="mt-2">
+                                  <strong>Observaciones:</strong> {classItem.attendance.notes}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -250,9 +499,10 @@ const MyClasses = () => {
           <li>• ✅ <strong>Presente:</strong> Llegaste a tiempo o antes del inicio de clase</li>
           <li>• ⏰ <strong>Tarde:</strong> Llegaste dentro de los 20 minutos de tolerancia</li>
           <li>• ❌ <strong>Ausente:</strong> No registraste entrada o llegaste muy tarde</li>
-          <li>• ⏳ <strong>Pendiente:</strong> La clase aún no ha comenzado</li>
+          <li>• 📝 <strong>Excusa:</strong> Tu instructor registró una excusa válida</li>
           <li>• Tu asistencia se marca automáticamente al registrar entrada con tu código QR</li>
           <li>• Si tienes dudas sobre tu asistencia, consulta con tu instructor</li>
+          <li>• Las estadísticas se actualizan en tiempo real</li>
         </ul>
       </div>
     </div>
@@ -260,4 +510,3 @@ const MyClasses = () => {
 };
 
 export default MyClasses;
-

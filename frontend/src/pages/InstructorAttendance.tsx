@@ -10,6 +10,7 @@ import {
 import { useDateSyncWithServer } from '../hooks/useDateSync';
 import Swal from 'sweetalert2';
 
+
 const InstructorAttendance: React.FC = () => {
   const [schedules, setSchedules] = useState<ClassSchedule[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -25,6 +26,7 @@ const InstructorAttendance: React.FC = () => {
   const [hasNewData, setHasNewData] = useState(false);
   const [previousAttendanceData, setPreviousAttendanceData] = useState<string>('');
   const [isFirstLoad, setIsFirstLoad] = useState(true);
+  const [expandedClasses, setExpandedClasses] = useState<Set<number>>(new Set());
 
   // ⭐ USAR HOOK DE SINCRONIZACIÓN CON SERVIDOR
   const { 
@@ -316,6 +318,16 @@ const showArrivalNotifications = (arrivals: Array<{
       console.log('🔇 No se pudo reproducir sonido de notificación:', error);
     }
   }
+};
+
+  const toggleClassExpansion = (scheduleIndex: number) => {
+  const newExpanded = new Set(expandedClasses);
+  if (newExpanded.has(scheduleIndex)) {
+    newExpanded.delete(scheduleIndex);
+  } else {
+    newExpanded.add(scheduleIndex);
+  }
+  setExpandedClasses(newExpanded);
 };
 
   // ⭐ FUNCIÓN PARA SINCRONIZAR FECHA
@@ -695,174 +707,207 @@ const showArrivalNotifications = (arrivals: Array<{
         )}
 
         {/* Lista de clases */}
-        {schedules.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-sm p-8 text-center">
-            <div className="text-gray-400 mb-4">
-              <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-              </svg>
-            </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
-              No hay clases programadas
-            </h3>
-            <p className="text-gray-500">
-              No se encontraron clases para el {formatDate(selectedDate)}.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-6">
-            {schedules.map((schedule, scheduleIndex) => (
-              <div key={schedule.scheduleId} className="bg-white rounded-lg shadow-sm overflow-hidden">
-                {/* Header de la clase */}
-                <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900">
-                        {schedule.subject} - {schedule.startTime} a {schedule.endTime}
-                      </h3>
-                      <p className="text-sm text-gray-600">
-                        {schedule.classroom && `Aula: ${schedule.classroom}`}
-                        {schedule.ficha?.name && ` | Ficha: ${schedule.ficha.name}`}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-sm">
-                        <span className="text-green-600 font-medium">Presentes: {schedule.attendance.present}</span>
-                        <span className="text-yellow-600 font-medium ml-3">Tarde: {schedule.attendance.late}</span>
-                        <span className="text-red-600 font-medium ml-3">Ausentes: {schedule.attendance.absent}</span>
-                        <span className="text-gray-600 font-medium ml-3">Total: {schedule.attendance.total}</span>
-                      </div>
-                      <button
-                        onClick={() => markAllAsPresent(scheduleIndex)}
-                        className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
-                      >
-                        Marcar Todos Presentes
-                      </button>
-                    </div>
-                  </div>
+{schedules.length === 0 ? (
+  <div className="bg-white rounded-lg shadow-sm p-8 text-center">
+    <div className="text-gray-400 mb-4">
+      <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+      </svg>
+    </div>
+    <h3 className="text-lg font-medium text-gray-900 mb-2">
+      No hay clases programadas
+    </h3>
+    <p className="text-gray-500">
+      No se encontraron clases para el {formatDate(selectedDate)}.
+    </p>
+  </div>
+) : (
+  <div className="space-y-6">
+    {schedules.map((schedule, scheduleIndex) => {
+      const isExpanded = expandedClasses.has(scheduleIndex);
+      
+      return (
+        <div key={schedule.scheduleId} className="bg-white rounded-lg shadow-sm overflow-hidden">
+          {/* Header clickeable de la clase */}
+          <div 
+            className="bg-gray-50 px-6 py-4 border-b border-gray-200 cursor-pointer hover:bg-gray-100"
+            onClick={() => toggleClassExpansion(scheduleIndex)}
+          >
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                {/* Icono de expansión */}
+                <svg 
+                  className={`w-5 h-5 text-gray-500 transition-transform ${isExpanded ? 'transform rotate-90' : ''}`}
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+                
+                {/* Información de la clase */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    {schedule.subject} - {schedule.startTime} a {schedule.endTime}
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    {schedule.classroom && `Aula: ${schedule.classroom}`}
+                    {schedule.ficha?.code && schedule.ficha?.name && ` | Ficha: ${schedule.ficha.code} - ${schedule.ficha.name}`}
+                  </p>
                 </div>
+              </div>
+              
+              {/* Estadísticas */}
+              <div className="flex items-center gap-4">
+                <div className="text-sm">
+                  <span className="text-green-600 font-medium">Presentes: {schedule.attendance.present}</span>
+                  <span className="text-yellow-600 font-medium ml-3">Tarde: {schedule.attendance.late}</span>
+                  <span className="text-red-600 font-medium ml-3">Ausentes: {schedule.attendance.absent}</span>
+                  <span className="text-gray-600 font-medium ml-3">Total: {schedule.attendance.total}</span>
+                </div>
+              </div>
+            </div>
+          </div>
 
-                {/* Tabla de asistencia */}
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Aprendiz
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Estado
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Hora de Acceso
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Acciones Rápidas
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Tipo
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {schedule.records.map((record, recordIndex) => (
-                        <tr key={record.attendanceId} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-gray-900">
-                              {record.learnerName || 'Sin nombre'}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <select
-                              value={getSpanishStatus(record.status)}
-                              onChange={(e) => handleStatusChange(scheduleIndex, recordIndex, e.target.value as any)}
-                              className="text-sm rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+          {/* Contenido desplegable */}
+          {isExpanded && (
+            <div>
+              {/* Barra de herramientas */}
+              <div className="px-6 py-3 bg-gray-50 border-b border-gray-200">
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => markAllAsPresent(scheduleIndex)}
+                    className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
+                  >
+                    Marcar Todos Presentes
+                  </button>
+                </div>
+              </div>
+
+              {/* Tabla de asistencia */}
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Aprendiz
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Estado
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Hora de Acceso
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Acciones Rápidas
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Tipo
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {schedule.records.map((record, recordIndex) => (
+                      <tr key={record.attendanceId} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">
+                            {record.learnerName || 'Sin nombre'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <select
+                            value={getSpanishStatus(record.status)}
+                            onChange={(e) => handleStatusChange(scheduleIndex, recordIndex, e.target.value as any)}
+                            className="text-sm rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                          >
+                            <option value="AUSENTE">Ausente</option>
+                            <option value="PRESENTE">Presente</option>
+                            <option value="TARDE">Tarde</option>
+                            <option value="EXCUSA">Excusa</option>
+                          </select>
+                          <div className="mt-1">
+                            <span className={getStatusBadge(record.status)}>
+                              {getStatusText(record.status)}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {formatTime(record.accessTime)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => handleStatusChange(scheduleIndex, recordIndex, 'PRESENTE')}
+                              className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 transition-colors"
+                              title="Marcar como Presente"
                             >
-                              <option value="AUSENTE">Ausente</option>
-                              <option value="PRESENTE">Presente</option>
-                              <option value="TARDE">Tarde</option>
-                              <option value="EXCUSA">Excusa</option>
-                            </select>
+                              ✓
+                            </button>
+                            <button
+                              onClick={() => handleStatusChange(scheduleIndex, recordIndex, 'TARDE')}
+                              className="px-2 py-1 bg-yellow-600 text-white rounded text-xs hover:bg-yellow-700 transition-colors"
+                              title="Marcar como Tarde"
+                            >
+                              ⏰
+                            </button>
+                            <button
+                              onClick={() => handleStatusChange(scheduleIndex, recordIndex, 'AUSENTE')}
+                              className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700 transition-colors"
+                              title="Marcar como Ausente"
+                            >
+                              ✗
+                            </button>
+                            <button
+                              onClick={() => handleStatusChange(scheduleIndex, recordIndex, 'EXCUSA')}
+                              className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 transition-colors"
+                              title="Marcar Excusa"
+                            >
+                              📝
+                            </button>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            record.isManual 
+                              ? 'bg-blue-100 text-blue-800' 
+                              : 'bg-green-100 text-green-800'
+                          }`}>
+                            {record.isManual ? 'Manual' : 'Automático'}
+                          </span>
+                          {pendingChanges.has(record.attendanceId) && (
                             <div className="mt-1">
-                              <span className={getStatusBadge(record.status)}>
-                                {getStatusText(record.status)}
+                              <span className="px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                                Pendiente
                               </span>
                             </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {formatTime(record.accessTime)}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex gap-1">
-                              <button
-                                onClick={() => handleStatusChange(scheduleIndex, recordIndex, 'PRESENTE')}
-                                className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 transition-colors"
-                                title="Marcar como Presente"
-                              >
-                                ✓
-                              </button>
-                              <button
-                                onClick={() => handleStatusChange(scheduleIndex, recordIndex, 'TARDE')}
-                                className="px-2 py-1 bg-yellow-600 text-white rounded text-xs hover:bg-yellow-700 transition-colors"
-                                title="Marcar como Tarde"
-                              >
-                                ⏰
-                              </button>
-                              <button
-                                onClick={() => handleStatusChange(scheduleIndex, recordIndex, 'AUSENTE')}
-                                className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700 transition-colors"
-                                title="Marcar como Ausente"
-                              >
-                                ✗
-                              </button>
-                              <button
-                                onClick={() => handleStatusChange(scheduleIndex, recordIndex, 'EXCUSA')}
-                                className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 transition-colors"
-                                title="Marcar Excusa"
-                              >
-                                📝
-                              </button>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              record.isManual 
-                                ? 'bg-blue-100 text-blue-800' 
-                                : 'bg-green-100 text-green-800'
-                            }`}>
-                              {record.isManual ? 'Manual' : 'Automático'}
-                            </span>
-                            {pendingChanges.has(record.attendanceId) && (
-                              <div className="mt-1">
-                                <span className="px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                                  Pendiente
-                                </span>
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Footer con estadísticas */}
-                {schedule.records.length > 0 && (
-                  <div className="bg-gray-50 px-6 py-3 border-t border-gray-200">
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-gray-600">
-                        {schedule.attendance.total} aprendices registrados
-                      </span>
-                      <span className="text-gray-600">
-                        Asistencia: {schedule.attendance.percentage}%
-                      </span>
-                    </div>
-                  </div>
-                )}
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            ))}
-          </div>
-        )}
+
+              {/* Footer con estadísticas */}
+              {schedule.records.length > 0 && (
+                <div className="bg-gray-50 px-6 py-3 border-t border-gray-200">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-600">
+                      {schedule.attendance.total} aprendices registrados
+                    </span>
+                    <span className="text-gray-600">
+                      Asistencia: {schedule.attendance.percentage}%
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    })}
+  </div>
+)}
 
         {/* Modal para excusas */}
         {showExcuseModal.record && (

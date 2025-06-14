@@ -43,6 +43,20 @@ const PrivateRoute = ({ children, roles }: PrivateRouteProps) => {
       hasAccess: userRole && roles.includes(userRole)
     });
     
+    // ⭐ MANEJO ESPECIAL PARA RUTAS BLOQUEADAS
+    if (roles.includes('BLOCKED_FOR_INSTRUCTOR')) {
+      console.log('🚫 PrivateRoute - Ruta bloqueada para instructores');
+      if (userRole === 'Instructor') {
+        console.log('🔄 PrivateRoute - Instructor intentando acceder a ruta bloqueada, redirigiendo a Mi Perfil');
+        return <Navigate to="/instructor-profile" replace />;
+      }
+      // Si no es instructor, permitir acceso (probablemente admin)
+      if (userRole === 'Administrador') {
+        console.log('✅ PrivateRoute - Administrador tiene acceso a ruta bloqueada para instructores');
+        return <>{children}</>;
+      }
+    }
+    
     if (!userRole || !roles.includes(userRole)) {
       // Redirigir según el rol del usuario
       const redirectPath = getRedirectPathByRole(userRole);
@@ -55,16 +69,16 @@ const PrivateRoute = ({ children, roles }: PrivateRouteProps) => {
   return <>{children}</>;
 };
 
-// Función auxiliar para redirigir según el rol
+// ⭐ FUNCIÓN ACTUALIZADA PARA REDIRECCIÓN POR ROL
 const getRedirectPathByRole = (role: string | undefined): string => {
   console.log('🎯 getRedirectPathByRole - rol:', role);
   switch (role) {
     case 'Administrador':
       return '/dashboard';
     case 'Instructor':
-      return '/instructor-dashboard';
+      return '/instructor-profile'; // ⭐ CAMBIO: Ahora redirige a Mi Perfil en lugar de Dashboard
     case 'Aprendiz':
-      return '/learner-profile';
+      return '/my-classes';
     default:
       console.warn('⚠️ Rol no reconocido:', role);
       return '/login';

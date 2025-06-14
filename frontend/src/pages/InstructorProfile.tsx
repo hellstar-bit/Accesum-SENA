@@ -1,4 +1,4 @@
-// frontend/src/pages/InstructorProfile.tsx - COMPLETO MODIFICADO
+// frontend/src/pages/InstructorProfile.tsx - MEJORADO CON LÓGICA DE LEARNERPROFILE
 import { useState, useEffect, useRef } from 'react';
 import { instructorService } from '../services/instructorService';
 import type { 
@@ -7,18 +7,31 @@ import type {
   WeeklySchedule, 
   InstructorSchedule
 } from '../services/instructorService';
-import Swal from 'sweetalert2';
+import { downloadLearnerCarnet } from '../utils/carnetGenerator';
+import SweetAlertUtils, { 
+  showProcessingAlert, 
+  hideProcessingAlert, 
+  showQuickToast, 
+  handleApiError 
+} from '../utils/sweetAlertUtils';
 
-const InstructorProfile = () => {
+const InstructorProfilePage = () => {
   const [profile, setProfile] = useState<InstructorProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [imageError, setImageError] = useState(false);
-  const [formData, setFormData] = useState<UpdateInstructorProfileData>({});
+  const [formData, setFormData] = useState({
+    phoneNumber: '',
+    address: '',
+    city: '',
+    bloodType: '',
+    maritalStatus: '',
+    vaccine: '',
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ⭐ NUEVOS ESTADOS PARA HORARIOS
+  // ⭐ ESTADOS PARA HORARIOS (MANTENER INTACTOS)
   const [schedules, setSchedules] = useState<WeeklySchedule | null>(null);
   const [currentTrimester, setCurrentTrimester] = useState<string>('');
   const [loadingSchedules, setLoadingSchedules] = useState(false);
@@ -37,6 +50,7 @@ const InstructorProfile = () => {
       setProfile(profileData);
       setImageError(false);
       
+      // ⭐ USAR MISMA LÓGICA QUE LEARNERPROFILE
       setFormData({
         phoneNumber: profileData.phoneNumber || '',
         address: profileData.address || '',
@@ -47,13 +61,13 @@ const InstructorProfile = () => {
       });
     } catch (error) {
       console.error('Error al cargar perfil:', error);
-      Swal.fire('Error', 'No se pudo cargar tu perfil', 'error');
+      handleApiError(error, 'No se pudo cargar la información de tu perfil');
     } finally {
       setLoading(false);
     }
   };
 
-  // ⭐ CARGAR HORARIOS
+  // ⭐ CARGAR HORARIOS (MANTENER IGUAL)
   const loadSchedules = async () => {
     try {
       setLoadingSchedules(true);
@@ -62,7 +76,6 @@ const InstructorProfile = () => {
       setCurrentTrimester(response.trimester);
     } catch (error) {
       console.error('Error cargando horarios:', error);
-      // No mostrar error si no hay horarios
       setSchedules({
         LUNES: [],
         MARTES: [],
@@ -76,7 +89,7 @@ const InstructorProfile = () => {
     }
   };
 
-  // ⭐ CARGAR ASIGNACIONES
+  // ⭐ CARGAR ASIGNACIONES (MANTENER IGUAL)
   const loadAssignments = async () => {
     try {
       const assignmentsData = await instructorService.getMyAssignments();
@@ -87,42 +100,34 @@ const InstructorProfile = () => {
     }
   };
 
-  const handleInputChange = (field: keyof UpdateInstructorProfileData, value: string) => {
+  // ⭐ USAR LÓGICA DE LEARNERPROFILE
+  const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
   const handleSave = async () => {
     try {
       setSaving(true);
-      
-      Swal.fire({
-        title: 'Actualizando perfil...',
-        text: 'Guardando tu información personal',
-        allowOutsideClick: false,
-        showConfirmButton: false,
-        didOpen: () => {
-          Swal.showLoading();
-        }
-      });
+      showProcessingAlert('Actualizando perfil', 'Guardando tu información personal...');
       
       await instructorService.updateMyProfile(formData);
       await fetchProfile();
       setIsEditing(false);
       
-      Swal.fire({
-        title: '¡Perfil actualizado!',
-        text: 'Tu información personal ha sido actualizada correctamente.',
-        icon: 'success',
-        timer: 2000,
-        showConfirmButton: false
-      });
+      hideProcessingAlert();
+      await SweetAlertUtils.general.showSuccess(
+        '¡Perfil actualizado!',
+        'Tu información personal ha sido actualizada correctamente.'
+      );
     } catch (error: any) {
-      Swal.fire('Error', 'No se pudo actualizar tu perfil', 'error');
+      hideProcessingAlert();
+      handleApiError(error, 'No se pudo actualizar tu perfil');
     } finally {
       setSaving(false);
     }
   };
 
+  // ⭐ FUNCIONES DE IMAGEN (COPIAR DE LEARNERPROFILE)
   const isValidImageUrl = (url: string | undefined): boolean => {
     if (!url) return false;
     const base64Regex = /^data:image\/(jpeg|jpg|png|gif|webp);base64,[A-Za-z0-9+/]*={0,2}$/;
@@ -131,6 +136,7 @@ const InstructorProfile = () => {
 
   const handleImageError = () => {
     setImageError(true);
+    console.error('Error al cargar imagen de perfil');
   };
 
   const handleImageLoad = () => {
@@ -144,13 +150,19 @@ const InstructorProfile = () => {
     // Validar tipo de archivo
     const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
     if (!validTypes.includes(file.type)) {
-      Swal.fire('Error', 'Solo se permiten archivos de imagen (JPEG, PNG, GIF, WebP)', 'error');
+      await SweetAlertUtils.general.showError(
+        'Formato no válido',
+        'Solo se permiten archivos de imagen (JPEG, PNG, GIF, WebP)'
+      );
       return;
     }
 
     // Validar tamaño
     if (file.size > 2 * 1024 * 1024) {
-      Swal.fire('Error', 'La imagen no debe superar los 2MB', 'error');
+      await SweetAlertUtils.general.showError(
+        'Archivo muy grande',
+        'La imagen no debe superar los 2MB'
+      );
       return;
     }
 
@@ -158,16 +170,7 @@ const InstructorProfile = () => {
     reader.onloadend = async () => {
       try {
         setSaving(true);
-        
-        Swal.fire({
-          title: 'Subiendo imagen...',
-          text: 'Procesando tu foto de perfil',
-          allowOutsideClick: false,
-          showConfirmButton: false,
-          didOpen: () => {
-            Swal.showLoading();
-          }
-        });
+        showProcessingAlert('Subiendo imagen', 'Procesando tu foto de perfil...');
         
         const result = reader.result as string;
         
@@ -182,23 +185,22 @@ const InstructorProfile = () => {
           fileInputRef.current.value = '';
         }
         
-        Swal.fire({
-          title: '¡Imagen subida!',
-          text: 'Tu foto de perfil ha sido actualizada',
-          icon: 'success',
-          timer: 2000,
-          showConfirmButton: false
-        });
+        hideProcessingAlert();
+        showQuickToast('¡Imagen subida correctamente!', 'success');
         
       } catch (error: any) {
-        Swal.fire('Error', 'No se pudo subir la imagen', 'error');
+        hideProcessingAlert();
+        handleApiError(error, 'No se pudo subir la imagen');
       } finally {
         setSaving(false);
       }
     };
 
     reader.onerror = () => {
-      Swal.fire('Error', 'No se pudo procesar el archivo seleccionado', 'error');
+      SweetAlertUtils.general.showError(
+        'Error al leer archivo', 
+        'No se pudo procesar el archivo seleccionado.'
+      );
       setSaving(false);
     };
 
@@ -206,46 +208,54 @@ const InstructorProfile = () => {
   };
 
   const handleRegenerateQR = async () => {
-    const result = await Swal.fire({
-      title: '¿Regenerar código QR?',
-      text: 'Se creará un nuevo código QR para tu acceso al sistema',
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonColor: '#39A900',
-      cancelButtonColor: '#6b7280',
-      confirmButtonText: 'Sí, regenerar',
-      cancelButtonText: 'Cancelar'
-    });
+    // ⭐ USAR CONFIRMACIÓN ESPECÍFICA COMO EN LEARNERPROFILE
+    const userData = {
+      firstName: profile?.firstName || '',
+      lastName: profile?.lastName || '',
+      documentType: profile?.documentType || '',
+      documentNumber: profile?.documentNumber || '',
+      email: profile?.user?.email,
+      profileImage: profile?.profileImage,
+      role: 'Instructor'
+    };
+
+    const confirmed = await SweetAlertUtils.user.confirmRegenerateQR(userData, !!profile?.qrCode);
     
-    if (!result.isConfirmed) return;
+    if (!confirmed) return;
     
     try {
       setSaving(true);
-      
-      Swal.fire({
-        title: 'Generando código QR...',
-        text: 'Creando tu nuevo código QR',
-        allowOutsideClick: false,
-        showConfirmButton: false,
-        didOpen: () => {
-          Swal.showLoading();
-        }
-      });
+      showProcessingAlert('Generando código QR', 'Creando tu nuevo código QR...');
       
       await instructorService.regenerateQR();
       await fetchProfile();
       
-      Swal.fire({
-        title: '¡Código QR generado!',
-        text: 'Tu nuevo código QR está listo para usar',
-        icon: 'success',
-        timer: 2000,
-        showConfirmButton: false
-      });
+      hideProcessingAlert();
+      await SweetAlertUtils.user.showQRGenerated(userData);
     } catch (error: any) {
-      Swal.fire('Error', 'No se pudo regenerar el código QR', 'error');
+      hideProcessingAlert();
+      handleApiError(error, 'No se pudo regenerar el código QR');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // ⭐ FUNCIÓN PARA DESCARGAR CARNET
+  const downloadCarnet = () => {
+    try {
+      // Adaptar datos del instructor para el generador de carnet
+      const instructorForCarnet = {
+        ...profile,
+        ficha: null, // Los instructores no tienen ficha
+        learnerStatus: null // Los instructores no tienen estado de aprendiz
+      };
+      downloadLearnerCarnet(instructorForCarnet);
+      showQuickToast('¡Carnet descargado!', 'success');
+    } catch (error) {
+      SweetAlertUtils.general.showError(
+        'Error al descargar',
+        'No se pudo descargar el carnet. Verifica que tengas imagen y código QR.'
+      );
     }
   };
 
@@ -272,100 +282,72 @@ const InstructorProfile = () => {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-semibold text-gray-800">👨‍🏫 Mi Perfil</h1>
-          <p className="text-gray-600 mt-1">Gestiona tu información personal y horarios</p>
-        </div>
-        <div className="flex space-x-3">
-          {!isEditing ? (
-            <button
-              onClick={() => setIsEditing(true)}
-              className="btn-primary"
-            >
-              ✏️ Editar Información
-            </button>
-          ) : (
-            <div className="flex space-x-2">
-              <button
-                onClick={() => setIsEditing(false)}
-                className="btn-secondary"
-                disabled={saving}
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleSave}
-                className="btn-primary"
-                disabled={saving}
-              >
-                {saving ? 'Guardando...' : 'Guardar'}
-              </button>
-            </div>
-          )}
+          <p className="text-gray-600 mt-1">Gestiona tu información personal, horarios y carnet</p>
         </div>
       </div>
 
-      {/* ⭐ SECCIÓN - MIS HORARIOS */}
-<div className="bg-white rounded-lg shadow-md p-6">
-  <div className="flex justify-between items-center mb-4">
-    <h3 className="text-xl font-semibold text-gray-800">
-      📅 Mis Horarios - Trimestre {currentTrimester}
-    </h3>
-    <button
-      onClick={loadSchedules}
-      disabled={loadingSchedules}
-      className="btn-secondary text-sm"
-    >
-      {loadingSchedules ? 'Cargando...' : '🔄 Actualizar'}
-    </button>
-  </div>
-  
-  {loadingSchedules ? (
-    <div className="flex items-center justify-center py-8">
-      <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-sena-green"></div>
-      <span className="ml-3 text-gray-600">Cargando horarios...</span>
-    </div>
-  ) : schedules ? (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {Object.entries(schedules).map(([day, daySchedules]) => (
-        <div key={day} className="border rounded-lg p-4 bg-gray-50">
-          <h4 className="font-semibold text-lg mb-3 text-blue-600 border-b pb-2">
-            {day}
-          </h4>
-          {daySchedules.length > 0 ? (
-            <div className="space-y-3">
-              {daySchedules.map((schedule: InstructorSchedule) => (
-                <div key={schedule.id} className="bg-white rounded-lg p-3 border-l-4 border-sena-green">
-                  <div className="font-medium text-gray-800 mb-1">
-                    ⏰ {schedule.startTime} - {schedule.endTime}
-                  </div>
-                  <div className="text-sm text-gray-700 mb-1">
-                    📚 {schedule.competence.name}
-                  </div>
-                  <div className="text-sm text-blue-600 mb-1">
-                    👥 {schedule.ficha.code} - {schedule.ficha.name}
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    🏫 Aula: {schedule.classroom}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-gray-500 text-sm text-center py-4">
-              Sin clases programadas
-            </div>
-          )}
+      {/* ⭐ SECCIÓN DE HORARIOS (MANTENER EXACTAMENTE IGUAL) */}
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-xl font-semibold text-gray-800">
+            📅 Mis Horarios - Trimestre {currentTrimester}
+          </h3>
+          <button
+            onClick={loadSchedules}
+            disabled={loadingSchedules}
+            className="btn-secondary text-sm"
+          >
+            {loadingSchedules ? 'Cargando...' : '🔄 Actualizar'}
+          </button>
         </div>
-      ))}
-    </div>
-  ) : (
-    <div className="text-center py-8 text-gray-500">
-      No se pudieron cargar los horarios
-    </div>
-  )}
-</div>
+        
+        {loadingSchedules ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-sena-green"></div>
+            <span className="ml-3 text-gray-600">Cargando horarios...</span>
+          </div>
+        ) : schedules ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Object.entries(schedules).map(([day, daySchedules]) => (
+              <div key={day} className="border rounded-lg p-4 bg-gray-50">
+                <h4 className="font-semibold text-lg mb-3 text-blue-600 border-b pb-2">
+                  {day}
+                </h4>
+                {daySchedules.length > 0 ? (
+                  <div className="space-y-3">
+                    {daySchedules.map((schedule: InstructorSchedule) => (
+                      <div key={schedule.id} className="bg-white rounded-lg p-3 border-l-4 border-sena-green">
+                        <div className="font-medium text-gray-800 mb-1">
+                          ⏰ {schedule.startTime} - {schedule.endTime}
+                        </div>
+                        <div className="text-sm text-gray-700 mb-1">
+                          📚 {schedule.competence.name}
+                        </div>
+                        <div className="text-sm text-blue-600 mb-1">
+                          👥 {schedule.ficha.code} - {schedule.ficha.name}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          🏫 Aula: {schedule.classroom}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-gray-500 text-sm text-center py-4">
+                    Sin clases programadas
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            No se pudieron cargar los horarios
+          </div>
+        )}
+      </div>
 
-
-      {/* ⭐ NUEVA SECCIÓN - MIS ASIGNACIONES */}
+      {/* ⭐ SECCIÓN DE ASIGNACIONES (MANTENER IGUAL) */}
       {assignments.length > 0 && (
         <div className="bg-white rounded-lg shadow-md p-6">
           <h3 className="text-xl font-semibold text-gray-800 mb-4">
@@ -449,7 +431,7 @@ const InstructorProfile = () => {
 
           {/* Código QR */}
           <div className="bg-white rounded-lg shadow p-6 text-center">
-            <h3 className="font-medium text-gray-700 mb-4">Código QR de Acceso</h3>
+            <h3 className="font-medium text-gray-700 mb-4">Código QR</h3>
             {profile.qrCode && isValidImageUrl(profile.qrCode) ? (
               <div className="inline-block p-4 bg-white border-2 border-gray-300 rounded-lg">
                 <img 
@@ -467,7 +449,7 @@ const InstructorProfile = () => {
                 <p className="text-gray-500">Sin código QR</p>
               </div>
             )}
-            <div className="mt-4">
+            <div className="mt-4 space-y-2">
               <button
                 onClick={handleRegenerateQR}
                 disabled={saving}
@@ -475,6 +457,14 @@ const InstructorProfile = () => {
               >
                 {profile.qrCode ? 'Regenerar QR' : 'Generar QR'}
               </button>
+              {profile.qrCode && (
+                <button
+                  onClick={downloadCarnet}
+                  className="btn-primary w-full"
+                >
+                  📄 Descargar Carnet
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -508,14 +498,43 @@ const InstructorProfile = () => {
 
           {/* Información personal EDITABLE */}
           <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="font-medium text-gray-700 mb-4">Información Personal (Editable)</h3>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-medium text-gray-700">Información Personal (Editable)</h3>
+              <div className="flex space-x-3">
+                {!isEditing ? (
+                  <button
+                    onClick={() => setIsEditing(true)}
+                    className="btn-primary"
+                  >
+                    ✏️ Editar Información
+                  </button>
+                ) : (
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => setIsEditing(false)}
+                      className="btn-secondary"
+                      disabled={saving}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handleSave}
+                      className="btn-primary"
+                      disabled={saving}
+                    >
+                      {saving ? 'Guardando...' : 'Guardar'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-600 mb-1">Teléfono</label>
                 {isEditing ? (
                   <input
                     type="tel"
-                    value={formData.phoneNumber || ''}
+                    value={formData.phoneNumber}
                     onChange={(e) => handleInputChange('phoneNumber', e.target.value)}
                     className="input-field"
                     placeholder="3001234567"
@@ -529,7 +548,7 @@ const InstructorProfile = () => {
                 <label className="block text-sm font-medium text-gray-600 mb-1">Tipo de Sangre</label>
                 {isEditing ? (
                   <select
-                    value={formData.bloodType || ''}
+                    value={formData.bloodType}
                     onChange={(e) => handleInputChange('bloodType', e.target.value)}
                     className="input-field"
                   >
@@ -553,7 +572,7 @@ const InstructorProfile = () => {
                 {isEditing ? (
                   <input
                     type="text"
-                    value={formData.address || ''}
+                    value={formData.address}
                     onChange={(e) => handleInputChange('address', e.target.value)}
                     className="input-field"
                     placeholder="Calle 123 # 45-67"
@@ -568,7 +587,7 @@ const InstructorProfile = () => {
                 {isEditing ? (
                   <input
                     type="text"
-                    value={formData.city || ''}
+                    value={formData.city}
                     onChange={(e) => handleInputChange('city', e.target.value)}
                     className="input-field"
                     placeholder="Bogotá"
@@ -582,7 +601,7 @@ const InstructorProfile = () => {
                 <label className="block text-sm font-medium text-gray-600 mb-1">Estado Civil</label>
                 {isEditing ? (
                   <select
-                    value={formData.maritalStatus || ''}
+                    value={formData.maritalStatus}
                     onChange={(e) => handleInputChange('maritalStatus', e.target.value)}
                     className="input-field"
                   >
@@ -602,7 +621,7 @@ const InstructorProfile = () => {
                 <label className="block text-sm font-medium text-gray-600 mb-1">Vacunado COVID-19</label>
                 {isEditing ? (
                   <select
-                    value={formData.vaccine || ''}
+                    value={formData.vaccine}
                     onChange={(e) => handleInputChange('vaccine', e.target.value)}
                     className="input-field"
                   >
@@ -649,6 +668,7 @@ const InstructorProfile = () => {
           <li>• El código QR es único y se usa para el control de acceso a las instalaciones</li>
           <li>• Los horarios mostrados son asignados por el administrador del sistema</li>
           <li>• Mantén actualizada tu información de contacto para comunicaciones importantes</li>
+          <li>• Descarga tu carnet para tenerlo siempre disponible</li>
           <li>• Las imágenes deben ser menores a 2MB y en formato JPEG, PNG, GIF o WebP</li>
         </ul>
       </div>
@@ -656,4 +676,4 @@ const InstructorProfile = () => {
   );
 };
 
-export default InstructorProfile;
+export default InstructorProfilePage;

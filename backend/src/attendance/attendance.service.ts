@@ -21,6 +21,26 @@ import {
   MarkAttendanceDto
 } from './types/attendance.types';
 
+interface AttendanceUpdateResult {
+  id: number;
+  attendanceId: number;
+  learnerId: number;
+  learnerName: string;
+  status: 'PRESENT' | 'LATE' | 'ABSENT' | 'EXCUSED';
+  markedAt: string | null;
+  manuallyMarkedAt: string | null;
+  isManual: boolean;
+  notes: string | undefined;
+  excuseReason: string | undefined;
+  markedBy: number | undefined;
+  learner: {
+    id: number;
+    firstName: string;
+    lastName: string;
+    documentNumber: string;
+  } | null;
+}
+
 @Injectable()
 export class AttendanceService {
   constructor(
@@ -232,7 +252,8 @@ export class AttendanceService {
         where: {
           trimesterScheduleId,
           learnerId: learner.id
-        }
+        },
+        relations: ['learner'] // ⭐ AGREGAR RELACIÓN PARA OBTENER DATOS COMPLETOS
       });
       
       if (!attendanceRecord) {
@@ -258,6 +279,51 @@ export class AttendanceService {
         console.log(`📝 Registro existente encontrado con ID: ${attendanceRecord.id}, Status: ${attendanceRecord.status}`);
       }
       
+      // ⭐ BUSCAR SI HAY UN REGISTRO DE ACCESO RECIENTE PARA ESTE APRENDIZ
+      let accessTime: Date | string | null = null;
+      if (attendanceRecord.accessRecordId) {
+        // Si hay accessRecordId, buscar el registro de acceso
+        try {
+          const accessRecord = await this.attendanceRepository.manager.query(
+            'SELECT entryTime FROM access_records WHERE id = ?',
+            [attendanceRecord.accessRecordId]
+          );
+          if (accessRecord && accessRecord.length > 0) {
+            accessTime = accessRecord[0].entryTime;
+          }
+        } catch (error) {
+          console.log('⚠️ Error al buscar registro de acceso:', error.message);
+        }
+      } else if (attendanceRecord.markedAt) {
+        // Si no hay accessRecordId pero sí markedAt, usar esa fecha
+        accessTime = attendanceRecord.markedAt;
+      } else {
+        // ⭐ BUSCAR REGISTRO DE ACCESO RECIENTE PARA ESTE APRENDIZ
+        try {
+          const todayStart = new Date(date + 'T00:00:00');
+          const todayEnd = new Date(date + 'T23:59:59');
+          
+          const recentAccessRecord = await this.attendanceRepository.manager.query(`
+            SELECT ar.entryTime 
+            FROM access_records ar 
+            INNER JOIN profiles p ON ar.userId = p.userId 
+            WHERE p.id = ? 
+              AND ar.entryTime >= ? 
+              AND ar.entryTime <= ? 
+              AND ar.exitTime IS NULL 
+            ORDER BY ar.entryTime DESC 
+            LIMIT 1
+          `, [learner.id, todayStart, todayEnd]);
+          
+          if (recentAccessRecord && recentAccessRecord.length > 0) {
+            accessTime = recentAccessRecord[0].entryTime;
+            console.log(`🕐 Hora de acceso encontrada para ${learner.firstName}: ${accessTime}`);
+          }
+        } catch (error) {
+          console.log('⚠️ Error al buscar acceso reciente:', error.message);
+        }
+      }
+      
       // Formatear para el frontend
       const formattedRecord = {
         id: attendanceRecord.id,
@@ -268,7 +334,7 @@ export class AttendanceService {
         markedAt: attendanceRecord.markedAt?.toISOString() || null,
         manuallyMarkedAt: attendanceRecord.manuallyMarkedAt?.toISOString() || null,
         isManual: attendanceRecord.isManual,
-        accessTime: null,
+        accessTime: accessTime ? new Date(accessTime).toISOString() : null, // ⭐ AGREGAR HORA DE ACCESO REAL
         notes: attendanceRecord.notes || null,
         markedBy: attendanceRecord.markedBy || null,
         learner: {
@@ -627,112 +693,197 @@ export class AttendanceService {
 
   // ⭐ MARCAR ASISTENCIA AUTOMÁTICA
   async autoMarkAttendance(profileId: number, entryTime: Date, accessRecordId?: number) {
-    try {
-      console.log(`📋 Marcando asistencia automática para perfil ${profileId} a las ${entryTime}`);
+  try {
+    console.log(`📋 === INICIANDO MARCADO AUTOMÁTICO ===`);
+    console.log(`📋 Perfil ID: ${profileId}, Hora: ${entryTime.toISOString()}, Access Record: ${accessRecordId}`);
 
-      // Buscar horarios activos para hoy que correspondan al perfil
-      const today = entryTime.toISOString().split('T')[0];
-      const currentTime = entryTime.toTimeString().split(' ')[0].substring(0, 5); // HH:MM
+    // ⭐ PASO 1: Verificar que el perfil es un aprendiz
+    const profile = await this.profileRepository.findOne({
+      where: { id: profileId },
+      relations: ['type', 'ficha']
+    });
 
-      // Buscar en trimester schedules primero
-      const dayNames = ['DOMINGO', 'LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES', 'SABADO'];
-      const dayOfWeek = dayNames[entryTime.getDay()];
-      
-      const year = entryTime.getFullYear();
-      const month = entryTime.getMonth() + 1;
-      let trimester: string;
-      if (month >= 1 && month <= 4) trimester = `${year}-1`;
-      else if (month >= 5 && month <= 8) trimester = `${year}-2`;
-      else trimester = `${year}-3`;
+    if (!profile) {
+      console.log('❌ Perfil no encontrado');
+      return { success: false, message: 'Perfil no encontrado', records: [] };
+    }
 
-      const trimesterSchedules = await this.trimesterScheduleRepository.find({
-        where: {
-          dayOfWeek: dayOfWeek as any,
-          trimester,
-          isActive: true
-        },
-        relations: ['ficha', 'competence']
-      });
+    if (profile.type?.name !== 'Aprendiz') {
+      console.log(`ℹ️ El perfil no es un aprendiz (es ${profile.type?.name}), no se marca asistencia`);
+      return { success: false, message: 'No es un aprendiz', records: [] };
+    }
 
-      // Buscar horarios que coincidan con la hora de entrada (con tolerancia)
-      const matchingSchedules = trimesterSchedules.filter(schedule => {
-        const startTime = schedule.startTime;
-        const endTime = schedule.endTime;
-        
-        // Verificar si la hora de entrada está dentro del rango del horario
-        return currentTime >= startTime && currentTime <= endTime;
-      });
+    if (!profile.ficha) {
+      console.log('❌ El aprendiz no tiene ficha asignada');
+      return { success: false, message: 'Aprendiz sin ficha asignada', records: [] };
+    }
 
-      if (matchingSchedules.length === 0) {
-        console.log('⚠️ No se encontraron horarios activos para esta hora');
-        return { 
-          success: false,
-          message: 'No hay clases activas en este momento', 
-          profileId, 
-          entryTime,
-          records: []
-        };
-      }
+    console.log(`👨‍🎓 Aprendiz encontrado: ${profile.firstName} ${profile.lastName}, Ficha: ${profile.ficha.code}`);
 
-      // ⭐ USAR ARRAY TIPADO CORRECTAMENTE
-      const attendanceRecords: AttendanceRecord[] = [];
-      
-      for (const schedule of matchingSchedules) {
-        // Determinar estado basado en la hora de llegada
-        let status: 'PRESENT' | 'LATE' | 'ABSENT' = 'PRESENT';
-        const scheduleStart = new Date(`${today}T${schedule.startTime}`);
-        const toleranceMinutes = 15; // Tolerancia por defecto
-        const lateThreshold = new Date(scheduleStart.getTime() + toleranceMinutes * 60000);
-        
-        if (entryTime > lateThreshold) {
-          status = 'LATE';
-        }
+    // ⭐ PASO 2: Determinar día y trimestre
+    const dayNames = ['DOMINGO', 'LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES', 'SABADO'];
+    const dayOfWeek = dayNames[entryTime.getDay()];
+    
+    const year = entryTime.getFullYear();
+    const month = entryTime.getMonth() + 1;
+    let trimester: string;
+    if (month >= 1 && month <= 4) trimester = `${year}-1`;
+    else if (month >= 5 && month <= 8) trimester = `${year}-2`;
+    else trimester = `${year}-3`;
 
-        // Verificar si ya existe registro
-        const existingRecord = await this.attendanceRepository.findOne({
-          where: {
-            scheduleId: schedule.id,
-            learnerId: profileId
-          }
-        });
+    const currentTime = entryTime.toTimeString().split(' ')[0].substring(0, 5); // HH:MM
 
-        if (!existingRecord) {
-          // ⭐ CREAR REGISTRO CON TIPOS CORRECTOS
-          const newRecord = this.attendanceRepository.create({
-            scheduleId: schedule.id,
-            learnerId: profileId,
-            status: status,
-            markedAt: entryTime,
-            accessRecordId: accessRecordId,
-            isManual: false,
-            notes: `Marcado automáticamente por control de acceso`
-          });
+    console.log(`📅 Buscando clases para: ${dayOfWeek}, trimestre: ${trimester}, hora: ${currentTime}`);
 
-          const savedRecord = await this.attendanceRepository.save(newRecord);
-          attendanceRecords.push(savedRecord);
-        }
-      }
+    // ⭐ PASO 3: Buscar horarios de trimestre para la ficha del aprendiz
+    const trimesterSchedules = await this.trimesterScheduleRepository.find({
+      where: {
+        fichaId: profile.ficha.id,
+        dayOfWeek: dayOfWeek as any,
+        trimester,
+        isActive: true
+      },
+      relations: ['competence', 'ficha', 'instructor', 'instructor.profile']
+    });
 
-      console.log(`✅ Asistencia automática marcada para ${attendanceRecords.length} clases`);
-      return {
-        success: true,
-        message: `Asistencia marcada automáticamente para ${attendanceRecords.length} clases`,
-        profileId,
+    console.log(`🔍 Horarios encontrados para la ficha: ${trimesterSchedules.length}`);
+
+    if (trimesterSchedules.length === 0) {
+      console.log(`⚠️ No hay clases programadas para la ficha ${profile.ficha.code} en ${dayOfWeek}`);
+      return { 
+        success: false, 
+        message: `No hay clases programadas para ${dayOfWeek}`, 
+        profileId, 
         entryTime,
-        records: attendanceRecords
-      };
-    } catch (error) {
-      console.error('❌ Error en asistencia automática:', error);
-      return {
-        success: false,
-        message: 'Error al marcar asistencia automática',
-        profileId,
-        entryTime,
-        records: [],
-        error: error.message
+        records: []
       };
     }
+
+    // ⭐ PASO 4: Filtrar horarios que coincidan con la hora de entrada
+    const matchingSchedules = trimesterSchedules.filter(schedule => {
+      const startTime = schedule.startTime;
+      const endTime = schedule.endTime;
+      
+      // Agregar tolerancia de 2 horas antes y 1 hora después del horario
+      const scheduleStartTime = new Date(`1970-01-01T${startTime}`);
+      const scheduleEndTime = new Date(`1970-01-01T${endTime}`);
+      const currentTimeDate = new Date(`1970-01-01T${currentTime}`);
+      
+      // Tolerancia: 2 horas antes del inicio hasta 1 hora después del final
+      const toleranceStart = new Date(scheduleStartTime.getTime() - 2 * 60 * 60 * 1000); // 2 horas antes
+      const toleranceEnd = new Date(scheduleEndTime.getTime() + 1 * 60 * 60 * 1000); // 1 hora después
+      
+      const isWithinRange = currentTimeDate >= toleranceStart && currentTimeDate <= toleranceEnd;
+      
+      console.log(`🕐 Horario ${schedule.id}: ${startTime}-${endTime}, Entrada: ${currentTime}, ¿Coincide?: ${isWithinRange}`);
+      
+      return isWithinRange;
+    });
+
+    if (matchingSchedules.length === 0) {
+      console.log(`⚠️ No hay clases activas en este momento (${currentTime})`);
+      return { 
+        success: false, 
+        message: `No hay clases activas a las ${currentTime}`, 
+        profileId, 
+        entryTime,
+        records: []
+      };
+    }
+
+    console.log(`✅ Clases activas encontradas: ${matchingSchedules.length}`);
+
+    // ⭐ PASO 5: Marcar asistencia en cada clase activa
+    const attendanceRecords: any[] = [];
+    
+    for (const schedule of matchingSchedules) {
+      console.log(`📝 Procesando clase: ${schedule.competence?.name || 'Sin competencia'} (${schedule.startTime}-${schedule.endTime})`);
+      
+      // ⭐ BUSCAR REGISTRO EXISTENTE POR trimesterScheduleId
+      let existingRecord = await this.attendanceRepository.findOne({
+        where: {
+          trimesterScheduleId: schedule.id,
+          learnerId: profileId
+        }
+      });
+
+      // ⭐ DETERMINAR ESTADO BASADO EN LA HORA
+      let status: 'PRESENT' | 'LATE' | 'ABSENT' = 'PRESENT';
+      const scheduleStartTime = new Date(`1970-01-01T${schedule.startTime}`);
+      const currentTimeDate = new Date(`1970-01-01T${currentTime}`);
+      const toleranceMinutes = 15; // Tolerancia para llegar tarde
+      const lateThreshold = new Date(scheduleStartTime.getTime() + toleranceMinutes * 60 * 1000);
+      
+      if (currentTimeDate > lateThreshold) {
+        status = 'LATE';
+      }
+
+      if (existingRecord) {
+  // ⭐ ACTUALIZAR REGISTRO EXISTENTE (solo si está ABSENT)
+  if (existingRecord.status === 'ABSENT') {
+    console.log(`📝 Actualizando registro existente de ABSENT a ${status}`);
+    existingRecord.status = status;
+    existingRecord.markedAt = entryTime;
+    existingRecord.accessRecordId = accessRecordId; // ⭐ IMPORTANTE: Guardar accessRecordId
+    existingRecord.isManual = false;
+    existingRecord.notes = `Marcado automáticamente por control de acceso a las ${currentTime}`;
+    
+    const updatedRecord = await this.attendanceRepository.save(existingRecord);
+    attendanceRecords.push(updatedRecord);
+    console.log(`✅ Registro actualizado con accessRecordId: ${accessRecordId}`);
+  } else {
+    console.log(`📝 Registro ya existe con estado ${existingRecord.status}, no se modifica`);
+    attendanceRecords.push(existingRecord);
   }
+} else {
+  // ⭐ CREAR NUEVO REGISTRO
+  console.log(`📝 Creando nuevo registro de asistencia con estado ${status}`);
+  const newRecord = this.attendanceRepository.create({
+    trimesterScheduleId: schedule.id, // ⭐ USAR trimesterScheduleId
+    learnerId: profileId,
+    status: status,
+    markedAt: entryTime,
+    accessRecordId: accessRecordId, // ⭐ IMPORTANTE: Guardar accessRecordId
+    isManual: false,
+    notes: `Marcado automáticamente por control de acceso a las ${currentTime}`,
+    scheduleId: undefined // ⭐ NO usar scheduleId
+  });
+
+  const savedRecord = await this.attendanceRepository.save(newRecord);
+  attendanceRecords.push(savedRecord);
+  console.log(`✅ Registro creado con ID: ${savedRecord.id} y accessRecordId: ${accessRecordId}`);
+}}
+
+    console.log(`📋 === MARCADO AUTOMÁTICO COMPLETADO ===`);
+    console.log(`✅ Total de registros procesados: ${attendanceRecords.length}`);
+
+    return {
+      success: true,
+      message: `Asistencia marcada automáticamente para ${attendanceRecords.length} clase(s)`,
+      profileId,
+      entryTime,
+      records: attendanceRecords.map(record => ({
+        id: record.id,
+        trimesterScheduleId: record.trimesterScheduleId,
+        learnerId: record.learnerId,
+        status: record.status,
+        markedAt: record.markedAt,
+        isManual: record.isManual,
+        notes: record.notes
+      }))
+    };
+  } catch (error) {
+    console.error('❌ Error en asistencia automática:', error);
+    return {
+      success: false,
+      message: 'Error al marcar asistencia automática',
+      profileId,
+      entryTime,
+      records: [],
+      error: error.message
+    };
+  }
+}
 
   // ⭐ CREAR HORARIO DE TRIMESTRE
   async createTrimesterSchedule(data: {
@@ -1260,5 +1411,134 @@ async getAssignmentsByFicha(fichaId: number): Promise<InstructorAssignmentType[]
     return [];
   }
 }
+async getAttendanceBySchedule(scheduleId: number) {
+  try {
+    console.log(`📋 Obteniendo asistencia para horario ${scheduleId}`);
+    
+    // Buscar registros de asistencia por trimesterScheduleId
+    const attendanceRecords = await this.attendanceRepository.find({
+      where: {
+        trimesterScheduleId: scheduleId
+      },
+      relations: ['learner']
+    });
+
+    // Si no hay registros, crear automáticamente para todos los aprendices de la ficha
+    if (attendanceRecords.length === 0) {
+      console.log('📋 No hay registros, creando automáticamente...');
+      
+      // Obtener el horario de trimestre
+      const schedule = await this.trimesterScheduleRepository.findOne({
+        where: { id: scheduleId },
+        relations: ['ficha']
+      });
+
+      if (schedule) {
+        // Obtener aprendices de la ficha
+        const learners = await this.getLearnersFromFicha(schedule.fichaId);
+        
+        // Crear registros para cada aprendiz
+        for (const learner of learners) {
+          const newRecord = this.attendanceRepository.create({
+            trimesterScheduleId: scheduleId,
+            learnerId: learner.id,
+            status: 'ABSENT',
+            isManual: false
+          });
+          
+          await this.attendanceRepository.save(newRecord);
+        }
+        
+        // Volver a buscar los registros creados
+        return await this.attendanceRepository.find({
+          where: { trimesterScheduleId: scheduleId },
+          relations: ['learner']
+        });
+      }
+    }
+
+    console.log(`✅ Se encontraron ${attendanceRecords.length} registros de asistencia`);
+    return attendanceRecords;
+  } catch (error) {
+    console.error('❌ Error al obtener asistencia por horario:', error);
+    throw error;
+  }
+}
+async updateAttendanceRecord(
+  attendanceId: number,
+  status: 'PRESENTE' | 'AUSENTE' | 'TARDE' | 'EXCUSA',
+  markedBy: number,
+  notes?: string,
+  excuseReason?: string
+): Promise<AttendanceUpdateResult> {
+  try {
+    console.log(`📋 Actualizando registro de asistencia ${attendanceId} a ${status}`);
+    
+    // Buscar el registro existente
+    const record = await this.attendanceRepository.findOne({
+      where: { id: attendanceId },
+      relations: ['learner']
+    });
+
+    if (!record) {
+      throw new Error('Registro de asistencia no encontrado');
+    }
+
+    // Mapear estados de español a inglés
+    const statusMapping = {
+      'PRESENTE': 'PRESENT' as const,
+      'AUSENTE': 'ABSENT' as const,
+      'TARDE': 'LATE' as const,
+      'EXCUSA': 'EXCUSED' as const
+    };
+
+    const englishStatus = statusMapping[status];
+
+    // Actualizar el registro
+    record.status = englishStatus;
+    record.notes = notes || record.notes;
+    record.excuseReason = excuseReason || record.excuseReason;
+    record.manuallyMarkedAt = new Date();
+    record.markedAt = new Date();
+    record.markedBy = markedBy;
+    record.isManual = true;
+
+    // Si se marca como presente o tarde, registrar la hora
+    if (englishStatus === 'PRESENT' || englishStatus === 'LATE') {
+      if (!record.markedAt) {
+        record.markedAt = new Date();
+      }
+    }
+
+    const updatedRecord = await this.attendanceRepository.save(record);
+    
+    console.log(`✅ Registro actualizado: ${record.learner?.firstName} ${record.learner?.lastName} -> ${englishStatus}`);
+    
+    // ⭐ RETORNO CON TIPO EXPLÍCITO
+    return {
+      id: updatedRecord.id,
+      attendanceId: updatedRecord.id,
+      learnerId: updatedRecord.learnerId,
+      learnerName: record.learner ? `${record.learner.firstName} ${record.learner.lastName}` : 'Sin nombre',
+      status: englishStatus,
+      markedAt: updatedRecord.markedAt?.toISOString() || null,
+      manuallyMarkedAt: updatedRecord.manuallyMarkedAt?.toISOString() || null,
+      isManual: updatedRecord.isManual,
+      notes: updatedRecord.notes,
+      excuseReason: updatedRecord.excuseReason,
+      markedBy: updatedRecord.markedBy,
+      learner: record.learner ? {
+        id: record.learner.id,
+        firstName: record.learner.firstName,
+        lastName: record.learner.lastName,
+        documentNumber: record.learner.documentNumber
+      } : null
+    };
+  } catch (error) {
+    console.error('❌ Error al actualizar registro de asistencia:', error);
+    throw error;
+  }
+}
+
 
 }

@@ -23,243 +23,325 @@ export class AccessService {
   ) {}
 
   // ⭐ CHECK-IN - ENTRADA AL SISTEMA
-  async checkIn(data: { profileId?: number; qrData?: string }): Promise<AccessRecord> {
-    let profile: Profile | null = null;
+  // backend/src/access/access.service.ts - MÉTODO checkIn COMPLETO
 
-    console.log('🚪 Iniciando proceso de CHECK-IN:', { 
-      profileId: data.profileId, 
-      hasQrData: !!data.qrData 
-    });
+// ⭐ CHECK-IN - ENTRADA AL SISTEMA (COMPLETO)
+async checkIn(data: { profileId?: number; qrData?: string }): Promise<AccessRecord> {
+  let profile: Profile | null = null;
 
-    try {
-      // ⭐ BUSCAR PERFIL POR ID O QR
-      if (data.profileId) {
-        console.log('🔍 Buscando perfil por ID:', data.profileId);
-        profile = await this.profileRepository.findOne({
-          where: { id: data.profileId },
-          relations: ['user', 'type', 'ficha', 'regional', 'center']
-        });
-      } else if (data.qrData) {
-        console.log('📱 Procesando datos QR...');
-        try {
-          const qrInfo = JSON.parse(data.qrData);
-          console.log('📋 Datos QR parseados:', qrInfo);
-          
-          if (qrInfo.doc) {
-            profile = await this.profileRepository.findOne({
-              where: { documentNumber: qrInfo.doc },
-              relations: ['user', 'type', 'ficha', 'regional', 'center']
-            });
-          }
-        } catch (qrError) {
-          console.error('❌ Error al parsear QR:', qrError);
-          throw new BadRequestException('Código QR inválido');
-        }
-      }
+  console.log('🚪 === INICIANDO PROCESO DE CHECK-IN ===');
+  console.log('🚪 Datos recibidos:', { 
+    profileId: data.profileId, 
+    hasQrData: !!data.qrData 
+  });
 
-      if (!profile) {
-        console.error('❌ Perfil no encontrado');
-        throw new NotFoundException('Perfil no encontrado');
-      }
-
-      if (!profile.user || !profile.user.isActive) {
-        console.error('❌ Usuario inactivo:', profile.user?.id);
-        throw new BadRequestException('Usuario inactivo');
-      }
-
-      console.log('✅ Perfil encontrado:', {
-        id: profile.id,
-        name: `${profile.firstName} ${profile.lastName}`,
-        type: profile.type.name,
-        document: profile.documentNumber
+  try {
+    // ⭐ PASO 1: BUSCAR PERFIL POR ID O QR
+    if (data.profileId) {
+      console.log('🔍 Buscando perfil por ID:', data.profileId);
+      profile = await this.profileRepository.findOne({
+        where: { id: data.profileId },
+        relations: ['user', 'type', 'ficha', 'regional', 'center']
       });
-
-      // ⭐ VERIFICAR SI YA ESTÁ DENTRO (SIN CHECK-OUT)
-      const existingEntry = await this.accessRecordRepository.findOne({
-        where: {
-          userId: profile.user.id,
-          exitTime: IsNull()
-        },
-        order: { entryTime: 'DESC' }
-      });
-
-      if (existingEntry) {
-        console.log('⚠️ Usuario ya tiene entrada activa:', existingEntry.id);
-        throw new BadRequestException('El usuario ya se encuentra dentro de las instalaciones');
-      }
-
-      // ⭐ CREAR NUEVO REGISTRO DE ACCESO CON PROPIEDADES CORRECTAS
-      const newRecord = this.accessRecordRepository.create({
-        userId: profile.user.id,
-        entryTime: new Date(),
-        status: 'INSIDE',
-        notes: `Check-in realizado - ${profile.type.name}`
-      });
-
-      const accessRecord = await this.accessRecordRepository.save(newRecord);
-      console.log('✅ Registro de acceso creado:', {
-        id: accessRecord.id,
-        userId: profile.user.id,
-        entryTime: accessRecord.entryTime
-      });
-
-      // ⭐ MARCAR ASISTENCIA AUTOMÁTICAMENTE PARA APRENDICES
-      if (profile.type.name === 'Aprendiz' && profile.ficha) {
-        console.log('🎓 Iniciando marcado automático de asistencia...');
-        console.log('📚 Datos del aprendiz:', {
-          profileId: profile.id,
-          ficha: profile.ficha.code,
-          fichaId: profile.ficha.id
-        });
-
-        try {
-          const attendanceResults = await this.attendanceService.autoMarkAttendance(
-            profile.id, 
-            accessRecord.entryTime,
-            accessRecord.id
-          );
-
-          // ⭐ VERIFICAR EL TIPO DE RESPUESTA CORRECTAMENTE
-          if (attendanceResults && typeof attendanceResults === 'object') {
-            // Verificar si hay registros de asistencia
-            if ('records' in attendanceResults && Array.isArray(attendanceResults.records)) {
-              const records = attendanceResults.records;
-              if (records.length > 0) {
-                console.log('✅ Asistencia marcada automáticamente:', {
-                  registros: records.length,
-                  clases: records.map(r => ({ 
-                    scheduleId: r.scheduleId, 
-                    status: r.status,
-                    learnerId: r.learnerId 
-                  }))
-                });
-              } else {
-                console.log('ℹ️ No se crearon registros de asistencia (posiblemente ya existían)');
-              }
-            } else {
-              console.log('ℹ️ Respuesta de asistencia:', attendanceResults.message || 'Sin mensaje');
-            }
-          } else {
-            console.log('⚠️ Respuesta inesperada del servicio de asistencia');
-          }
-        } catch (error) {
-          console.error('❌ Error al marcar asistencia automática:', {
-            message: error.message,
-            stack: error.stack
+    } else if (data.qrData) {
+      console.log('📱 Procesando datos QR...');
+      try {
+        const qrInfo = JSON.parse(data.qrData);
+        console.log('📋 Datos QR parseados:', qrInfo);
+        
+        if (qrInfo.doc) {
+          profile = await this.profileRepository.findOne({
+            where: { documentNumber: qrInfo.doc },
+            relations: ['user', 'type', 'ficha', 'regional', 'center']
           });
-          // No lanzar el error, solo loggear para no afectar el check-in
         }
-      } else {
-        console.log('ℹ️ No es aprendiz o no tiene ficha asignada, no se marca asistencia automática');
+      } catch (qrError) {
+        console.error('❌ Error al parsear QR:', qrError);
+        throw new BadRequestException('Código QR inválido');
       }
-
-      // ⭐ RETORNAR EL REGISTRO DE ACCESO
-      return accessRecord;
-
-    } catch (error) {
-      console.error('❌ Error en check-in:', error);
-      throw error;
     }
-  }
 
-  // ⭐ CHECK-OUT - SALIDA DEL SISTEMA
-  async checkOut(data: { profileId?: number; qrData?: string }): Promise<AccessRecord> {
-    let profile: Profile | null = null;
+    if (!profile) {
+      console.error('❌ Perfil no encontrado');
+      throw new NotFoundException('Perfil no encontrado');
+    }
 
-    console.log('🚪 Iniciando proceso de CHECK-OUT:', { 
-      profileId: data.profileId, 
-      hasQrData: !!data.qrData 
+    if (!profile.user || !profile.user.isActive) {
+      console.error('❌ Usuario inactivo:', profile.user?.id);
+      throw new BadRequestException('Usuario inactivo');
+    }
+
+    console.log('✅ Perfil encontrado:', {
+      id: profile.id,
+      name: `${profile.firstName} ${profile.lastName}`,
+      type: profile.type.name,
+      document: profile.documentNumber,
+      ficha: profile.ficha ? {
+        id: profile.ficha.id,
+        code: profile.ficha.code,
+        name: profile.ficha.name
+      } : null
     });
 
-    try {
-      // ⭐ BUSCAR PERFIL POR ID O QR
-      if (data.profileId) {
-        console.log('🔍 Buscando perfil por ID:', data.profileId);
-        profile = await this.profileRepository.findOne({
-          where: { id: data.profileId },
-          relations: ['user', 'type']
+    // ⭐ PASO 2: VERIFICAR SI YA ESTÁ DENTRO (SIN CHECK-OUT)
+    const existingEntry = await this.accessRecordRepository.findOne({
+      where: {
+        userId: profile.user.id,
+        exitTime: IsNull()
+      },
+      order: { entryTime: 'DESC' }
+    });
+
+    if (existingEntry) {
+      console.log('⚠️ Usuario ya tiene entrada activa:', {
+        recordId: existingEntry.id,
+        entryTime: existingEntry.entryTime
+      });
+      throw new BadRequestException('El usuario ya se encuentra dentro de las instalaciones');
+    }
+
+    // ⭐ PASO 3: CREAR NUEVO REGISTRO DE ACCESO
+    console.log('📝 Creando nuevo registro de acceso...');
+    const newRecord = this.accessRecordRepository.create({
+      userId: profile.user.id,
+      entryTime: new Date(),
+      status: 'INSIDE',
+      notes: `Check-in realizado - ${profile.type.name}`
+    });
+
+    const accessRecord = await this.accessRecordRepository.save(newRecord);
+    console.log('✅ Registro de acceso creado:', {
+      id: accessRecord.id,
+      userId: profile.user.id,
+      entryTime: accessRecord.entryTime.toISOString(),
+      status: accessRecord.status
+    });
+
+    // ⭐ PASO 4: MARCAR ASISTENCIA AUTOMÁTICAMENTE PARA APRENDICES
+    if (profile.type.name === 'Aprendiz' && profile.ficha) {
+  console.log('🎓 === INICIANDO MARCADO AUTOMÁTICO DE ASISTENCIA ===');
+  console.log('📚 Datos del aprendiz:', {
+    profileId: profile.id,
+    nombre: `${profile.firstName} ${profile.lastName}`,
+    documento: profile.documentNumber,
+    ficha: {
+      id: profile.ficha.id,
+      code: profile.ficha.code,
+      name: profile.ficha.name
+    }
+  });
+
+  try {
+    const attendanceResults = await this.attendanceService.autoMarkAttendance(
+      profile.id, 
+      accessRecord.entryTime,
+      accessRecord.id
+    );
+
+    console.log('📋 Resultado del marcado automático:', {
+      success: attendanceResults.success,
+      message: attendanceResults.message,
+      recordsProcessed: Array.isArray(attendanceResults.records) ? attendanceResults.records.length : 0
+    });
+
+    // ⭐ LOGGING DETALLADO CON VERIFICACIÓN DE TIPOS
+    if (attendanceResults.success && Array.isArray(attendanceResults.records) && attendanceResults.records.length > 0) {
+      console.log('✅ ASISTENCIA MARCADA EXITOSAMENTE:');
+      attendanceResults.records.forEach((record: any, index: number) => {
+        console.log(`   📝 Registro ${index + 1}:`, {
+          id: record?.id || 'N/A',
+          trimesterScheduleId: record?.trimesterScheduleId || 'N/A',
+          status: record?.status || 'N/A',
+          markedAt: record?.markedAt || 'N/A',
+          isManual: record?.isManual || false,
+          notes: record?.notes || 'Sin notas'
         });
-      } else if (data.qrData) {
-        console.log('📱 Procesando datos QR...');
-        try {
-          const qrInfo = JSON.parse(data.qrData);
-          console.log('📋 Datos QR parseados:', qrInfo);
-          
-          if (qrInfo.doc) {
-            profile = await this.profileRepository.findOne({
-              where: { documentNumber: qrInfo.doc },
-              relations: ['user', 'type']
-            });
-          }
-        } catch (qrError) {
-          console.error('❌ Error al parsear QR:', qrError);
-          throw new BadRequestException('Código QR inválido');
+      });
+    } else if (!attendanceResults.success) {
+      console.log('⚠️ NO SE MARCÓ ASISTENCIA:', attendanceResults.message || 'Sin mensaje de error');
+      console.log('💡 Posibles razones:');
+      console.log('   - No hay clases programadas para este momento');
+      console.log('   - El aprendiz no está en ninguna ficha activa');
+      console.log('   - No hay horarios de trimestre configurados');
+      console.log('   - Error en la base de datos');
+    } else {
+      console.log('ℹ️ No se crearon registros de asistencia (posiblemente ya existían)');
+    }
+
+  } catch (error: any) {
+    console.error('❌ ERROR CRÍTICO en marcado automático:', {
+      message: error?.message || 'Error desconocido',
+      type: error?.constructor?.name || 'Unknown',
+      // Solo incluir stack si está disponible y no es muy largo
+      ...(error?.stack && { 
+        stackPreview: error.stack.split('\n').slice(0, 3).join('\n') 
+      })
+    });
+    
+    // ⭐ NO lanzar el error para no afectar el check-in
+    console.log('⚠️ El check-in continuará sin marcado de asistencia');
+  }
+
+  console.log('🎓 === FIN DEL MARCADO AUTOMÁTICO ===');
+} else {
+  if (profile.type.name !== 'Aprendiz') {
+    console.log(`ℹ️ No es aprendiz (es ${profile.type.name}), no se marca asistencia automática`);
+  } else {
+    console.log('ℹ️ Aprendiz sin ficha asignada, no se marca asistencia automática');
+  }
+}
+
+    // ⭐ PASO 5: RETORNAR ESTRUCTURA CORRECTA PARA FRONTEND
+    console.log('📤 Preparando respuesta para el frontend...');
+    const response = {
+      id: accessRecord.id,
+      entryTime: accessRecord.entryTime.toISOString(),
+      status: accessRecord.status,
+      user: {
+        id: profile.user.id,
+        email: profile.user.email,
+        profile: {
+          id: profile.id,
+          firstName: profile.firstName,
+          lastName: profile.lastName,
+          documentNumber: profile.documentNumber,
+          documentType: profile.documentType,
+          profileImage: profile.profileImage,
+          type: profile.type.name,
+          center: profile.center?.name || null
         }
       }
+    } as any;
 
-      if (!profile) {
-        console.error('❌ Perfil no encontrado');
-        throw new NotFoundException('Perfil no encontrado');
-      }
+    console.log('✅ CHECK-IN COMPLETADO EXITOSAMENTE:', {
+      accessRecordId: response.id,
+      userName: `${profile.firstName} ${profile.lastName}`,
+      userType: profile.type.name,
+      hasAsistencia: profile.type.name === 'Aprendiz' && profile.ficha
+    });
 
-      if (!profile.user || !profile.user.isActive) {
-        console.error('❌ Usuario inactivo:', profile.user?.id);
-        throw new BadRequestException('Usuario inactivo');
-      }
+    console.log('🚪 === FIN DEL PROCESO DE CHECK-IN ===');
+    return response;
 
-      console.log('✅ Perfil encontrado:', {
-        id: profile.id,
-        name: `${profile.firstName} ${profile.lastName}`,
-        type: profile.type.name,
-        document: profile.documentNumber
-      });
-
-      // ⭐ BUSCAR ENTRADA ACTIVA (SIN SALIDA)
-      const activeEntry = await this.accessRecordRepository.findOne({
-        where: {
-          userId: profile.user.id,
-          exitTime: IsNull()
-        },
-        order: { entryTime: 'DESC' }
-      });
-
-      if (!activeEntry) {
-        console.log('⚠️ No se encontró entrada activa para el usuario');
-        throw new BadRequestException('No se encontró una entrada activa para este usuario');
-      }
-
-      // ⭐ ACTUALIZAR REGISTRO CON HORA DE SALIDA Y DURACIÓN
-      const exitTime = new Date();
-      activeEntry.exitTime = exitTime;
-      activeEntry.status = 'OUTSIDE';
-      activeEntry.duration = this.calculateDuration(activeEntry.entryTime, exitTime);
-      activeEntry.notes = (activeEntry.notes || '') + ` | Check-out realizado`;
-
-      const updatedRecord = await this.accessRecordRepository.save(activeEntry);
-      console.log('✅ Check-out registrado:', {
-        id: updatedRecord.id,
-        userId: profile.user.id,
-        exitTime: updatedRecord.exitTime,
-        duration: updatedRecord.duration
-      });
-
-      // ⭐ RETORNAR REGISTRO CON RELACIONES COMPLETAS
-      const result = await this.accessRecordRepository.findOne({
-        where: { id: updatedRecord.id },
-        relations: ['user', 'user.profile', 'user.profile.type']
-      });
-
-      if (!result) {
-        throw new NotFoundException('Error al recuperar el registro actualizado');
-      }
-
-      return result;
-
-    } catch (error) {
-      console.error('❌ Error en check-out:', error);
-      throw error;
-    }
+  } catch (error) {
+    console.error('❌ ERROR EN EL PROCESO DE CHECK-IN:', {
+      message: error.message,
+      stack: error.stack?.split('\n').slice(0, 3).join('\n')
+    });
+    console.log('🚪 === CHECK-IN TERMINADO CON ERROR ===');
+    throw error;
   }
+}
+
+// ⭐ CHECK-OUT - SALIDA DEL SISTEMA (CORREGIDO)
+async checkOut(data: { profileId?: number; qrData?: string }): Promise<AccessRecord> {
+  let profile: Profile | null = null;
+
+  console.log('🚪 Iniciando proceso de CHECK-OUT:', { 
+    profileId: data.profileId, 
+    hasQrData: !!data.qrData 
+  });
+
+  try {
+    // ⭐ BUSCAR PERFIL POR ID O QR
+    if (data.profileId) {
+      console.log('🔍 Buscando perfil por ID:', data.profileId);
+      profile = await this.profileRepository.findOne({
+        where: { id: data.profileId },
+        relations: ['user', 'type', 'center']
+      });
+    } else if (data.qrData) {
+      console.log('📱 Procesando datos QR...');
+      try {
+        const qrInfo = JSON.parse(data.qrData);
+        console.log('📋 Datos QR parseados:', qrInfo);
+        
+        if (qrInfo.doc) {
+          profile = await this.profileRepository.findOne({
+            where: { documentNumber: qrInfo.doc },
+            relations: ['user', 'type', 'center']
+          });
+        }
+      } catch (qrError) {
+        console.error('❌ Error al parsear QR:', qrError);
+        throw new BadRequestException('Código QR inválido');
+      }
+    }
+
+    if (!profile) {
+      console.error('❌ Perfil no encontrado');
+      throw new NotFoundException('Perfil no encontrado');
+    }
+
+    if (!profile.user || !profile.user.isActive) {
+      console.error('❌ Usuario inactivo:', profile.user?.id);
+      throw new BadRequestException('Usuario inactivo');
+    }
+
+    console.log('✅ Perfil encontrado:', {
+      id: profile.id,
+      name: `${profile.firstName} ${profile.lastName}`,
+      type: profile.type.name,
+      document: profile.documentNumber
+    });
+
+    // ⭐ BUSCAR ENTRADA ACTIVA (SIN SALIDA)
+    const activeEntry = await this.accessRecordRepository.findOne({
+      where: {
+        userId: profile.user.id,
+        exitTime: IsNull()
+      },
+      order: { entryTime: 'DESC' }
+    });
+
+    if (!activeEntry) {
+      console.log('⚠️ No se encontró entrada activa para el usuario');
+      throw new BadRequestException('No se encontró una entrada activa para este usuario');
+    }
+
+    // ⭐ ACTUALIZAR REGISTRO CON HORA DE SALIDA Y DURACIÓN
+    const exitTime = new Date();
+    activeEntry.exitTime = exitTime;
+    activeEntry.status = 'OUTSIDE';
+    activeEntry.duration = this.calculateDuration(activeEntry.entryTime, exitTime);
+    activeEntry.notes = (activeEntry.notes || '') + ` | Check-out realizado`;
+
+    const updatedRecord = await this.accessRecordRepository.save(activeEntry);
+    console.log('✅ Check-out registrado:', {
+      id: updatedRecord.id,
+      userId: profile.user.id,
+      exitTime: updatedRecord.exitTime,
+      duration: updatedRecord.duration
+    });
+
+    // ⭐ RETORNAR ESTRUCTURA CORRECTA PARA FRONTEND
+    return {
+      id: updatedRecord.id,
+      entryTime: updatedRecord.entryTime.toISOString(),
+      exitTime: updatedRecord.exitTime.toISOString(),
+      status: updatedRecord.status,
+      duration: updatedRecord.duration,
+      user: {
+        id: profile.user.id,
+        email: profile.user.email,
+        profile: {
+          id: profile.id,
+          firstName: profile.firstName,
+          lastName: profile.lastName,
+          documentNumber: profile.documentNumber,
+          documentType: profile.documentType,
+          profileImage: profile.profileImage,
+          type: profile.type.name,
+          center: profile.center?.name || null
+        }
+      }
+    } as any;
+
+  } catch (error) {
+    console.error('❌ Error en check-out:', error);
+    throw error;
+  }
+}
 
   // ⭐ OBTENER ESTADÍSTICAS DE ACCESO
   async getStats(filters: {
@@ -868,4 +950,94 @@ export class AccessService {
     const now = new Date();
     return this.calculateDuration(entryTime, now);
   }
+async validateQR(qrData: string): Promise<{
+  valid: boolean;
+  profile?: any;
+  message: string;
+}> {
+  try {
+    console.log('🔍 Validando código QR...');
+    
+    // Intentar parsear el QR
+    let qrInfo;
+    try {
+      qrInfo = JSON.parse(qrData);
+    } catch (parseError) {
+      console.log('❌ QR no es JSON válido');
+      return {
+        valid: false,
+        message: 'Formato de código QR inválido'
+      };
+    }
+    
+    // Validar estructura del QR ACCESUM
+    if (!qrInfo.type || !qrInfo.type.includes('ACCESUM')) {
+      return {
+        valid: false,
+        message: 'El código QR no es de tipo ACCESUM_SENA'
+      };
+    }
+    
+    if (!qrInfo.doc) {
+      return {
+        valid: false,
+        message: 'El código QR no contiene número de documento'
+      };
+    }
+    
+    // Buscar el perfil por documento
+    const profile = await this.profileRepository.findOne({
+      where: { documentNumber: qrInfo.doc },
+      relations: ['user', 'type', 'ficha', 'regional', 'center']
+    });
+    
+    if (!profile) {
+      return {
+        valid: false,
+        message: `No se encontró un perfil con documento ${qrInfo.doc}`
+      };
+    }
+    
+    if (!profile.user || !profile.user.isActive) {
+      return {
+        valid: false,
+        message: 'El usuario asociado al perfil está inactivo'
+      };
+    }
+    
+    console.log('✅ QR válido para:', `${profile.firstName} ${profile.lastName}`);
+    
+    return {
+      valid: true,
+      message: 'Código QR válido',
+      profile: {
+        id: profile.id,
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+        documentNumber: profile.documentNumber,
+        documentType: profile.documentType,
+        profileImage: profile.profileImage,
+        type: profile.type.name,
+        ficha: profile.ficha ? {
+          id: profile.ficha.id,
+          code: profile.ficha.code,
+          name: profile.ficha.name
+        } : null,
+        center: profile.center?.name || null,
+        user: {
+          id: profile.user.id,
+          email: profile.user.email,
+          isActive: profile.user.isActive
+        }
+      }
+    };
+    
+  } catch (error) {
+    console.error('❌ Error al validar QR:', error);
+    return {
+      valid: false,
+      message: 'Error interno al validar el código QR'
+    };
+  }
+}
 }

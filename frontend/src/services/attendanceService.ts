@@ -70,6 +70,18 @@ export interface ScheduleData {
   description?: string;
   lateToleranceMinutes?: number;
 }
+export interface AttendanceUpdateData {
+  attendanceId: number;
+  status: 'PRESENTE' | 'AUSENTE' | 'TARDE' | 'EXCUSA';
+  notes?: string;
+  excuseReason?: string;
+}
+
+export interface AttendanceUpdateResponse {
+  success: boolean;
+  data: any;
+  message: string;
+}
 
 class AttendanceService {
   // ⭐ OBTENER ASISTENCIA DE MIS CLASES
@@ -364,4 +376,105 @@ class AttendanceService {
   }
 }
 
+// ⭐ CALCULAR ESTADÍSTICAS DE ASISTENCIA
+export const calculateAttendanceStats = (records: any[]) => {
+  const total = records.length;
+  const present = records.filter(r => r.status === 'PRESENT').length;
+  const late = records.filter(r => r.status === 'LATE').length;
+  const absent = records.filter(r => r.status === 'ABSENT').length;
+  const excused = records.filter(r => r.status === 'EXCUSED').length;
+  
+  return {
+    total,
+    present,
+    late,
+    absent,
+    excused,
+    attendanceRate: total > 0 ? ((present + late) / total * 100).toFixed(1) : '0.0'
+  };
+};
+
+// ⭐ VALIDAR HORARIO DE LLEGADA (para marcado automático)
+export const validateAttendanceTime = (arrivalTime: Date, classStartTime: string, toleranceMinutes: number = 20) => {
+  const today = arrivalTime.toISOString().split('T')[0];
+  const classStart = new Date(`${today}T${classStartTime}`);
+  const lateThreshold = new Date(classStart.getTime() + toleranceMinutes * 60000);
+  
+  if (arrivalTime <= classStart) {
+    return 'PRESENT';
+  } else if (arrivalTime <= lateThreshold) {
+    return 'PRESENT'; // Dentro de tolerancia
+  } else {
+    return 'LATE'; // Fuera de tolerancia
+  }
+  
+};
+
+// ⭐ ACTUALIZAR ASISTENCIA INDIVIDUAL
+export const updateAttendance = async (data: AttendanceUpdateData): Promise<AttendanceUpdateResponse> => {
+  try {
+    console.log('🔄 Actualizando asistencia:', data);
+    
+    const response = await api.post('/attendance/update-attendance', data);
+    
+    console.log('✅ Asistencia actualizada exitosamente');
+    return response.data;
+  } catch (error) {
+    console.error('❌ Error al actualizar asistencia:', error);
+    throw error;
+  }
+};
+
+// ⭐ ACTUALIZAR ASISTENCIA MASIVA
+export const bulkUpdateAttendance = async (updates: AttendanceUpdateData[]): Promise<AttendanceUpdateResponse> => {
+  try {
+    console.log('🔄 Actualizando asistencia masivamente:', updates.length, 'registros');
+    
+    const response = await api.post('/attendance/bulk-update', { updates });
+    
+    console.log('✅ Asistencia masiva actualizada exitosamente');
+    return response.data;
+  } catch (error) {
+    console.error('❌ Error en actualización masiva:', error);
+    throw error;
+  }
+};
+
+// ⭐ MARCAR TODA LA CLASE COMO PRESENTE
+export const markAllPresent = async (scheduleId: number): Promise<AttendanceUpdateResponse> => {
+  try {
+    console.log('🔄 Marcando toda la clase como presente:', scheduleId);
+    
+    // Primero obtener todos los registros de la clase
+    const attendanceData = await getAttendanceBySchedule(scheduleId);
+    
+    // Crear updates para todos los registros
+    const updates: AttendanceUpdateData[] = attendanceData.map((record: any) => ({
+      attendanceId: record.id,
+      status: 'PRESENTE' as const,
+      notes: 'Marcado masivamente como presente'
+    }));
+    
+    // Enviar actualización masiva
+    return await bulkUpdateAttendance(updates);
+  } catch (error) {
+    console.error('❌ Error al marcar toda la clase como presente:', error);
+    throw error;
+  }
+};
+
+// ⭐ OBTENER ASISTENCIA POR HORARIO
+export const getAttendanceBySchedule = async (scheduleId: number) => {
+  try {
+    console.log('🔄 Obteniendo asistencia para horario:', scheduleId);
+    
+    const response = await api.get(`/attendance/schedule/${scheduleId}`);
+    
+    console.log('✅ Asistencia obtenida exitosamente');
+    return response.data;
+  } catch (error) {
+    console.error('❌ Error al obtener asistencia:', error);
+    throw error;
+  }
+};
 export const attendanceService = new AttendanceService();

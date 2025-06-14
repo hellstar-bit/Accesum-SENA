@@ -33,6 +33,6 @@ export class AccessRecord {
   createdAt: Date;
 
   // Relación con AttendanceRecord
-  @OneToMany(() => AttendanceRecord, record => record.accessRecord)
+  @OneToMany(() => AttendanceRecord, record => record.accessRecordId)
   attendanceRecords: AttendanceRecord[];
 }

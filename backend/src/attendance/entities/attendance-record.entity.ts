@@ -32,12 +32,13 @@ export class AttendanceRecord {
   @Column({ nullable: true })
   accessRecordId?: number;
 
+  // ⭐ ESTADO ACTUALIZADO - Agregando 'EXCUSED' a los estados existentes
   @Column({
     type: 'enum',
-    enum: ['PRESENT', 'LATE', 'ABSENT'],
+    enum: ['PRESENT', 'LATE', 'ABSENT', 'EXCUSED'],
     default: 'ABSENT'
   })
-  status: 'PRESENT' | 'LATE' | 'ABSENT';
+  status: 'PRESENT' | 'LATE' | 'ABSENT' | 'EXCUSED';
 
   @Column({ type: 'timestamp', nullable: true })
   markedAt?: Date;
@@ -55,6 +56,10 @@ export class AttendanceRecord {
   @Column({ type: 'text', nullable: true })
   notes?: string;
 
+  // ⭐ NUEVO CAMPO: Para almacenar motivo de excusas
+  @Column({ type: 'text', nullable: true })
+  excuseReason?: string;
+
   @Column({ default: false })
   isManual: boolean;
 
@@ -64,7 +69,8 @@ export class AttendanceRecord {
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP', onUpdate: 'CURRENT_TIMESTAMP' })
   updatedAt: Date;
 
-  @ManyToOne(() => ClassSchedule, schedule => schedule.attendanceRecords)
+  // ⭐ RELACIÓN CON CLASSSCHEDULE - Corregida para ser nullable
+  @ManyToOne(() => ClassSchedule, schedule => schedule.attendanceRecords, { nullable: true })
   @JoinColumn({ name: 'scheduleId' })
-  schedule: ClassSchedule;
+  schedule?: ClassSchedule;
 }

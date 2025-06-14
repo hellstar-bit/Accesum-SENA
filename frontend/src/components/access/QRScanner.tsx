@@ -219,65 +219,120 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
 
   // ⭐ FUNCIÓN MEJORADA PARA DETERMINAR ACCIÓN
   const determineAction = async (qrData: string): Promise<'entry' | 'exit'> => {
-    try {
-      const qrInfo = JSON.parse(qrData);
-      console.log('🎯 Determinando acción para:', qrInfo);
+  try {
+    const qrInfo = JSON.parse(qrData);
+    console.log('🎯 Determinando acción para:', qrInfo);
+    
+    if (!qrInfo.doc) {
+      console.warn('⚠️ QR no contiene documento, asumiendo entrada');
+      return 'entry';
+    }
+    
+    console.log('🏢 Verificando ocupación actual...');
+    const current = await accessService.getCurrentOccupancy();
+    console.log('🏢 Personas actualmente dentro:', current.total || current.current);
+    
+    // ⭐ CORREGIR ACCESO A LOS REGISTROS SEGÚN LA ESTRUCTURA REAL
+    let records = [];
+    if (current.records) {
+      records = current.records;
+    } else if (current.details) {
+      records = current.details;
+    } else if (current.peopleInside) {
+      records = current.peopleInside;
+    } else {
+      console.log('⚠️ No se encontraron registros de personas dentro');
+      return 'entry';
+    }
+
+    console.log('🏢 Registros encontrados:', records.length);
+    
+    // ⭐ BUSCAR EL DOCUMENTO EN LOS DIFERENTES FORMATOS POSIBLES
+    const isInside = records.some(record => {
+      // Verificar diferentes estructuras posibles
+      const userProfile = record.user?.profile;
+      const profileData = record.profile;
       
-      if (!qrInfo.doc) {
-        console.warn('⚠️ QR no contiene documento, asumiendo entrada');
-        return 'entry';
+      // Formato 1: record.user.profile.documentNumber
+      if (userProfile?.documentNumber === qrInfo.doc) {
+        console.log('✅ Encontrado en user.profile:', userProfile.documentNumber);
+        return true;
       }
       
-      console.log('🏢 Verificando ocupación actual...');
-      const current = await accessService.getCurrentOccupancy();
-      console.log('🏢 Personas actualmente dentro:', current.total);
-      console.log('🏢 Registros actuales:', current.records.map(r => ({
-        doc: r.user.profile.documentNumber,
-        name: `${r.user.profile.firstName} ${r.user.profile.lastName}`
-      })));
+      // Formato 2: record.profile.documentNumber (directo)
+      if (profileData?.documentNumber === qrInfo.doc) {
+        console.log('✅ Encontrado en profile directo:', profileData.documentNumber);
+        return true;
+      }
       
-      const isInside = current.records.some(r => 
-        r.user.profile.documentNumber === qrInfo.doc
-      );
+      // Formato 3: record.documentNumber (directo en el record)
+      if (record.documentNumber === qrInfo.doc) {
+        console.log('✅ Encontrado en record directo:', record.documentNumber);
+        return true;
+      }
       
-      console.log('🎯 ¿Está dentro?', isInside, 'para documento:', qrInfo.doc);
-      return isInside ? 'exit' : 'entry';
-    } catch (error) {
-      console.error('❌ Error determinando acción:', error);
-      // Por defecto, asumir entrada si hay error
-      return 'entry';
-    }
-  };
+      return false;
+    });
+    
+    console.log('🎯 ¿Está dentro?', isInside, 'para documento:', qrInfo.doc);
+    return isInside ? 'exit' : 'entry';
+  } catch (error) {
+    console.error('❌ Error determinando acción:', error);
+    // Por defecto, asumir entrada si hay error
+    return 'entry';
+  }
+};
 
   const determineActionByProfile = async (profileId: number): Promise<'entry' | 'exit'> => {
-    try {
-      console.log('🎯 Determinando acción por perfil ID:', profileId);
-      const current = await accessService.getCurrentOccupancy();
-      const isInside = current.records.some(r => r.user.id === profileId);
-      console.log('🎯 ¿Perfil está dentro?', isInside);
-      return isInside ? 'exit' : 'entry';
-    } catch (error) {
-      console.error('Error determinando acción por perfil:', error);
-      return 'entry';
+  try {
+    console.log('🎯 Determinando acción por perfil ID:', profileId);
+    const current = await accessService.getCurrentOccupancy();
+    
+    // ⭐ BUSCAR EN DIFERENTES ESTRUCTURAS POSIBLES
+    let records = [];
+    if (current.records) {
+      records = current.records;
+    } else if (current.details) {
+      records = current.details;
+    } else if (current.peopleInside) {
+      records = current.peopleInside;
     }
-  };
+    
+    const isInside = records.some(record => {
+      // Verificar diferentes formas de acceder al ID del perfil
+      const userProfileId = record.user?.profile?.id;
+      const profileId_direct = record.profileId;
+      const userId = record.user?.id;
+      
+      return userProfileId === profileId || profileId_direct === profileId || userId === profileId;
+    });
+    
+    console.log('🎯 ¿Perfil está dentro?', isInside);
+    return isInside ? 'exit' : 'entry';
+  } catch (error) {
+    console.error('Error determinando acción por perfil:', error);
+    return 'entry';
+  }
+};
 
   const showSuccessAlert = async (tipo: 'entry' | 'exit', response: any) => {
-    const isEntry = tipo === 'entry';
-    const user = response.user.profile;
+  const isEntry = tipo === 'entry';
+  
+  // ⭐ VERIFICAR QUE LA RESPUESTA TENGA LA ESTRUCTURA CORRECTA
+  if (!response || !response.user || !response.user.profile) {
+    console.error('❌ Estructura de respuesta inválida:', response);
     
+    // ⭐ MOSTRAR ALERTA DE ÉXITO BÁSICA SI NO HAY DATOS COMPLETOS
     return Swal.fire({
       title: `✅ ${isEntry ? 'ENTRADA' : 'SALIDA'} REGISTRADA`,
       html: `
         <div class="text-center">
           <div class="mb-4">
-            ${user.profileImage 
-              ? `<img src="${user.profileImage}" class="w-20 h-20 rounded-full mx-auto object-cover mb-2 border-4 ${isEntry ? 'border-green-400' : 'border-red-400'}" />` 
-              : `<div class="w-20 h-20 rounded-full mx-auto ${isEntry ? 'bg-green-100' : 'bg-red-100'} flex items-center justify-center ${isEntry ? 'text-green-600' : 'text-red-600'} text-2xl font-bold mb-2 border-4 ${isEntry ? 'border-green-400' : 'border-red-400'}">${user.firstName.charAt(0)}${user.lastName.charAt(0)}</div>`
-            }
+            <div class="w-20 h-20 rounded-full mx-auto ${isEntry ? 'bg-green-100' : 'bg-red-100'} flex items-center justify-center ${isEntry ? 'text-green-600' : 'text-red-600'} text-2xl font-bold mb-2 border-4 ${isEntry ? 'border-green-400' : 'border-red-400'}">
+              ${isEntry ? '✅' : '🚪'}
+            </div>
           </div>
-          <h3 class="text-lg font-semibold text-gray-800">${user.firstName} ${user.lastName}</h3>
-          <p class="text-sm text-gray-600 mb-2">${user.type} - ${user.documentNumber}</p>
+          <h3 class="text-lg font-semibold text-gray-800">Acceso Registrado</h3>
           <div class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium mb-3 ${
             isEntry 
               ? 'bg-green-100 text-green-800' 
@@ -286,7 +341,7 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
             ${isEntry ? '🏢 INGRESÓ A LAS INSTALACIONES' : '🚪 SALIÓ DE LAS INSTALACIONES'}
           </div>
           <p class="text-sm text-gray-500">
-            ${new Date(response.entryTime || response.exitTime).toLocaleString('es-CO', { 
+            ${new Date(response.entryTime || response.exitTime || Date.now()).toLocaleString('es-CO', { 
               weekday: 'long',
               year: 'numeric',
               month: 'long', 
@@ -296,7 +351,6 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
               hour12: true 
             })}
           </p>
-          ${user.center ? `<p class="text-xs text-gray-400 mt-1">${user.center}</p>` : ''}
         </div>
       `,
       icon: 'success',
@@ -311,7 +365,57 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
         title: isEntry ? 'text-green-700' : 'text-red-700'
       }
     });
-  };
+  }
+
+  // ⭐ SI LA RESPUESTA TIENE LA ESTRUCTURA CORRECTA, MOSTRAR DATOS COMPLETOS
+  const user = response.user.profile;
+  
+  return Swal.fire({
+    title: `✅ ${isEntry ? 'ENTRADA' : 'SALIDA'} REGISTRADA`,
+    html: `
+      <div class="text-center">
+        <div class="mb-4">
+          ${user.profileImage 
+            ? `<img src="${user.profileImage}" class="w-20 h-20 rounded-full mx-auto object-cover mb-2 border-4 ${isEntry ? 'border-green-400' : 'border-red-400'}" />` 
+            : `<div class="w-20 h-20 rounded-full mx-auto ${isEntry ? 'bg-green-100' : 'bg-red-100'} flex items-center justify-center ${isEntry ? 'text-green-600' : 'text-red-600'} text-2xl font-bold mb-2 border-4 ${isEntry ? 'border-green-400' : 'border-red-400'}">${user.firstName?.charAt(0) || '?'}${user.lastName?.charAt(0) || ''}</div>`
+          }
+        </div>
+        <h3 class="text-lg font-semibold text-gray-800">${user.firstName || 'Sin nombre'} ${user.lastName || ''}</h3>
+        <p class="text-sm text-gray-600 mb-2">${user.type || 'Tipo desconocido'} - ${user.documentNumber || 'Sin documento'}</p>
+        <div class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium mb-3 ${
+          isEntry 
+            ? 'bg-green-100 text-green-800' 
+            : 'bg-red-100 text-red-800'
+        }">
+          ${isEntry ? '🏢 INGRESÓ A LAS INSTALACIONES' : '🚪 SALIÓ DE LAS INSTALACIONES'}
+        </div>
+        <p class="text-sm text-gray-500">
+          ${new Date(response.entryTime || response.exitTime || Date.now()).toLocaleString('es-CO', { 
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long', 
+            day: 'numeric',
+            hour: '2-digit', 
+            minute: '2-digit',
+            hour12: true 
+          })}
+        </p>
+        ${user.center ? `<p class="text-xs text-gray-400 mt-1">${user.center}</p>` : ''}
+      </div>
+    `,
+    icon: 'success',
+    iconColor: isEntry ? '#16a34a' : '#dc2626',
+    confirmButtonColor: isEntry ? '#16a34a' : '#dc2626',
+    confirmButtonText: 'Continuar',
+    timer: 5000,
+    timerProgressBar: true,
+    allowOutsideClick: false,
+    customClass: {
+      popup: 'animate__animated animate__bounceIn',
+      title: isEntry ? 'text-green-700' : 'text-red-700'
+    }
+  });
+};
 
   const showErrorAlert = async (message: string) => {
     return Swal.fire({
@@ -347,77 +451,125 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
   };
 
   const handleManualSearch = async () => {
-    if (!manualDocument.trim() || loading) return;
+  if (!manualDocument.trim() || loading) return;
 
-    setLoading(true);
+  setLoading(true);
 
-    Swal.fire({
-      title: 'Buscando persona...',
-      html: `
-        <div class="text-center">
-          <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p class="text-gray-600">Documento: <strong>${manualDocument}</strong></p>
-          <p class="text-xs text-gray-500 mt-2">Verificando en la base de datos...</p>
-        </div>
-      `,
-      allowOutsideClick: false,
-      showConfirmButton: false
+  Swal.fire({
+    title: 'Buscando persona...',
+    html: `
+      <div class="text-center">
+        <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
+        <p class="text-gray-600">Documento: <strong>${manualDocument}</strong></p>
+        <p class="text-xs text-gray-500 mt-2">Verificando en la base de datos...</p>
+      </div>
+    `,
+    allowOutsideClick: false,
+    showConfirmButton: false
+  });
+
+  try {
+    console.log('🔍 Búsqueda manual por documento:', manualDocument);
+    
+    // ⭐ USAR EL ENDPOINT CORRECTO CON QUERY PARAMS
+    const searchResult = await accessService.searchByDocument(manualDocument);
+    console.log('📋 Resultado de búsqueda:', searchResult);
+    
+    // ⭐ VERIFICAR ESTRUCTURA DE RESPUESTA CORRECTA
+    if (!searchResult || !searchResult.found) {
+      await Swal.fire({
+        title: '🚫 Persona no encontrada',
+        html: `
+          <div class="text-center">
+            <div class="w-16 h-16 rounded-full mx-auto bg-yellow-100 flex items-center justify-center text-yellow-600 text-3xl mb-4">
+              🔍
+            </div>
+            <p class="text-gray-700 mb-4">No se encontró ninguna persona con el documento:</p>
+            <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+              <p class="text-lg font-bold text-yellow-800">${manualDocument}</p>
+            </div>
+            <p class="text-sm text-gray-600">
+              ${searchResult?.message || 'Verifique que el número esté correcto o contacte al administrador'}
+            </p>
+          </div>
+        `,
+        icon: 'warning',
+        confirmButtonColor: '#f59e0b',
+        timer: 4000
+      });
+      return;
+    }
+
+    // ⭐ EXTRAER PERFIL DE LA RESPUESTA CORRECTAMENTE
+    let profileData = null;
+    let profileId = null;
+
+    // Verificar diferentes estructuras de respuesta
+    if (searchResult.profile) {
+      profileData = searchResult.profile;
+      profileId = searchResult.profile.id;
+    } else if (searchResult.user?.profile) {
+      profileData = searchResult.user.profile;
+      profileId = searchResult.user.profile.id;
+    } else if (searchResult.data?.profile) {
+      profileData = searchResult.data.profile;
+      profileId = searchResult.data.profile.id;
+    }
+
+    if (!profileData || !profileId) {
+      console.error('❌ No se pudo extraer información del perfil:', searchResult);
+      await showErrorAlert('Error al procesar la información del usuario encontrado');
+      return;
+    }
+
+    console.log('✅ Persona encontrada:', {
+      id: profileId,
+      name: `${profileData.firstName} ${profileData.lastName}`,
+      document: profileData.documentNumber
     });
 
-    try {
-      console.log('🔍 Búsqueda manual por documento:', manualDocument);
-      const searchResult = await accessService.searchByDocument(manualDocument);
-      
-      if (!searchResult.found || !searchResult.profile) {
-        await Swal.fire({
-          title: '🚫 Persona no encontrada',
-          html: `
-            <div class="text-center">
-              <div class="w-16 h-16 rounded-full mx-auto bg-yellow-100 flex items-center justify-center text-yellow-600 text-3xl mb-4">
-                🔍
-              </div>
-              <p class="text-gray-700 mb-4">No se encontró ninguna persona con el documento:</p>
-              <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
-                <p class="text-lg font-bold text-yellow-800">${manualDocument}</p>
-              </div>
-              <p class="text-sm text-gray-600">
-                Verifique que el número esté correcto o contacte al administrador
-              </p>
-            </div>
-          `,
-          icon: 'warning',
-          confirmButtonColor: '#f59e0b',
-          timer: 4000
-        });
-        return;
-      }
-
-      console.log('✅ Persona encontrada:', searchResult.profile);
-
-      const checkInOrOut = await determineActionByProfile(searchResult.profile.id);
-      console.log('🎯 Acción determinada para búsqueda manual:', checkInOrOut);
-      
-      let response;
-      if (checkInOrOut === 'entry') {
-        response = await accessService.checkIn({ profileId: searchResult.profile.id });
-      } else {
-        response = await accessService.checkOut({ profileId: searchResult.profile.id });
-      }
-      
-      await showSuccessAlert(checkInOrOut, response);
-      setManualDocument('');
-      onScanSuccess();
-
-    } catch (error: any) {
-      console.error('❌ Error en búsqueda manual:', error);
-      await showErrorAlert(
-        error.response?.data?.message || 
-        'Error al procesar el documento'
-      );
-    } finally {
-      setLoading(false);
+    // ⭐ DETERMINAR ACCIÓN USANDO EL ID DEL PERFIL
+    const checkInOrOut = await determineActionByProfile(profileId);
+    console.log('🎯 Acción determinada para búsqueda manual:', checkInOrOut);
+    
+    // ⭐ EJECUTAR CHECK-IN O CHECK-OUT
+    let response;
+    if (checkInOrOut === 'entry') {
+      console.log('📡 Enviando CHECK-IN manual para perfil:', profileId);
+      response = await accessService.checkIn({ profileId: profileId });
+    } else {
+      console.log('📡 Enviando CHECK-OUT manual para perfil:', profileId);
+      response = await accessService.checkOut({ profileId: profileId });
     }
-  };
+    
+    console.log('✅ Operación manual exitosa:', response);
+    
+    // ⭐ MOSTRAR ALERTA DE ÉXITO
+    await showSuccessAlert(checkInOrOut, response);
+    setManualDocument('');
+    onScanSuccess();
+
+  } catch (error: any) {
+    console.error('❌ Error en búsqueda manual:', error);
+    
+    // ⭐ MEJORAR MANEJO DE ERRORES
+    let errorMessage = 'Error al procesar el documento';
+    
+    if (error.response?.status === 404) {
+      errorMessage = `No se encontró ninguna persona con el documento ${manualDocument}`;
+    } else if (error.response?.status === 400) {
+      errorMessage = error.response?.data?.message || 'Datos inválidos en la búsqueda';
+    } else if (error.response?.data?.message) {
+      errorMessage = error.response.data.message;
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    await showErrorAlert(errorMessage);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleError = (error: any) => {
     console.log('⚠️ Error técnico del escáner:', error);

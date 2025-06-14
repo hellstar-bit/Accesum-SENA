@@ -3,8 +3,7 @@ import { useState, useEffect } from 'react';
 import QRScanner from '../components/access/QRScanner';
 import CurrentOccupancyComponent from '../components/access/CurrentOccupancy';
 import AccessHistoryComponent from '../components/access/AccessHistory';
-import { accessService } from '../services/accessService';
-import type { AccessStats } from '../services/accessService';
+import { accessService, type AccessStats } from '../services/accessService'
 import Swal from 'sweetalert2';
 
 const AccessControl = () => {

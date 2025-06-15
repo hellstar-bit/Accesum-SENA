@@ -1,4 +1,4 @@
-// backend/src/access/access.controller.ts - COMPLETO CORREGIDO
+// backend/src/access/access.controller.ts - CORREGIDO PARA USAR 'records'
 import { 
   Controller, 
   Get, 
@@ -27,54 +27,48 @@ export class AccessController {
   // ⭐ CHECK-IN - ENTRADA AL SISTEMA
   @Post('check-in')
   @Roles('Administrador', 'Instructor', 'Aprendiz')
-  @Post('check-in')
-@Roles('Administrador', 'Instructor', 'Aprendiz')
-async checkIn(@Body() data: { 
-  profileId?: number; 
-  qrData?: string 
-}) {
-  try {
-    console.log('🌐 POST /access/check-in');
-    
-    if (!data.profileId && !data.qrData) {
-      throw new BadRequestException('Se requiere profileId o qrData');
+  async checkIn(@Body() data: { 
+    profileId?: number; 
+    qrData?: string 
+  }) {
+    try {
+      console.log('🌐 POST /access/check-in');
+      
+      if (!data.profileId && !data.qrData) {
+        throw new BadRequestException('Se requiere profileId o qrData');
+      }
+
+      const result = await this.accessService.checkIn(data);
+      console.log('✅ Check-in exitoso');
+      return result;
+    } catch (error) {
+      console.error('❌ Error en check-in:', error);
+      throw error;
     }
-
-    const result = await this.accessService.checkIn(data);
-    console.log('✅ Check-in exitoso');
-    
-    // ⭐ RETORNAR DIRECTAMENTE EL RESULTADO (YA TIENE LA ESTRUCTURA CORRECTA)
-    return result;
-  } catch (error) {
-    console.error('❌ Error en check-in:', error);
-    throw error;
   }
-}
 
-// ⭐ CHECK-OUT - SALIDA DEL SISTEMA (CORREGIDO)
-@Post('check-out')
-@Roles('Administrador', 'Instructor', 'Aprendiz')
-async checkOut(@Body() data: { 
-  profileId?: number; 
-  qrData?: string 
-}) {
-  try {
-    console.log('🌐 POST /access/check-out');
-    
-    if (!data.profileId && !data.qrData) {
-      throw new BadRequestException('Se requiere profileId o qrData');
+  // ⭐ CHECK-OUT - SALIDA DEL SISTEMA
+  @Post('check-out')
+  @Roles('Administrador', 'Instructor', 'Aprendiz')
+  async checkOut(@Body() data: { 
+    profileId?: number; 
+    qrData?: string 
+  }) {
+    try {
+      console.log('🌐 POST /access/check-out');
+      
+      if (!data.profileId && !data.qrData) {
+        throw new BadRequestException('Se requiere profileId o qrData');
+      }
+
+      const result = await this.accessService.checkOut(data);
+      console.log('✅ Check-out exitoso');
+      return result;
+    } catch (error) {
+      console.error('❌ Error en check-out:', error);
+      throw error;
     }
-
-    const result = await this.accessService.checkOut(data);
-    console.log('✅ Check-out exitoso');
-    
-    // ⭐ RETORNAR DIRECTAMENTE EL RESULTADO (YA TIENE LA ESTRUCTURA CORRECTA)
-    return result;
-  } catch (error) {
-    console.error('❌ Error en check-out:', error);
-    throw error;
   }
-}
 
   // ⭐ OBTENER ESTADÍSTICAS DE ACCESO
   @Get('stats')
@@ -228,7 +222,7 @@ async checkOut(@Body() data: {
 
       const result = await this.accessService.forceCheckOut({
         ...data,
-        adminUserId: req.user.id // ID del administrador que fuerza el checkout
+        adminUserId: req.user.id
       });
       
       console.log('✅ Check-out forzado exitoso');
@@ -241,37 +235,36 @@ async checkOut(@Body() data: {
 
   // ⭐ OBTENER REPORTE DETALLADO
   @Get('report')
-@Roles('Administrador')
-async getDetailedReport(@Query() filters: {
-  startDate?: string;
-  endDate?: string;
-  userType?: string;
-  includeActive?: string; // ⭐ CAMBIAR A string AQUÍ
-}) {
-  try {
-    console.log('🌐 GET /access/report');
-    
-    // ⭐ CREAR OBJETO CON TIPO CORRECTO
-    const processedFilters = {
-      startDate: filters.startDate,
-      endDate: filters.endDate,
-      userType: filters.userType,
-      includeActive: filters.includeActive 
-        ? filters.includeActive.toLowerCase() === 'true' 
-        : undefined
-    };
+  @Roles('Administrador')
+  async getDetailedReport(@Query() filters: {
+    startDate?: string;
+    endDate?: string;
+    userType?: string;
+    includeActive?: string;
+  }) {
+    try {
+      console.log('🌐 GET /access/report');
+      
+      const processedFilters = {
+        startDate: filters.startDate,
+        endDate: filters.endDate,
+        userType: filters.userType,
+        includeActive: filters.includeActive 
+          ? filters.includeActive.toLowerCase() === 'true' 
+          : undefined
+      };
 
-    const report = await this.accessService.getDetailedReport(processedFilters);
-    console.log('✅ Reporte detallado generado exitosamente');
-    return report;
-  } catch (error) {
-    console.error('❌ Error al generar reporte detallado:', error);
-    throw new HttpException(
-      'Error al generar reporte detallado',
-      HttpStatus.INTERNAL_SERVER_ERROR
-    );
+      const report = await this.accessService.getDetailedReport(processedFilters);
+      console.log('✅ Reporte detallado generado exitosamente');
+      return report;
+    } catch (error) {
+      console.error('❌ Error al generar reporte detallado:', error);
+      throw new HttpException(
+        'Error al generar reporte detallado',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
   }
-}
 
   // ⭐ LIMPIAR REGISTROS ANTIGUOS (MANTENIMIENTO)
   @Post('cleanup')
@@ -297,7 +290,7 @@ async getDetailedReport(@Query() filters: {
 
   // ⭐ OBTENER MI ESTADO DE ACCESO (PARA USUARIOS AUTENTICADOS)
   @Get('my-status')
-  @Roles('Administrador', 'Instructor', 'Aprendiz', )
+  @Roles('Administrador', 'Instructor', 'Aprendiz')
   async getMyStatus(@Request() req: any) {
     try {
       console.log('🌐 GET /access/my-status');
@@ -315,7 +308,7 @@ async getDetailedReport(@Query() filters: {
 
   // ⭐ OBTENER MIS ÚLTIMOS ACCESOS
   @Get('my-history')
-  @Roles('Administrador', 'Instructor', 'Aprendiz', )
+  @Roles('Administrador', 'Instructor', 'Aprendiz')
   async getMyHistory(
     @Request() req: any,
     @Query() filters: {
@@ -330,7 +323,7 @@ async getDetailedReport(@Query() filters: {
       
       const history = await this.accessService.getHistory({
         ...filters,
-        userId: req.user.id // Filtrar solo por el usuario autenticado
+        userId: req.user.id
       });
       
       console.log('✅ Mi historial obtenido exitosamente');
@@ -366,265 +359,271 @@ async getDetailedReport(@Query() filters: {
 
   // ⭐ OBTENER ESTADÍSTICAS RÁPIDAS (DASHBOARD)
   @Get('quick-stats')
-@Roles('Administrador')
-async getQuickStats() {
-  try {
-    console.log('🌐 GET /access/quick-stats');
-    
-    // Obtener estadísticas de hoy
-    const today = new Date().toISOString().split('T')[0];
-    const todayStats = await this.accessService.getStats({
-      startDate: today,
-      endDate: today
-    });
+  @Roles('Administrador')
+  async getQuickStats() {
+    try {
+      console.log('🌐 GET /access/quick-stats');
+      
+      const today = new Date().toISOString().split('T')[0];
+      const todayStats = await this.accessService.getStats({
+        startDate: today,
+        endDate: today
+      });
 
-    // Obtener ocupación actual
-    const occupancy = await this.accessService.getCurrentOccupancy();
+      const occupancy = await this.accessService.getCurrentOccupancy();
+      const activeAccess = await this.accessService.getActiveAccess();
 
-    // ⭐ CORREGIR LLAMADA SIN PARÁMETROS
-    const activeAccess = await this.accessService.getActiveAccess();
-
-    console.log('✅ Estadísticas rápidas obtenidas');
-    
-    return {
-      today: {
-        totalAccess: todayStats.totalAccess,
-        uniqueUsers: todayStats.uniqueUsers,
-        peakHour: todayStats.peakHour,
-        accessByHour: todayStats.accessByHour
-      },
-      current: {
-        occupancy: occupancy.total,
-        byType: occupancy.byType,
-        activeRecords: activeAccess.total
-      },
-      timestamp: new Date().toISOString()
-    };
-  } catch (error) {
-    console.error('❌ Error al obtener estadísticas rápidas:', error);
-    throw new HttpException(
-      'Error al obtener estadísticas rápidas',
-      HttpStatus.INTERNAL_SERVER_ERROR
-    );
-  }
-}
-@Post('validate-qr')
-@Roles('Administrador', 'Instructor', 'Aprendiz')
-async validateQR(@Body() data: { qrData: string }) {
-  try {
-    console.log('🌐 POST /access/validate-qr');
-    
-    if (!data.qrData) {
-      throw new BadRequestException('Datos QR requeridos');
+      console.log('✅ Estadísticas rápidas obtenidas');
+      
+      return {
+        today: {
+          totalAccess: todayStats.totalAccess,
+          uniqueUsers: todayStats.uniqueUsers,
+          peakHour: todayStats.peakHour,
+          accessByHour: todayStats.accessByHour
+        },
+        current: {
+          occupancy: occupancy.total,
+          byType: occupancy.byType,
+          activeRecords: activeAccess.total
+        },
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      console.error('❌ Error al obtener estadísticas rápidas:', error);
+      throw new HttpException(
+        'Error al obtener estadísticas rápidas',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
     }
-
-    const result = await this.accessService.validateQR(data.qrData);
-    console.log('✅ Validación QR exitosa');
-    return result;
-  } catch (error) {
-    console.error('❌ Error al validar QR:', error);
-    throw error;
   }
-}
 
-// ⭐ BÚSQUEDA POR DOCUMENTO (QUERY PARAM)
-@Get('search')
-@Roles('Administrador', 'Instructor')
-async searchByDocumentQuery(@Query('documentNumber') documentNumber: string) {
-  try {
-    console.log('🌐 GET /access/search?documentNumber=' + documentNumber);
-    
-    if (!documentNumber || documentNumber.trim().length === 0) {
+  // ⭐ VALIDAR QR
+  @Post('validate-qr')
+  @Roles('Administrador', 'Instructor', 'Aprendiz')
+  async validateQR(@Body() data: { qrData: string }) {
+    try {
+      console.log('🌐 POST /access/validate-qr');
+      
+      if (!data.qrData) {
+        throw new BadRequestException('Datos QR requeridos');
+      }
+
+      const result = await this.accessService.validateQR(data.qrData);
+      console.log('✅ Validación QR exitosa');
+      return result;
+    } catch (error) {
+      console.error('❌ Error al validar QR:', error);
+      throw error;
+    }
+  }
+
+  // ⭐ BÚSQUEDA POR DOCUMENTO (QUERY PARAM)
+  @Get('search')
+  @Roles('Administrador', 'Instructor')
+  async searchByDocumentQuery(@Query('documentNumber') documentNumber: string) {
+    try {
+      console.log('🌐 GET /access/search?documentNumber=' + documentNumber);
+      
+      if (!documentNumber || documentNumber.trim().length === 0) {
+        return {
+          found: false,
+          message: 'Número de documento requerido'
+        };
+      }
+
+      const result = await this.accessService.searchByDocument(documentNumber.trim());
+      console.log('✅ Búsqueda por documento exitosa');
+      return result;
+    } catch (error) {
+      console.error('❌ Error en búsqueda por documento:', error);
       return {
         found: false,
-        message: 'Número de documento requerido'
+        message: 'Error al buscar por documento',
+        error: error.message
       };
     }
-
-    const result = await this.accessService.searchByDocument(documentNumber.trim());
-    console.log('✅ Búsqueda por documento exitosa');
-    return result;
-  } catch (error) {
-    console.error('❌ Error en búsqueda por documento:', error);
-    return {
-      found: false,
-      message: 'Error al buscar por documento',
-      error: error.message
-    };
   }
-}
 
-// ⭐ OCUPACIÓN ACTUAL (ALIAS PARA COMPATIBILIDAD)
-@Get('current-occupancy')
-@Roles('Administrador', 'Instructor')
-async getCurrentOccupancyAlias() {
-  try {
-    console.log('🌐 GET /access/current-occupancy');
-    const occupancy = await this.accessService.getCurrentOccupancy();
-    
-    // Formatear respuesta para compatibilidad con frontend
-    return {
-      current: occupancy.total,
-      capacity: 100, // Capacidad máxima (configurable)
-      percentage: Math.round((occupancy.total / 100) * 100),
-      total: occupancy.total, // Alias para compatibilidad
-      records: occupancy.details
-    };
-  } catch (error) {
-    console.error('❌ Error al obtener ocupación actual:', error);
-    throw new HttpException(
-      'Error al obtener ocupación actual',
-      HttpStatus.INTERNAL_SERVER_ERROR
-    );
+  // ⭐ OCUPACIÓN ACTUAL (ALIAS PARA COMPATIBILIDAD) - CORREGIDO
+  @Get('current-occupancy')
+  @Roles('Administrador', 'Instructor')
+  async getCurrentOccupancyAlias() {
+    try {
+      console.log('🌐 GET /access/current-occupancy');
+      const occupancy = await this.accessService.getCurrentOccupancy();
+      
+      // ⭐ USAR 'records' EN LUGAR DE 'details'
+      return {
+        current: occupancy.total,
+        capacity: 100,
+        percentage: Math.round((occupancy.total / 100) * 100),
+        total: occupancy.total,
+        records: occupancy.records // ⭐ CORREGIDO: usar 'records'
+      };
+    } catch (error) {
+      console.error('❌ Error al obtener ocupación actual:', error);
+      throw new HttpException(
+        'Error al obtener ocupación actual',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
   }
-}
 
-// ⭐ ESTADÍSTICAS EN TIEMPO REAL
-@Get('realtime-stats')
-@Roles('Administrador', 'Instructor')
-async getRealTimeStats() {
-  try {
-    console.log('🌐 GET /access/realtime-stats');
-    
-    // Obtener estadísticas de las últimas 24 horas
-    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const now = new Date().toISOString();
-    
-    const stats = await this.accessService.getStats({
-      startDate: yesterday,
-      endDate: now
-    });
-    
-    const occupancy = await this.accessService.getCurrentOccupancy();
-    
-    // Obtener usuarios más activos (simulado por ahora)
-    const mostActiveUsers = [
-      { name: 'Usuario Ejemplo 1', visits: 15 },
-      { name: 'Usuario Ejemplo 2', visits: 12 },
-      { name: 'Usuario Ejemplo 3', visits: 10 }
-    ];
-    
-    const result = {
-      entriesLast24h: stats.totalEntries || 0,
-      exitsLast24h: stats.completedSessions || 0,
-      currentOccupancy: occupancy.total,
-      averageStayTime: stats.averageSessionTime || '0h 0m',
-      peakHourToday: stats.peakHour?.hour ? `${stats.peakHour.hour}:00` : 'N/A',
-      mostActiveUsers
-    };
-    
-    console.log('✅ Estadísticas en tiempo real obtenidas');
-    return result;
-  } catch (error) {
-    console.error('❌ Error al obtener estadísticas en tiempo real:', error);
-    throw new HttpException(
-      'Error al obtener estadísticas en tiempo real',
-      HttpStatus.INTERNAL_SERVER_ERROR
-    );
+  // ⭐ ESTADÍSTICAS EN TIEMPO REAL
+  @Get('realtime-stats')
+  @Roles('Administrador', 'Instructor')
+  async getRealTimeStats() {
+    try {
+      console.log('🌐 GET /access/realtime-stats');
+      
+      const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const now = new Date().toISOString();
+      
+      const stats = await this.accessService.getStats({
+        startDate: yesterday,
+        endDate: now
+      });
+      
+      const occupancy = await this.accessService.getCurrentOccupancy();
+      
+      const mostActiveUsers = [
+        { name: 'Usuario Ejemplo 1', visits: 15 },
+        { name: 'Usuario Ejemplo 2', visits: 12 },
+        { name: 'Usuario Ejemplo 3', visits: 10 }
+      ];
+      
+      const result = {
+        entriesLast24h: stats.totalEntries || 0,
+        exitsLast24h: stats.completedSessions || 0,
+        currentOccupancy: occupancy.total,
+        averageStayTime: stats.averageSessionTime || '0h 0m',
+        peakHourToday: stats.peakHour?.hour ? `${stats.peakHour.hour}:00` : 'N/A',
+        mostActiveUsers
+      };
+      
+      console.log('✅ Estadísticas en tiempo real obtenidas');
+      return result;
+    } catch (error) {
+      console.error('❌ Error al obtener estadísticas en tiempo real:', error);
+      throw new HttpException(
+        'Error al obtener estadísticas en tiempo real',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
   }
-}
 
-// ⭐ MÉTRICAS DE ACCESO
-@Get('metrics')
-@Roles('Administrador', 'Instructor')
-async getAccessMetrics(@Query() params: {
-  startDate?: string;
-  endDate?: string;
-  groupBy?: 'day' | 'week' | 'month';
-}) {
-  try {
-    console.log('🌐 GET /access/metrics');
-    
-    const stats = await this.accessService.getStats({
-      startDate: params.startDate,
-      endDate: params.endDate,
-      groupBy: params.groupBy
-    });
-    
-    // Formatear respuesta para compatibilidad con frontend
-    const result = {
-      totalToday: stats.totalEntries || 0,
-      currentOccupancy: stats.currentlyInside || 0,
-      averageStayTime: stats.averageSessionTime || '0h 0m',
-      peakHours: stats.peakHour ? [{
-        hour: `${stats.peakHour.hour}:00`,
-        count: stats.peakHour.count
-      }] : [],
-      dailyStats: stats.entriesByDay ? Object.entries(stats.entriesByDay).map(([date, entries]) => ({
-        date,
-        entries: entries as number,
-        exits: entries as number, // Simplificado
-        maxOccupancy: Math.floor((entries as number) * 0.8) // Estimado
-      })) : []
-    };
-    
-    console.log('✅ Métricas de acceso obtenidas');
-    return result;
-  } catch (error) {
-    console.error('❌ Error al obtener métricas:', error);
-    throw new HttpException(
-      'Error al obtener métricas de acceso',
-      HttpStatus.INTERNAL_SERVER_ERROR
-    );
+  // ⭐ MÉTRICAS DE ACCESO
+  @Get('metrics')
+  @Roles('Administrador', 'Instructor')
+  async getAccessMetrics(@Query() params: {
+    startDate?: string;
+    endDate?: string;
+    groupBy?: 'day' | 'week' | 'month';
+  }) {
+    try {
+      console.log('🌐 GET /access/metrics');
+      
+      const stats = await this.accessService.getStats({
+        startDate: params.startDate,
+        endDate: params.endDate,
+        groupBy: params.groupBy
+      });
+      
+      const result = {
+        totalToday: stats.totalEntries || 0,
+        currentOccupancy: stats.currentlyInside || 0,
+        averageStayTime: stats.averageSessionTime || '0h 0m',
+        peakHours: stats.peakHour ? [{
+          hour: `${stats.peakHour.hour}:00`,
+          count: stats.peakHour.count
+        }] : [],
+        dailyStats: stats.entriesByDay ? Object.entries(stats.entriesByDay).map(([date, entries]) => ({
+          date,
+          entries: entries as number,
+          exits: entries as number,
+          maxOccupancy: Math.floor((entries as number) * 0.8)
+        })) : []
+      };
+      
+      console.log('✅ Métricas de acceso obtenidas');
+      return result;
+    } catch (error) {
+      console.error('❌ Error al obtener métricas:', error);
+      throw new HttpException(
+        'Error al obtener métricas de acceso',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
   }
-}
 
-// ⭐ REGISTROS DE HOY
-@Get('today')
-@Roles('Administrador', 'Instructor')
-async getTodayRecords() {
-  try {
-    console.log('🌐 GET /access/today');
-    
-    const today = new Date().toISOString().split('T')[0];
-    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    
-    const history = await this.accessService.getHistory({
-      startDate: today,
-      endDate: tomorrow,
-      limit: 100
-    });
-    
-    console.log('✅ Registros de hoy obtenidos');
-    return history.data;
-  } catch (error) {
-    console.error('❌ Error al obtener registros de hoy:', error);
-    throw new HttpException(
-      'Error al obtener registros de hoy',
-      HttpStatus.INTERNAL_SERVER_ERROR
-    );
+  // ⭐ REGISTROS DE HOY
+  @Get('today')
+  @Roles('Administrador', 'Instructor')
+  async getTodayRecords() {
+    try {
+      console.log('🌐 GET /access/today');
+      
+      const today = new Date().toISOString().split('T')[0];
+      const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      
+      const history = await this.accessService.getHistory({
+        startDate: today,
+        endDate: tomorrow,
+        limit: 100
+      });
+      
+      console.log('✅ Registros de hoy obtenidos');
+      return history.data;
+    } catch (error) {
+      console.error('❌ Error al obtener registros de hoy:', error);
+      throw new HttpException(
+        'Error al obtener registros de hoy',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
   }
-}
 
-// ⭐ PERSONAS ACTUALMENTE DENTRO
-@Get('people-inside')
-@Roles('Administrador', 'Instructor')
-async getPeopleInside() {
-  try {
-    console.log('🌐 GET /access/people-inside');
-    
-    const occupancy = await this.accessService.getCurrentOccupancy();
-    
-    const result = {
-      count: occupancy.total,
-      people: occupancy.details.map(detail => ({
-        id: detail.user?.profile?.id || 0,
-        name: detail.user?.profile?.name || 'Sin nombre',
-        documentNumber: detail.user?.profile?.documentNumber || 'Sin documento',
-        entryTime: detail.entryTime.toISOString(),
-        duration: detail.duration || '0h 0m',
-        type: detail.user?.profile?.type || 'Desconocido'
-      }))
-    };
-    
-    console.log('✅ Personas dentro obtenidas');
-    return result;
-  } catch (error) {
-    console.error('❌ Error al obtener personas dentro:', error);
-    throw new HttpException(
-      'Error al obtener personas en instalaciones',
-      HttpStatus.INTERNAL_SERVER_ERROR
-    );
+  // ⭐ PERSONAS ACTUALMENTE DENTRO - CORREGIDO
+  @Get('people-inside')
+  @Roles('Administrador', 'Instructor')
+  async getPeopleInside() {
+    try {
+      console.log('🌐 GET /access/people-inside');
+      
+      const occupancy = await this.accessService.getCurrentOccupancy();
+      
+      // ⭐ USAR 'records' Y CORREGIR ESTRUCTURA
+      const result = {
+        count: occupancy.total,
+        people: occupancy.records.map(record => ({
+          id: record.user?.profile?.id || 0,
+          name: `${record.user?.profile?.firstName || 'Sin'} ${record.user?.profile?.lastName || 'nombre'}`,
+          documentNumber: record.user?.profile?.documentNumber || 'Sin documento',
+          entryTime: record.entryTime,
+          duration: this.calculateDurationFromEntry(new Date(record.entryTime)),
+          type: record.user?.profile?.type?.name || 'Desconocido'
+        }))
+      };
+      
+      console.log('✅ Personas dentro obtenidas');
+      return result;
+    } catch (error) {
+      console.error('❌ Error al obtener personas dentro:', error);
+      throw new HttpException(
+        'Error al obtener personas en instalaciones',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
   }
-}
+
+  // ⭐ MÉTODO AUXILIAR PARA CALCULAR DURACIÓN
+  private calculateDurationFromEntry(entryTime: Date): string {
+    const now = new Date();
+    const diffMs = now.getTime() - entryTime.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    
+    return `${diffHours}h ${diffMinutes}m`;
+  }
 }

@@ -625,68 +625,93 @@ async checkOut(data: { profileId?: number; qrData?: string }): Promise<AccessRec
 
   // ⭐ OBTENER OCUPACIÓN ACTUAL
   async getCurrentOccupancy() {
-    try {
-      console.log('📊 Obteniendo ocupación actual...');
+  try {
+    console.log('📊 Obteniendo ocupación actual...');
 
-      const currentOccupancy = await this.accessRecordRepository.find({
-        where: {
-          exitTime: IsNull()
-        },
-        relations: ['user', 'user.profile', 'user.profile.type'],
-        order: { entryTime: 'DESC' }
+    const currentOccupancy = await this.accessRecordRepository.find({
+      where: {
+        exitTime: IsNull()
+      },
+      relations: ['user', 'user.profile', 'user.profile.type'],
+      order: { entryTime: 'DESC' }
+    });
+
+    console.log(`📊 [DEBUG] Registros encontrados: ${currentOccupancy.length}`);
+
+    // ⭐ LOGGING DETALLADO PARA DEBUGGING
+    currentOccupancy.forEach((record, index) => {
+      console.log(`📋 [DEBUG] Record ${index + 1}:`, {
+        id: record.id,
+        userId: record.user?.id,
+        profileId: record.user?.profile?.id,
+        firstName: record.user?.profile?.firstName,
+        lastName: record.user?.profile?.lastName,
+        documentNumber: record.user?.profile?.documentNumber,
+        typeName: record.user?.profile?.type?.name,
+        entryTime: record.entryTime
       });
+    });
 
-      // ⭐ AGRUPAR POR TIPO DE USUARIO
-      const occupancyByType = currentOccupancy.reduce((acc, record) => {
-        const userType = record.user?.profile?.type?.name || 'Desconocido';
-        if (!acc[userType]) {
-          acc[userType] = [];
-        }
-        acc[userType].push({
-          id: record.id,
-          userId: record.user?.id,
-          profileId: record.user?.profile?.id,
-          name: record.user?.profile 
-            ? `${record.user.profile.firstName} ${record.user.profile.lastName}`
-            : 'Sin nombre',
-          documentNumber: record.user?.profile?.documentNumber || 'Sin documento',
-          entryTime: record.entryTime,
-          status: record.status
-        });
-        return acc;
-      }, {} as Record<string, any[]>);
+    // ⭐ AGRUPAR POR TIPO DE USUARIO CON CONTADORES
+    const occupancyByType = currentOccupancy.reduce((acc, record) => {
+      const userType = record.user?.profile?.type?.name || 'Desconocido';
+      acc[userType] = (acc[userType] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
 
-      const totalOccupancy = currentOccupancy.length;
+    const totalOccupancy = currentOccupancy.length;
 
-      console.log('✅ Ocupación actual obtenida:', { total: totalOccupancy });
-
-      return {
-        total: totalOccupancy,
-        byType: occupancyByType,
-        details: currentOccupancy.map(record => ({
-          id: record.id,
-          user: {
-            id: record.user?.id,
-            profile: {
-              id: record.user?.profile?.id,
-              name: record.user?.profile 
-                ? `${record.user.profile.firstName} ${record.user.profile.lastName}`
-                : 'Sin nombre',
-              documentNumber: record.user?.profile?.documentNumber || 'Sin documento',
-              type: record.user?.profile?.type?.name || 'Desconocido'
+    // ⭐ ESTRUCTURA CORREGIDA PARA EL FRONTEND
+    const response = {
+      total: totalOccupancy,
+      byType: occupancyByType,
+      // ⭐ CAMBIAR 'details' POR 'records' Y CORREGIR ESTRUCTURA
+      records: currentOccupancy.map(record => ({
+        id: record.id,
+        entryTime: record.entryTime.toISOString(),
+        user: {
+          id: record.user?.id || 0,
+          email: record.user?.email || '',
+          profile: {
+            id: record.user?.profile?.id || 0,
+            // ⭐ SEPARAR firstName Y lastName (no concatenar)
+            firstName: record.user?.profile?.firstName || 'Sin nombre',
+            lastName: record.user?.profile?.lastName || '',
+            documentNumber: record.user?.profile?.documentNumber || 'Sin documento',
+            profileImage: record.user?.profile?.profileImage || null,
+            // ⭐ CORREGIR ESTRUCTURA DEL TIPO
+            type: {
+              name: record.user?.profile?.type?.name || 'Desconocido'
             }
-          },
-          entryTime: record.entryTime,
-          status: record.status,
-          duration: this.calculateDurationFromEntry(record.entryTime)
-        }))
-      };
+          }
+        }
+      }))
+    };
 
-    } catch (error) {
-      console.error('❌ Error al obtener ocupación actual:', error);
-      throw error;
-    }
+    console.log('✅ Ocupación actual formateada:', { 
+      total: totalOccupancy, 
+      byType: occupancyByType,
+      recordsCount: response.records.length
+    });
+
+    console.log('📤 [DEBUG] Estructura de respuesta:', {
+      total: response.total,
+      byTypeKeys: Object.keys(response.byType),
+      firstRecord: response.records[0] ? {
+        id: response.records[0].id,
+        firstName: response.records[0].user.profile.firstName,
+        lastName: response.records[0].user.profile.lastName,
+        typeName: response.records[0].user.profile.type.name
+      } : 'No records'
+    });
+
+    return response;
+
+  } catch (error) {
+    console.error('❌ Error al obtener ocupación actual:', error);
+    throw error;
   }
+}
 
   // ⭐ VERIFICAR ESTADO DE ACCESO DE UN USUARIO
   async checkUserStatus(userId: number) {

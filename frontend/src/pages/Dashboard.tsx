@@ -1,44 +1,96 @@
-// frontend/src/pages/Dashboard.tsx
 import { useState, useEffect } from 'react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
+
+// Importar el servicio real
 import { dashboardService } from '../services/dashboardService';
-import type { DashboardStats, RecentActivity } from '../services/dashboardService';
+import type { 
+  EnhancedDashboardStats, 
+  AccessTrendData, 
+  RegionalStatsData, 
+  CenterStatsData, 
+  DashboardFilters 
+} from '../services/dashboardService';
+
+const COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6'];
 
 const Dashboard = () => {
-  const [stats, setStats] = useState<DashboardStats>({
-    totalUsers: 0,
-    activeUsers: 0,
-    todayAccess: 0,
-    totalProfiles: 0,
-    usersByType: {
-      funcionarios: 0,
-      contratistas: 0,
-      aprendices: 0,
-      visitantes: 0,
-    }
-  });
-  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
+  // Estados principales
+  const [stats, setStats] = useState<EnhancedDashboardStats | null>(null);
+  const [accessTrends, setAccessTrends] = useState<AccessTrendData[]>([]);
+  const [regionalStats, setRegionalStats] = useState<RegionalStatsData[]>([]);
+  const [centerStats, setCenterStats] = useState<CenterStatsData[]>([]);
+  const [recentActivity, setRecentActivity] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Estados de filtros
+  const [selectedTimeRange, setSelectedTimeRange] = useState<'1d' | '7d' | '30d' | '90d'>('7d');
+  const [selectedRegional, setSelectedRegional] = useState<number | undefined>(undefined);
+  const [selectedCenter, setSelectedCenter] = useState<number | undefined>(undefined);
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
+  // Cargar datos al montar y cuando cambien los filtros
   useEffect(() => {
     fetchDashboardData();
-  }, []);
+  }, [selectedTimeRange, selectedRegional, selectedCenter]);
 
-  const fetchDashboardData = async () => {
+  // Auto-refresh cada 5 minutos
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchDashboardData(true);
+    }, 5 * 60 * 1000); // 5 minutos
+
+    return () => clearInterval(interval);
+  }, [selectedTimeRange, selectedRegional, selectedCenter]);
+
+  const fetchDashboardData = async (isAutoRefresh = false) => {
     try {
-      setLoading(true);
+      if (!isAutoRefresh) {
+        setLoading(true);
+      }
       setError(null);
       
-      const [statsData, activityData] = await Promise.all([
-        dashboardService.getStats(),
-        dashboardService.getRecentActivity(5)
+      const filters: DashboardFilters = {
+        timeRange: selectedTimeRange,
+        regionalId: selectedRegional,
+        centerId: selectedCenter
+      };
+
+      console.log('📊 Cargando dashboard con filtros:', filters);
+
+      // Cargar todos los datos en paralelo
+      const [
+        statsData, 
+        trendsData, 
+        regionalData, 
+        centerData, 
+        activityData
+      ] = await Promise.all([
+        dashboardService.getEnhancedStats(filters),
+        dashboardService.getAccessTrends(filters),
+        dashboardService.getRegionalStats(filters.timeRange),
+        dashboardService.getCenterStats(filters),
+        dashboardService.getRecentActivityFiltered(10, filters)
       ]);
       
       setStats(statsData);
+      setAccessTrends(trendsData);
+      setRegionalStats(regionalData);
+      setCenterStats(centerData);
       setRecentActivity(activityData);
-    } catch (err) {
+      setLastUpdate(new Date());
+      
+      console.log('✅ Dashboard cargado exitosamente:', {
+        stats: statsData.totalUsers,
+        trends: trendsData.length,
+        regionals: regionalData.length,
+        centers: centerData.length,
+        activity: activityData.length
+      });
+      
+    } catch (err: any) {
+      console.error('❌ Error cargando dashboard:', err);
       setError('Error al cargar los datos del dashboard');
-      console.error('Error:', err);
     } finally {
       setLoading(false);
     }
@@ -53,10 +105,55 @@ const Dashboard = () => {
     });
   };
 
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('es-CO', { 
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  const formatNumber = (num: number): string => {
+    if (num >= 1000000) {
+      return (num / 1000000).toFixed(1) + 'M';
+    }
+    if (num >= 1000) {
+      return (num / 1000).toFixed(1) + 'K';
+    }
+    return num.toLocaleString();
+  };
+
+  const getGrowthIcon = (growth: number) => {
+    if (growth > 0) {
+      return (
+        <svg className="h-4 w-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 17l9.2-9.2M17 17V7m0 10H7" />
+        </svg>
+      );
+    } else if (growth < 0) {
+      return (
+        <svg className="h-4 w-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 7l-9.2 9.2M7 7v10m0-10h10" />
+        </svg>
+      );
+    }
+    return (
+      <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+      </svg>
+    );
+  };
+
+  // Preparar datos para gráficos
+  const pieData = stats ? Object.entries(stats.usersByType).map(([key, value]) => ({
+    name: key.charAt(0).toUpperCase() + key.slice(1),
+    value,
+  })).filter(item => item.value > 0) : [];
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-sena-green"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-500"></div>
         <span className="ml-3 text-gray-600">Cargando dashboard...</span>
       </div>
     );
@@ -71,174 +168,326 @@ const Dashboard = () => {
           </svg>
           <p className="ml-3 text-red-700">{error}</p>
         </div>
-        <button 
-          onClick={fetchDashboardData}
-          className="mt-3 btn-primary"
-        >
+        <button onClick={() => fetchDashboardData()} className="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
           Reintentar
         </button>
       </div>
     );
   }
 
+  if (!stats) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-gray-500">No hay datos disponibles</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
+    <div className="space-y-6 p-6">
+      {/* Header con Filtros */}
+      <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-800">Dashboard</h1>
-          <p className="text-gray-600 mt-1">Resumen del sistema de control de acceso</p>
+          <h1 className="text-3xl font-bold text-gray-900">Dashboard de Control</h1>
+          <p className="text-gray-600 mt-1">
+            Monitoreo en tiempo real del sistema de acceso SENA
+          </p>
+          <p className="text-sm text-gray-500 mt-1">
+            Última actualización: {lastUpdate.toLocaleString('es-CO')}
+          </p>
         </div>
-        <button 
-          onClick={fetchDashboardData}
-          className="btn-primary flex items-center space-x-2"
-        >
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-          <span>Actualizar</span>
-        </button>
+        
+        {/* Filtros */}
+        <div className="flex flex-wrap gap-3">
+          <select 
+            value={selectedTimeRange}
+            onChange={(e) => setSelectedTimeRange(e.target.value as '1d' | '7d' | '30d' | '90d')}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+          >
+            <option value="1d">Último día</option>
+            <option value="7d">Últimos 7 días</option>
+            <option value="30d">Últimos 30 días</option>
+            <option value="90d">Últimos 3 meses</option>
+          </select>
+          
+          <select 
+            value={selectedRegional || ''}
+            onChange={(e) => setSelectedRegional(e.target.value ? Number(e.target.value) : undefined)}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+          >
+            <option value="">Todas las regionales</option>
+            {regionalStats.map(regional => (
+              <option key={regional.regionalId} value={regional.regionalId}>
+                {regional.regional}
+              </option>
+            ))}
+          </select>
+          
+          <button 
+            onClick={() => fetchDashboardData()}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Actualizar
+          </button>
+        </div>
       </div>
 
-      {/* Stats Cards */}
+      {/* Métricas Principales */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center">
-            <div className="p-3 rounded-full bg-blue-100 text-blue-600">
+        <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-blue-100 text-sm font-medium">Total Usuarios</p>
+              <p className="text-3xl font-bold">{formatNumber(stats.totalUsers)}</p>
+              <div className="flex items-center mt-1">
+                {getGrowthIcon(stats.growthMetrics.userGrowthWeekly)}
+                <p className="text-blue-100 text-xs ml-1">
+                  {Math.abs(stats.growthMetrics.userGrowthWeekly).toFixed(1)}% vs semana anterior
+                </p>
+              </div>
+            </div>
+            <div className="bg-blue-400 bg-opacity-30 p-3 rounded-full">
               <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
               </svg>
             </div>
-            <div className="ml-4">
-              <p className="text-sm text-gray-500 font-medium">Total Usuarios</p>
-              <p className="text-2xl font-semibold text-gray-700">{stats.totalUsers}</p>
-            </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center">
-            <div className="p-3 rounded-full bg-green-100 text-green-600">
+        <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-xl shadow-lg p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-green-100 text-sm font-medium">Usuarios Activos</p>
+              <p className="text-3xl font-bold">{formatNumber(stats.activeUsers)}</p>
+              <p className="text-green-100 text-xs mt-1">
+                {((stats.activeUsers/stats.totalUsers)*100).toFixed(1)}% del total
+              </p>
+            </div>
+            <div className="bg-green-400 bg-opacity-30 p-3 rounded-full">
               <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <div className="ml-4">
-              <p className="text-sm text-gray-500 font-medium">Usuarios Activos</p>
-              <p className="text-2xl font-semibold text-gray-700">{stats.activeUsers}</p>
-            </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center">
-            <div className="p-3 rounded-full bg-yellow-100 text-yellow-600">
+        <div className="bg-gradient-to-r from-yellow-500 to-orange-500 rounded-xl shadow-lg p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-yellow-100 text-sm font-medium">
+                Accesos {selectedTimeRange === '1d' ? 'Hoy' : `Últimos ${selectedTimeRange.slice(0, -1)} días`}
+              </p>
+              <p className="text-3xl font-bold">{formatNumber(stats.todayAccess)}</p>
+              <div className="flex items-center mt-1">
+                {getGrowthIcon(stats.growthMetrics.accessGrowthDaily)}
+                <p className="text-yellow-100 text-xs ml-1">
+                  {Math.abs(stats.growthMetrics.accessGrowthDaily).toFixed(1)}% vs ayer
+                </p>
+              </div>
+            </div>
+            <div className="bg-yellow-400 bg-opacity-30 p-3 rounded-full">
               <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <div className="ml-4">
-              <p className="text-sm text-gray-500 font-medium">Accesos Hoy</p>
-              <p className="text-2xl font-semibold text-gray-700">{stats.todayAccess}</p>
-            </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center">
-            <div className="p-3 rounded-full bg-purple-100 text-purple-600">
-              <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-              </svg>
+        <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl shadow-lg p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-purple-100 text-sm font-medium">Promedio Diario</p>
+              <p className="text-3xl font-bold">{formatNumber(stats.averageAccessPerDay)}</p>
+              <p className="text-purple-100 text-xs mt-1">
+                Hora pico: {stats.peakHour}:00
+              </p>
             </div>
-            <div className="ml-4">
-              <p className="text-sm text-gray-500 font-medium">Total Perfiles</p>
-              <p className="text-2xl font-semibold text-gray-700">{stats.totalProfiles}</p>
+            <div className="bg-purple-400 bg-opacity-30 p-3 rounded-full">
+              <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Content Grid */}
+      {/* Gráficos Principales */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Usuarios por tipo */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="px-6 py-4 border-b">
-            <h2 className="text-lg font-semibold text-gray-800">Usuarios por Tipo</h2>
+        {/* Tendencia de Accesos */}
+        <div className="bg-white rounded-xl shadow-lg p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-semibold text-gray-900">Tendencia de Accesos</h2>
+            <div className="flex items-center space-x-2 text-sm text-gray-500">
+              <div className="flex items-center">
+                <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
+                Accesos diarios
+              </div>
+            </div>
           </div>
-          <div className="p-6 space-y-4">
-            {Object.entries(stats.usersByType).map(([type, count]) => {
-              const total = Object.values(stats.usersByType).reduce((a, b) => a + b, 0);
-              const percentage = total > 0 ? (count / total) * 100 : 0;
-              
-              return (
-                <div key={type}>
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center">
-                      <div className={`h-3 w-3 rounded-full mr-3 ${
-                        type === 'funcionarios' ? 'bg-blue-500' :
-                        type === 'contratistas' ? 'bg-green-500' :
-                        type === 'aprendices' ? 'bg-yellow-500' : 'bg-purple-500'
-                      }`}></div>
-                      <span className="text-sm font-medium text-gray-700 capitalize">{type}</span>
-                    </div>
-                    <div className="text-sm font-semibold text-gray-900">{count}</div>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className={`h-2 rounded-full ${
-                        type === 'funcionarios' ? 'bg-blue-500' :
-                        type === 'contratistas' ? 'bg-green-500' :
-                        type === 'aprendices' ? 'bg-yellow-500' : 'bg-purple-500'
-                      }`}
-                      style={{ width: `${percentage}%` }}
-                    ></div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={accessTrends}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis 
+                dataKey="date" 
+                tickFormatter={formatDate}
+                tick={{ fontSize: 12 }}
+              />
+              <YAxis tick={{ fontSize: 12 }} />
+              <Tooltip 
+                labelFormatter={(value) => `Fecha: ${formatDate(value as string)}`}
+                formatter={(value) => [value, 'Accesos']}
+              />
+              <Line 
+                type="monotone" 
+                dataKey="count" 
+                stroke="#10B981" 
+                strokeWidth={3}
+                dot={{ fill: '#10B981', strokeWidth: 2, r: 6 }}
+                activeDot={{ r: 8 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
 
-        {/* Actividad Reciente */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="px-6 py-4 border-b">
-            <h2 className="text-lg font-semibold text-gray-800">Actividad Reciente</h2>
+        {/* Usuarios por Tipo */}
+        <div className="bg-white rounded-xl shadow-lg p-6">
+          <h2 className="text-xl font-semibold text-gray-900 mb-6">Distribución por Tipo de Usuario</h2>
+          <div className="flex justify-center">
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={pieData}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {pieData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value) => [value, 'Usuarios']} />
+              </PieChart>
+            </ResponsiveContainer>
           </div>
-          <div className="divide-y">
-            {recentActivity.length > 0 ? (
-              recentActivity.map((activity) => (
-                <div key={activity.id} className="px-6 py-4 flex justify-between items-center">
+        </div>
+      </div>
+
+      {/* Estadísticas por Regional y Centro */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Estadísticas por Regional */}
+        <div className="bg-white rounded-xl shadow-lg p-6">
+          <h2 className="text-xl font-semibold text-gray-900 mb-6">Usuarios por Regional</h2>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={regionalStats}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis 
+                dataKey="regional" 
+                tick={{ fontSize: 12 }}
+                angle={-45}
+                textAnchor="end"
+                height={80}
+              />
+              <YAxis tick={{ fontSize: 12 }} />
+              <Tooltip />
+              <Bar dataKey="users" fill="#3B82F6" name="Total Usuarios" />
+              <Bar dataKey="active" fill="#10B981" name="Usuarios Activos" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Top Centros */}
+        <div className="bg-white rounded-xl shadow-lg p-6">
+          <h2 className="text-xl font-semibold text-gray-900 mb-6">Top Centros - Accesos Hoy</h2>
+          <div className="space-y-4 max-h-72 overflow-y-auto">
+            {centerStats.slice(0, 5).map((center, index) => (
+              <div key={center.centerId} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                <div className="flex-1">
                   <div className="flex items-center">
-                    <div className={`h-10 w-10 rounded-full flex items-center justify-center ${
-                      activity.type === 'entry' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
-                    }`}>
-                      {activity.type === 'entry' ? (
-                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-                        </svg>
-                      ) : (
-                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                        </svg>
-                      )}
-                    </div>
-                    <div className="ml-4">
-                      <p className="text-sm font-medium text-gray-900">{activity.user}</p>
-                      <p className="text-sm text-gray-500">
-                        {activity.type === 'entry' ? 'Entrada' : 'Salida'}
-                      </p>
+                    <span className="inline-flex items-center justify-center w-6 h-6 bg-green-100 text-green-800 text-xs font-bold rounded-full mr-3">
+                      {index + 1}
+                    </span>
+                    <div>
+                      <h3 className="font-medium text-gray-900 text-sm">{center.center}</h3>
+                      <p className="text-gray-500 text-xs">{formatNumber(center.users)} usuarios registrados</p>
                     </div>
                   </div>
-                  <span className="text-sm text-gray-500">{formatTime(activity.time)}</span>
                 </div>
-              ))
-            ) : (
-              <div className="px-6 py-8 text-center text-gray-500">
-                No hay actividad reciente
+                <div className="text-right">
+                  <p className="text-2xl font-bold text-green-600">{center.todayAccess}</p>
+                  <p className="text-xs text-gray-500">accesos</p>
+                </div>
               </div>
-            )}
+            ))}
           </div>
+        </div>
+      </div>
+
+      {/* Actividad Reciente */}
+      <div className="bg-white rounded-xl shadow-lg p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-semibold text-gray-900">Actividad Reciente</h2>
+          <a href="/access" className="text-green-600 hover:text-green-700 text-sm font-medium">
+            Ver todo →
+          </a>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Usuario</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acción</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hora</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Centro</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {recentActivity.map((activity) => (
+                <tr key={activity.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center">
+                      <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
+                        <span className="text-sm font-medium text-gray-700">
+                          {activity.user.split(' ').map((n: string) => n[0]).join('')}
+                        </span>
+                      </div>
+                      <div className="ml-4">
+                        <div className="text-sm font-medium text-gray-900">{activity.user}</div>
+                        <div className="text-sm text-gray-500">{activity.userType}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      activity.type === 'entry' 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-red-100 text-red-800'
+                    }`}>
+                      {activity.type === 'entry' ? 'Entrada' : 'Salida'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {formatTime(activity.time)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {activity.center}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      Exitoso
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

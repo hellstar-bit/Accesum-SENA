@@ -133,6 +133,7 @@ class AccessService {
 
   // ⭐ OBTENER OCUPACIÓN ACTUAL
   async getCurrentOccupancy(): Promise<{
+  byType: {};
   current: number;
   total: number;
   capacity: number;
@@ -153,6 +154,7 @@ class AccessService {
     const data = response.data;
     
     return {
+      byType: data.byType || {},
       current: data.current || data.total || 0,
       total: data.total || data.current || 0,
       capacity: data.capacity || 100,
@@ -164,8 +166,8 @@ class AccessService {
   } catch (error) {
     console.error('❌ Error al obtener ocupación actual:', error);
     
-    // ⭐ RETORNAR ESTRUCTURA VACÍA EN CASO DE ERROR
     return {
+      byType: {},
       current: 0,
       total: 0,
       capacity: 100,
@@ -174,8 +176,8 @@ class AccessService {
       details: [],
       peopleInside: []
     };
+    };
   }
-}
 
   // ⭐ OBTENER MÉTRICAS DE ACCESO
   async getAccessMetrics(params?: {

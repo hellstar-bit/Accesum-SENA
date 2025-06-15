@@ -1,7 +1,36 @@
-// frontend/src/components/access/CurrentOccupancy.tsx
+// frontend/src/components/access/CurrentOccupancy.tsx - CORREGIDO
 import { useState, useEffect } from 'react';
 import { accessService } from '../../services/accessService';
-import type { CurrentOccupancy } from '../../services/accessService';
+
+// ⭐ INTERFACES DEFINIDAS LOCALMENTE
+interface Profile {
+  id: number;
+  firstName: string;
+  lastName: string;
+  documentNumber: string;
+  profileImage?: string;
+  type: {
+    name: string;
+  };
+}
+
+interface User {
+  id: number;
+  email: string;
+  profile: Profile;
+}
+
+interface AccessRecord {
+  id: number;
+  entryTime: string;
+  user: User;
+}
+
+interface CurrentOccupancy {
+  total: number;
+  records: AccessRecord[];
+  byType: Record<string, number>;
+}
 
 interface CurrentOccupancyProps {
   refreshTrigger: number;
@@ -22,7 +51,11 @@ const CurrentOccupancyComponent = ({ refreshTrigger }: CurrentOccupancyProps) =>
   const fetchOccupancy = async () => {
     try {
       const data = await accessService.getCurrentOccupancy();
-      setOccupancy(data);
+      setOccupancy({
+        total: data.total,
+        records: data.records,
+        byType: data.byType ?? {}, // Usa el byType recibido o un objeto vacío
+      });
     } catch (error) {
       console.error('Error al cargar ocupación:', error);
     } finally {
@@ -30,25 +63,48 @@ const CurrentOccupancyComponent = ({ refreshTrigger }: CurrentOccupancyProps) =>
     }
   };
 
-  const handleCheckOut = async (record: any) => {
-    if (!confirm(`¿Registrar salida de ${record.user.profile.firstName} ${record.user.profile.lastName}?`)) {
+  const handleCheckOut = async (record: AccessRecord) => {
+    // ⭐ VALIDACIÓN MEJORADA CON OPTIONAL CHAINING
+    const firstName = record?.user?.profile?.firstName || 'Usuario';
+    const lastName = record?.user?.profile?.lastName || '';
+    const profileId = record?.user?.profile?.id;
+
+    if (!profileId) {
+      alert('Error: No se pudo obtener la información del usuario');
+      return;
+    }
+
+    if (!confirm(`¿Registrar salida de ${firstName} ${lastName}?`)) {
       return;
     }
 
     try {
-      await accessService.checkOut({ profileId: record.user.profile.id });
+      await accessService.checkOut({ profileId });
       fetchOccupancy();
     } catch (error: any) {
       alert(error.response?.data?.message || 'Error al registrar salida');
     }
   };
 
-  const filteredRecords = occupancy?.records.filter(record => {
+  // ⭐ FILTRADO CON VALIDACIONES SEGURAS
+  const filteredRecords = occupancy?.records?.filter(record => {
+    // Validar que el record y sus propiedades existan
+    if (!record?.user?.profile) {
+      return false;
+    }
+
+    const profile = record.user.profile;
     const searchLower = searchTerm.toLowerCase();
+    
+    // ⭐ VALIDACIONES SEGURAS PARA EVITAR EL ERROR
+    const firstName = profile.firstName?.toLowerCase() || '';
+    const lastName = profile.lastName?.toLowerCase() || '';
+    const documentNumber = profile.documentNumber || '';
+
     return (
-      record.user.profile.firstName.toLowerCase().includes(searchLower) ||
-      record.user.profile.lastName.toLowerCase().includes(searchLower) ||
-      record.user.profile.documentNumber.includes(searchTerm)
+      firstName.includes(searchLower) ||
+      lastName.includes(searchLower) ||
+      documentNumber.includes(searchTerm)
     );
   }) || [];
 
@@ -88,12 +144,15 @@ const CurrentOccupancyComponent = ({ refreshTrigger }: CurrentOccupancyProps) =>
         </div>
 
         {/* Resumen por tipo */}
-        {occupancy && Object.keys(occupancy.byType).length > 0 && (
+        {occupancy && occupancy.byType && Object.keys(occupancy.byType).length > 0 && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
             {Object.entries(occupancy.byType).map(([type, count]) => (
               <div key={type} className="bg-gray-50 rounded-lg p-3">
                 <p className="text-sm text-gray-600">{type}</p>
-                <p className="text-xl font-semibold">{count}</p>
+                {/* ⭐ VALIDACIÓN DEL TIPO DE COUNT */}
+                <p className="text-xl font-semibold">
+                  {typeof count === 'number' ? count : 0}
+                </p>
               </div>
             ))}
           </div>
@@ -112,45 +171,53 @@ const CurrentOccupancyComponent = ({ refreshTrigger }: CurrentOccupancyProps) =>
       {/* Lista de personas */}
       <div className="divide-y max-h-96 overflow-y-auto">
         {filteredRecords.length > 0 ? (
-          filteredRecords.map((record) => (
-            <div key={record.id} className="p-4 hover:bg-gray-50">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  {record.user.profile.profileImage ? (
-                    <img
-                      src={record.user.profile.profileImage}
-                      alt="Foto"
-                      className="w-10 h-10 rounded-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center text-sm font-bold">
-                      {record.user.profile.firstName.charAt(0)}
-                      {record.user.profile.lastName.charAt(0)}
+          filteredRecords.map((record) => {
+            // ⭐ VALIDACIONES ADICIONALES PARA CADA RECORD
+            const profile = record?.user?.profile;
+            if (!profile) {
+              return null; // Skip records without profile
+            }
+
+            return (
+              <div key={record.id} className="p-4 hover:bg-gray-50">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    {profile.profileImage ? (
+                      <img
+                        src={profile.profileImage}
+                        alt="Foto"
+                        className="w-10 h-10 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center text-sm font-bold">
+                        {(profile.firstName?.charAt(0) || '?')}
+                        {(profile.lastName?.charAt(0) || '')}
+                      </div>
+                    )}
+                    <div>
+                      <p className="font-medium">
+                        {profile.firstName || 'Sin nombre'} {profile.lastName || ''}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        {profile.type?.name || 'Sin tipo'} - {profile.documentNumber || 'Sin documento'}
+                      </p>
                     </div>
-                  )}
-                  <div>
-                    <p className="font-medium">
-                      {record.user.profile.firstName} {record.user.profile.lastName}
-                    </p>
+                  </div>
+                  <div className="text-right">
                     <p className="text-sm text-gray-600">
-                      {record.user.profile.type} - {record.user.profile.documentNumber}
+                      Entrada: {record.entryTime ? new Date(record.entryTime).toLocaleTimeString() : 'N/A'}
                     </p>
+                    <button
+                      onClick={() => handleCheckOut(record)}
+                      className="mt-1 text-sm text-red-600 hover:text-red-800"
+                    >
+                      Registrar Salida
+                    </button>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-sm text-gray-600">
-                    Entrada: {new Date(record.entryTime).toLocaleTimeString()}
-                  </p>
-                  <button
-                    onClick={() => handleCheckOut(record)}
-                    className="mt-1 text-sm text-red-600 hover:text-red-800"
-                  >
-                    Registrar Salida
-                  </button>
-                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         ) : (
           <div className="p-8 text-center text-gray-500">
             {searchTerm ? 'No se encontraron resultados' : 'No hay personas en las instalaciones'}

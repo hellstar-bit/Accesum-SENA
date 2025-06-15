@@ -17,17 +17,17 @@ api.interceptors.request.use(
     const token = localStorage.getItem('token');
     
     // ⭐ SOLO loggear en desarrollo
-    if (process.env.NODE_ENV === 'development') {
+    if (import.meta.env.MODE === 'development') {
       console.log(`🌐 ${config.method?.toUpperCase()} ${config.url}`);
     }
     
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
       
-      if (process.env.NODE_ENV === 'development') {
+      if (import.meta.env.MODE === 'development') {
         console.log('🎫 Token agregado:', token.substring(0, 20) + '...');
       }
-    } else if (process.env.NODE_ENV === 'development') {
+    } else if (import.meta.env.MODE === 'development') {
       console.log('⚠️ No hay token disponible');
     }
     
@@ -42,7 +42,7 @@ api.interceptors.request.use(
 // Interceptor de response - manejar errores MEJORADO
 api.interceptors.response.use(
   (response) => {
-    if (process.env.NODE_ENV === 'development') {
+    if (import.meta.env.MODE === 'development') {
       console.log(`✅ ${response.config.method?.toUpperCase()} ${response.config.url} - ${response.status}`);
     }
     return response;
@@ -54,7 +54,7 @@ api.interceptors.response.use(
     
     // ⭐ FILTRAR peticiones canceladas para no mostrarlas como errores
     if (error.code === 'ERR_CANCELED' || error.message === 'canceled') {
-      if (process.env.NODE_ENV === 'development') {
+      if (import.meta.env.MODE === 'development') {
         console.log(`🚫 ${method} ${url} - Petición cancelada (normal)`);
       }
       return Promise.reject({

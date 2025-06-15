@@ -1,12 +1,15 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { Request, Response } from 'express';
+import * as path from 'path';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   app.enableCors({
-    origin: true, // Permitir cualquier origen en producción
+    origin: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: [
       'Origin',
@@ -25,6 +28,18 @@ async function bootstrap() {
       transform: true,
     }),
   );
+
+  // Servir archivos estáticos del frontend en producción
+  if (process.env.NODE_ENV === 'production') {
+    app.useStaticAssets(path.join(__dirname, '../../frontend/dist'));
+
+    // Manejar rutas del frontend (SPA routing) - CON TIPOS CORRECTOS
+    app.getHttpAdapter().get('*', (req: Request, res: Response) => {
+      if (!req.url.startsWith('/api')) {
+        res.sendFile(path.join(__dirname, '../../frontend/dist/index.html'));
+      }
+    });
+  }
 
   const port = process.env.PORT || 3000;
   await app.listen(port);

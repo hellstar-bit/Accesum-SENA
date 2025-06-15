@@ -1,6 +1,8 @@
 {
-  "dependencies": {
-    "@types/xlsx": "^0.0.35",
-    "xlsx": "^0.18.5"
+  "name": "accesum-sena",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "npm install --prefix backend && npm install --prefix frontend && npm run build --prefix frontend",
+    "start": "npm run start --prefix backend"
   }
 }

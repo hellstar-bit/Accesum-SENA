@@ -147,6 +147,7 @@ Accesum-SENA
 │  │  │  │  └─ AttendanceNotifications.tsx
 │  │  │  ├─ auth
 │  │  │  │  └─ PrivateRoute.tsx
+│  │  │  ├─ config
 │  │  │  ├─ ficha
 │  │  │  │  └─ FichaCompetenceManagement.tsx
 │  │  │  ├─ import

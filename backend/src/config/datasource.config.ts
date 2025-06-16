@@ -1,22 +1,33 @@
-// backend/src/config/datasource.config.ts - CORREGIDO
+// backend/src/config/datasource.config.ts
 import { DataSource, DataSourceOptions } from 'typeorm';
 import { join } from 'path';
 
 // Configuración específica para DataSource (seeds, migrations, etc.)
 export const dataSourceOptions: DataSourceOptions = {
-  type: 'mysql', // ✅ Especificar tipo explícitamente
+  type: 'postgres', // ✅ Cambiado a PostgreSQL
   host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '3307'),
-  username: process.env.DB_USERNAME || 'root',
+  port: parseInt(process.env.DB_PORT || '5432'),
+  username: process.env.DB_USERNAME || 'postgres',
   password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_DATABASE || 'accesum', // ✅ CORREGIDO: cambiado de 'accesum_sena' a 'accesum'
+  database: process.env.DB_DATABASE || 'postgres',
   entities: [
     join(__dirname, '..', '**', '*.entity{.ts,.js}')
   ],
   synchronize: process.env.NODE_ENV !== 'production', // ⚠️ Solo en desarrollo
   logging: process.env.NODE_ENV === 'development',
-  charset: 'utf8mb4',
-  timezone: 'Z',
+  
+  // Configuración SSL para Supabase
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  
+  // Schema por defecto
+  schema: 'public',
+  
+  // Configuraciones adicionales para PostgreSQL
+  extra: {
+    max: 10,
+    idleTimeoutMillis: 10000,
+    connectionTimeoutMillis: 2000,
+  },
 };
 
 // DataSource para usar en seeds y migrations

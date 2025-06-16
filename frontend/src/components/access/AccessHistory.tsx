@@ -1,7 +1,5 @@
-// frontend/src/components/access/AccessHistory.tsx
 import { useState, useEffect } from 'react';
-import { accessService } from '../../services/accessService';
-import type { AccessHistory } from '../../services/accessService';
+import { accessService, type AccessHistory, type AccessRecord } from '../../services/accessService';
 
 const AccessHistoryComponent = () => {
   const [history, setHistory] = useState<AccessHistory | null>(null);
@@ -21,9 +19,10 @@ const AccessHistoryComponent = () => {
         limit: 20,
         date: new Date(selectedDate),
       });
-      setHistory(data);
+      setHistory(data); // Ahora 'data' es del tipo correcto
     } catch (error) {
       console.error('Error al cargar historial:', error);
+      setHistory(null);
     } finally {
       setLoading(false);
     }
@@ -93,12 +92,12 @@ const AccessHistoryComponent = () => {
                 Duración
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Tipo
+                Estado
               </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {history?.data.map((record) => (
+            {history?.records.map((record: AccessRecord) => (
               <tr key={record.id} className="hover:bg-gray-50">
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">
@@ -141,8 +140,16 @@ const AccessHistoryComponent = () => {
                     {formatDuration(record.duration)}
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {record.user.profile.type}
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                    record.status === 'EN_INSTALACIONES' 
+                      ? 'bg-blue-100 text-blue-800'
+                      : record.status === 'ENTRADA'
+                      ? 'bg-green-100 text-green-800'
+                      : 'bg-red-100 text-red-800'
+                  }`}>
+                    {record.status}
+                  </span>
                 </td>
               </tr>
             ))}
@@ -150,11 +157,18 @@ const AccessHistoryComponent = () => {
         </table>
       </div>
 
+      {/* Mensaje si no hay datos */}
+      {history && history.records.length === 0 && (
+        <div className="p-6 text-center text-gray-500">
+          No hay registros de acceso para la fecha seleccionada
+        </div>
+      )}
+
       {/* Paginación */}
-      {history && history.totalPages > 1 && (
+      {history && typeof history.totalPages === 'number' && history.totalPages > 1 && (
         <div className="px-6 py-4 border-t flex items-center justify-between">
           <div className="text-sm text-gray-700">
-            Mostrando {((history.page - 1) * history.limit) + 1} a {Math.min(history.page * history.limit, history.total)} de {history.total} registros
+            Mostrando {((history.page - 1) * history.limit) + 1} a {Math.min(history.page * history.limit, Number(history.total))} de {Number(history.total)} registros
           </div>
           <div className="flex space-x-2">
             <button
@@ -168,7 +182,7 @@ const AccessHistoryComponent = () => {
               Página {currentPage} de {history.totalPages}
             </span>
             <button
-              onClick={() => setCurrentPage(prev => Math.min(prev + 1, history.totalPages))}
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, typeof history.totalPages === 'number' ? history.totalPages : prev))}
               disabled={currentPage === history.totalPages}
               className="px-3 py-1 rounded border text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
             >

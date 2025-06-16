@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import api from './api';
 
 export interface AccessRecord {
@@ -54,6 +55,10 @@ export interface CheckOutData {
 }
 
 export interface AccessHistory {
+  page: number;
+  limit: number;
+  total(arg0: number, total: any): import("react").ReactNode;
+  totalPages: ReactNode;
   records: AccessRecord[];
   pagination: {
     page: number;
@@ -74,6 +79,32 @@ export interface AccessStats {
 }
 
 class AccessService {
+  async getHistory(params: {
+  page: number;
+  limit: number;
+  date: Date;
+}): Promise<AccessHistory> {
+  try {
+    console.log('📋 Obteniendo historial de acceso:', params);
+    
+    // Convertir la fecha al formato correcto
+    const dateStr = params.date.toISOString().split('T')[0];
+    
+    const response = await api.get('/access/history', {
+      params: {
+        page: params.page,
+        limit: params.limit,
+        startDate: dateStr,
+        endDate: dateStr
+      }
+    });
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error al obtener historial de acceso:', error);
+    throw error;
+  }
+}
   // ⭐ CHECK-IN (ENTRADA)
   async checkIn(data: CheckInData): Promise<AccessRecord> {
     try {
@@ -428,7 +459,7 @@ class AccessService {
       throw error;
     }
   }
-  async getStats(date?: Date): Promise<{
+  async getStats(_date?: Date): Promise<{
   totalAccess: number;
   currentlyInside: number;
   averageDurationMinutes: number;
@@ -438,10 +469,9 @@ class AccessService {
     console.log('📊 Obteniendo estadísticas de acceso para AccessControl');
     
     // Usar métodos existentes para obtener datos
-    const [realTimeStats, occupancy, metrics] = await Promise.all([
+    const [realTimeStats, occupancy] = await Promise.all([
       this.getRealTimeStats(),
-      this.getCurrentOccupancy(),
-      this.getAccessMetrics({ groupBy: 'hour' })
+      this.getCurrentOccupancy()
     ]);
 
     // Calcular total de accesos (entradas + salidas)

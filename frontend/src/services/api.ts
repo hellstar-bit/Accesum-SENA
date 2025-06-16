@@ -1,5 +1,6 @@
 import axios from 'axios';
 
+<<<<<<< HEAD
 // Configuración de la URL base del API
 // Si usas Vite:
 const API_BASE_URL = import.meta.env.MODE === 'production'
@@ -7,6 +8,9 @@ const API_BASE_URL = import.meta.env.MODE === 'production'
   : 'http://localhost:3001/api'; // En desarrollo, apunta al backend local
 
 // Si usas otro build tool, ajusta la variable de entorno según corresponda.
+=======
+const API_BASE_URL = 'http://localhost:3000';
+>>>>>>> parent of 958358d (despliegue a vercel)
 
 const api = axios.create({
   baseURL: API_BASE_URL,

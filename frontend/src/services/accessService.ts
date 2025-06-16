@@ -99,7 +99,7 @@ class AccessService {
       }
     });
     
-    return response.data;
+    return response.data as AccessHistory;
   } catch (error) {
     console.error('Error al obtener historial de acceso:', error);
     throw error;
@@ -110,7 +110,7 @@ class AccessService {
     try {
       console.log('🚪 Realizando check-in:', data);
       const response = await api.post('/access/check-in', data);
-      return response.data;
+      return response.data as AccessRecord;
     } catch (error) {
       console.error('Error en check-in:', error);
       throw error;
@@ -122,7 +122,7 @@ class AccessService {
     try {
       console.log('🚪 Realizando check-out:', data);
       const response = await api.post('/access/check-out', data);
-      return response.data;
+      return response.data as AccessRecord;
     } catch (error) {
       console.error('Error en check-out:', error);
       throw error;
@@ -137,7 +137,7 @@ class AccessService {
   }> {
     try {
       const response = await api.post('/access/validate-qr', { qrData });
-      return response.data;
+      return response.data as { valid: boolean; profile?: any; message: string };
     } catch (error) {
       console.error('Error al validar QR:', error);
       throw error;
@@ -155,7 +155,7 @@ class AccessService {
   }): Promise<AccessHistory> {
     try {
       const response = await api.get('/access/history', { params });
-      return response.data;
+      return response.data as AccessHistory;
     } catch (error) {
       console.error('Error al obtener historial de acceso:', error);
       throw error;
@@ -182,7 +182,16 @@ class AccessService {
     console.log('📊 Respuesta de ocupación:', response.data);
     
     // ⭐ NORMALIZAR LA RESPUESTA PARA COMPATIBILIDAD
-    const data = response.data;
+    const data = response.data as {
+      byType?: {};
+      current?: number;
+      total?: number;
+      capacity?: number;
+      percentage?: number;
+      records?: any[];
+      details?: any[];
+      peopleInside?: any[];
+    };
     
     return {
       byType: data.byType || {},
@@ -218,7 +227,7 @@ class AccessService {
   }): Promise<AccessMetrics> {
     try {
       const response = await api.get('/access/metrics', { params });
-      return response.data;
+      return response.data as AccessMetrics;
     } catch (error) {
       console.error('Error al obtener métricas de acceso:', error);
       throw error;
@@ -229,7 +238,7 @@ class AccessService {
   async getTodayRecords(): Promise<AccessRecord[]> {
     try {
       const response = await api.get('/access/today');
-      return response.data;
+      return response.data as AccessRecord[];
     } catch (error) {
       console.error('Error al obtener registros de hoy:', error);
       throw error;
@@ -240,7 +249,7 @@ class AccessService {
   async getAccessRecord(recordId: number): Promise<AccessRecord> {
     try {
       const response = await api.get(`/access/records/${recordId}`);
-      return response.data;
+      return response.data as AccessRecord;
     } catch (error) {
       console.error('Error al obtener registro de acceso:', error);
       throw error;
@@ -267,7 +276,16 @@ class AccessService {
     });
     
     console.log('📋 Respuesta de búsqueda:', response.data);
-    return response.data;
+    return response.data as {
+      data: any;
+      found: boolean;
+      profile?: any;
+      user?: any;
+      message?: string;
+      currentStatus?: any;
+      accessHistory?: any[];
+      totalRecords?: number;
+    };
   } catch (error: any) {
     console.error('❌ Error al buscar por documento:', error);
     
@@ -302,7 +320,17 @@ class AccessService {
   }> {
     try {
       const response = await api.get('/access/realtime-stats');
-      return response.data;
+      return response.data as {
+        entriesLast24h: number;
+        exitsLast24h: number;
+        currentOccupancy: number;
+        averageStayTime: string;
+        peakHourToday: string;
+        mostActiveUsers: {
+          name: string;
+          visits: number;
+        }[];
+      };
     } catch (error) {
       console.error('Error al obtener estadísticas en tiempo real:', error);
       throw error;
@@ -317,7 +345,7 @@ class AccessService {
     includeImages?: boolean;
   }) {
     try {
-      const response = await api.get('/access/export', {
+      const response = await api.get<Blob>('/access/export', {
         params,
         responseType: 'blob'
       });
@@ -350,7 +378,7 @@ class AccessService {
         profileId,
         reason
       });
-      return response.data;
+      return response.data as AccessRecord;
     } catch (error) {
       console.error('Error al forzar salida:', error);
       throw error;
@@ -371,7 +399,17 @@ class AccessService {
   }> {
     try {
       const response = await api.get('/access/people-inside');
-      return response.data;
+      return response.data as {
+        count: number;
+        people: {
+          id: number;
+          name: string;
+          documentNumber: string;
+          entryTime: string;
+          duration: string;
+          type: string;
+        }[];
+      };
     } catch (error) {
       console.error('Error al obtener personas en instalaciones:', error);
       throw error;
@@ -405,7 +443,16 @@ class AccessService {
     autoCheckoutHours: number;
   }> {
     try {
-      const response = await api.get('/access/config');
+      const response = await api.get<{
+        maxOccupancy: number;
+        workingHours: {
+          start: string;
+          end: string;
+        };
+        allowedDays: string[];
+        requiresApproval: boolean;
+        autoCheckoutHours: number;
+      }>('/access/config');
       return response.data;
     } catch (error) {
       console.error('Error al obtener configuración de acceso:', error);

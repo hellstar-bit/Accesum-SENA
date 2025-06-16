@@ -201,18 +201,19 @@ export const userService = {
       throw new Error('Respuesta vacía del servidor');
     }
     
-    const users = response.data.users || response.data.data || [];
-    const total = response.data.total || 0;
-    const count = response.data.count || users.length;
+    const data = response.data ?? {};
+    const users = (data as { users?: User[]; data?: User[] }).users || (data as { data?: User[] }).data || [];
+    const total = (data as { total?: number }).total || 0;
+    const count = (data as { count?: number }).count || users.length;
     
     return {
       users,
       data: users,
       total,
       count,
-      page: response.data.page || page,
+      page: (data as { page?: number }).page || page,
       limit,
-      totalPages: response.data.totalPages || Math.ceil(total / limit),
+      totalPages: (data as { totalPages?: number }).totalPages || Math.ceil(total / limit),
       filter: (predicate: (user: { role: { name: string; }; }) => boolean) => {
         return users.filter(predicate);
       }
@@ -264,43 +265,50 @@ export const userService = {
   // ========== MÉTODOS OPTIMIZADOS ==========
 
   async getFichas(): Promise<Ficha[]> {
-    const requestKey = 'getFichas';
-    
-    try {
-      const controller = requestController.createController(requestKey);
-      
-      console.log('📡 getFichas - Obteniendo fichas...');
-      
-      const response = await api.get('/users/fichas', {
-        signal: controller.signal
-      });
-      
-      console.log('✅ getFichas - Respuesta recibida');
-      
-      requestController.cleanup(requestKey);
-      
-      // Manejar diferentes formatos de respuesta
-      const fichasData = Array.isArray(response.data) ? response.data : response.data?.data || [];
-      
-      if (!Array.isArray(fichasData)) {
-        console.warn('⚠️ getFichas: respuesta no es un array:', fichasData);
-        return [];
-      }
-      
-      return fichasData;
-      
-    } catch (error: any) {
-      requestController.cleanup(requestKey);
-      
-      if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
-        console.log('🚫 getFichas - Petición cancelada');
-        return [];
-      }
-      
-      console.error('❌ getFichas - Error:', error);
+  const requestKey = 'getFichas';
+
+  try {
+    const controller = requestController.createController(requestKey);
+
+    console.log('📡 getFichas - Obteniendo fichas...');
+
+    const response = await api.get('/users/fichas', {
+      signal: controller.signal // Usa 'signal' en vez de 'cancelToken'
+    }as any);
+
+    console.log('✅ getFichas - Respuesta recibida');
+
+    requestController.cleanup(requestKey);
+
+    // Manejar diferentes formatos de respuesta
+    let fichasData: any[] = [];
+    if (Array.isArray(response.data)) {
+      fichasData = response.data;
+    } else if (response.data && typeof response.data === 'object' && Array.isArray((response.data as any).data)) {
+      fichasData = (response.data as any).data;
+    } else {
+      fichasData = [];
+    }
+
+    if (!Array.isArray(fichasData)) {
+      console.warn('⚠️ getFichas: respuesta no es un array:', fichasData);
       return [];
     }
-  },
+
+    return fichasData;
+
+  } catch (error: any) {
+    requestController.cleanup(requestKey);
+
+    if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+      console.log('🚫 getFichas - Petición cancelada');
+      return [];
+    }
+
+    console.error('❌ getFichas - Error:', error);
+    return [];
+  }
+},
 
   async getUserById(id: number): Promise<User> {
     try {

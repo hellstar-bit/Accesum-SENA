@@ -36,7 +36,7 @@ const InstructorDashboard = () => {
         attendanceService.getMyClassesAttendance(today)
       ]);
       
-      setFichas(fichasData);
+      setFichas(fichasData as InstructorFicha[]);
       setTodayClasses(classesData);
     } catch (error) {
       console.error('Error al cargar dashboard:', error);

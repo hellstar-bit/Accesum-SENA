@@ -1,21 +1,7 @@
 // pages/InstructorDashboard.tsx
 import { useState, useEffect } from 'react';
 import { attendanceService } from '../services/attendanceService';
-// Adjust the import to match the actual exported types from attendanceService
-import type { ClassSchedule } from '../services/attendanceService';
-// Define InstructorFicha locally if not exported from attendanceService
-type InstructorFicha = {
-  id: string;
-  subject: string;
-  assignedAt: string;
-  description?: string;
-  ficha: {
-    code: string;
-    name: string;
-    status: string;
-    totalLearners: number;
-  };
-};
+import type { InstructorFicha, ClassSchedule } from '../services/attendanceService';
 
 const InstructorDashboard = () => {
   const [fichas, setFichas] = useState<InstructorFicha[]>([]);

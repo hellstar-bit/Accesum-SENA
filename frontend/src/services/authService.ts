@@ -2,6 +2,10 @@
 import api from './api';
 import type { User, AuthUser } from '../types/user.types';
 
+interface LoginRequest {
+  email: string;
+  password: string;
+}
 
 interface LoginResponse {
   user: User;

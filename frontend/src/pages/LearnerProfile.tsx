@@ -12,7 +12,7 @@ import SweetAlertUtils, {
 } from '../utils/sweetAlertUtils';
 
 const LearnerProfilePage = () => {
-  useAuth();
+  const { user } = useAuth();
   const [profile, setProfile] = useState<LearnerProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);

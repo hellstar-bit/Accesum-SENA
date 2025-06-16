@@ -48,7 +48,11 @@ export const useAttendanceRealtime = (
     const [isOnline, setIsOnline] = useState(navigator.onLine);
 
     // Referencias para intervals y cleanup
+<<<<<<< HEAD
     const refreshIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+=======
+    const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
+>>>>>>> parent of ae7062f (arreglo de errores parte 2)
     const lastRefreshTimeRef = useRef<number>(Date.now());
 
     // ⭐ DETECTAR CAMBIOS DE CONECTIVIDAD

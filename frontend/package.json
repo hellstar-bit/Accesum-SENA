@@ -8,7 +8,6 @@
     "preview": "vite preview",
     "dev": "vite",
     "lint": "eslint ."
-    
   },
   "dependencies": {
     "@headlessui/react": "^2.2.4",

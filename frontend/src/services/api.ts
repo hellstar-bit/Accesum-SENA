@@ -2,14 +2,14 @@
 import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 
-  (import.meta.env.PROD ? '' : 'http://localhost:3000');
+  (import.meta.env.PROD ? '/api' : 'http://localhost:3000');
 
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 10000, // ⭐ AGREGAR timeout de 10 segundos
+  timeout: 10000,
 });
 
 // Interceptor de request - agregar token

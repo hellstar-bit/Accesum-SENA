@@ -1,7 +1,7 @@
 // frontend/src/components/access/AccessHistory.tsx
 import { useState, useEffect } from 'react';
 import { accessService } from '../../services/accessService';
-import type { AccessHistory } from '../../services/accessService';
+import type { AccessHistory, AccessRecord } from '../../services/accessService';
 
 const AccessHistoryComponent = () => {
   const [history, setHistory] = useState<AccessHistory | null>(null);
@@ -16,10 +16,12 @@ const AccessHistoryComponent = () => {
   const fetchHistory = async () => {
     try {
       setLoading(true);
-      const data = await accessService.getHistory({
+      // ✅ Usar el método correcto del servicio
+      const data = await accessService.getAccessHistory({
         page: currentPage,
         limit: 20,
-        date: new Date(selectedDate),
+        startDate: selectedDate,
+        endDate: selectedDate,
       });
       setHistory(data);
     } catch (error) {
@@ -98,7 +100,8 @@ const AccessHistoryComponent = () => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {history?.data.map((record) => (
+            {/* ✅ Usar la estructura correcta: history.records */}
+            {history?.records.map((record: AccessRecord) => (
               <tr key={record.id} className="hover:bg-gray-50">
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">
@@ -142,7 +145,8 @@ const AccessHistoryComponent = () => {
                   </span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {record.user.profile.type}
+                  {/* ✅ Acceder correctamente a la propiedad type */}
+                  {(record.user.profile as any).type || 'N/A'}
                 </td>
               </tr>
             ))}
@@ -150,11 +154,11 @@ const AccessHistoryComponent = () => {
         </table>
       </div>
 
-      {/* Paginación */}
-      {history && history.totalPages > 1 && (
+      {/* Paginación - ✅ Usar la estructura correcta */}
+      {history && history.pagination.totalPages > 1 && (
         <div className="px-6 py-4 border-t flex items-center justify-between">
           <div className="text-sm text-gray-700">
-            Mostrando {((history.page - 1) * history.limit) + 1} a {Math.min(history.page * history.limit, history.total)} de {history.total} registros
+            Mostrando {((history.pagination.page - 1) * history.pagination.limit) + 1} a {Math.min(history.pagination.page * history.pagination.limit, history.pagination.total)} de {history.pagination.total} registros
           </div>
           <div className="flex space-x-2">
             <button
@@ -165,11 +169,11 @@ const AccessHistoryComponent = () => {
               Anterior
             </button>
             <span className="px-3 py-1 text-sm">
-              Página {currentPage} de {history.totalPages}
+              Página {currentPage} de {history.pagination.totalPages}
             </span>
             <button
-              onClick={() => setCurrentPage(prev => Math.min(prev + 1, history.totalPages))}
-              disabled={currentPage === history.totalPages}
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, history.pagination.totalPages))}
+              disabled={currentPage === history.pagination.totalPages}
               className="px-3 py-1 rounded border text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
             >
               Siguiente

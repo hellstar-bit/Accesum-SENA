@@ -26,7 +26,7 @@ const Dashboard = () => {
   // Estados de filtros
   const [selectedTimeRange, setSelectedTimeRange] = useState<'1d' | '7d' | '30d' | '90d'>('7d');
   const [selectedRegional, setSelectedRegional] = useState<number | undefined>(undefined);
-  const [selectedCenter, setSelectedCenter] = useState<number | undefined>(undefined);
+  const [selectedCenter,] = useState<number | undefined>(undefined);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
   // Cargar datos al montar y cuando cambien los filtros
@@ -368,7 +368,7 @@ const Dashboard = () => {
                   fill="#8884d8"
                   dataKey="value"
                 >
-                  {pieData.map((entry, index) => (
+                  {pieData.map((_, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>

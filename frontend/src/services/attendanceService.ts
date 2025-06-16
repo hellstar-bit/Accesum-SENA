@@ -83,6 +83,20 @@ export interface AttendanceUpdateResponse {
   message: string;
 }
 
+export interface InstructorFicha {
+  id: number;
+  assignedAt: string;
+  subject: string;
+  description?: string;
+  ficha: {
+    id: number;
+    code: string;
+    name: string;
+    status: string;
+    totalLearners: number;
+  };
+}
+
 class AttendanceService {
   // ⭐ OBTENER ASISTENCIA DE MIS CLASES
   async getMyClassesAttendance(date?: string): Promise<ClassSchedule[]> {

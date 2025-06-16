@@ -1,6 +1,6 @@
 // frontend/src/components/attendance/AttendanceNotifications.tsx
 import { useState, useEffect } from 'react';
-import { attendanceService } from '../../services/attendanceService';
+
 
 interface AttendanceNotification {
   id: string;
@@ -17,7 +17,7 @@ interface AttendanceNotification {
 
 const AttendanceNotifications = () => {
   const [notifications, setNotifications] = useState<AttendanceNotification[]>([]);
-  const [stats, setStats] = useState({ total: 0, recent: 0, byType: { auto: 0, manual: 0 } });
+  const [stats] = useState({ total: 0, recent: 0, byType: { auto: 0, manual: 0 } });
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {

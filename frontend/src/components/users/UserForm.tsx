@@ -2,8 +2,39 @@
 import { useState, useEffect } from 'react';
 import { userService } from '../../services/userService';
 import { configService } from '../../services/configService';
-import type { User, CreateUserRequest, UpdateUserRequest } from '../../services/userService';
+import type { User} from '../../services/userService';
 import type { Role, PersonnelType, Regional, Center } from '../../services/configService';
+
+interface CreateUserRequest {
+  email: string;
+  password: string;
+  roleId: number;
+  profile: {
+    documentType: string;
+    documentNumber: string;
+    firstName: string;
+    lastName: string;
+    phoneNumber?: string;
+    typeId: number;
+    regionalId: number;
+    centerId: number;
+  };
+}
+
+interface UpdateUserRequest {
+  email: string;
+  roleId: number;
+  profile: {
+    documentType: string;
+    documentNumber: string;
+    firstName: string;
+    lastName: string;
+    phoneNumber?: string;
+    typeId: number;
+    regionalId: number;
+    centerId: number;
+  };
+}
 
 interface UserFormProps {
   user?: User | null;

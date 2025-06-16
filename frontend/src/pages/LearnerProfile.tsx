@@ -1,7 +1,6 @@
 // frontend/src/pages/LearnerProfile.tsx
 import { useState, useEffect, useRef } from 'react';
 import { learnerService } from '../services/learnerService.ts';
-import { useAuth } from '../context/AuthContext';
 import type { LearnerProfile } from '../services/learnerService.ts';
 import { downloadLearnerCarnet } from '../utils/carnetGenerator';
 import SweetAlertUtils, { 
@@ -12,7 +11,6 @@ import SweetAlertUtils, {
 } from '../utils/sweetAlertUtils';
 
 const LearnerProfilePage = () => {
-  const { user } = useAuth();
   const [profile, setProfile] = useState<LearnerProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);

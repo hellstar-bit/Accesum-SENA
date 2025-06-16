@@ -48,7 +48,7 @@ export const useAttendanceRealtime = (
     const [isOnline, setIsOnline] = useState(navigator.onLine);
 
     // Referencias para intervals y cleanup
-    const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const refreshIntervalRef = useRef<number | null>(null);
     const lastRefreshTimeRef = useRef<number>(Date.now());
 
     // ⭐ DETECTAR CAMBIOS DE CONECTIVIDAD

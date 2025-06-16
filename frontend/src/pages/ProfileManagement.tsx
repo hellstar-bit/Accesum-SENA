@@ -6,7 +6,6 @@ import { profileService } from '../services/profileService';
 import type { Profile, ProfileStats } from '../services/profileService';
 
 const ProfileManagement = () => {
-  const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null);
   const [viewingProfile, setViewingProfile] = useState<Profile | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [stats, setStats] = useState<ProfileStats | null>(null);
@@ -25,17 +24,14 @@ const ProfileManagement = () => {
   };
 
   const handleEditProfile = (profile: Profile) => {
-    setSelectedProfile(profile);
     setViewingProfile(profile);
-  };
+};
 
   const handleViewProfile = (profile: Profile) => {
-    setSelectedProfile(profile);
     setViewingProfile(profile);
   };
 
   const handleCloseView = () => {
-    setSelectedProfile(null);
     setViewingProfile(null);
   };
 

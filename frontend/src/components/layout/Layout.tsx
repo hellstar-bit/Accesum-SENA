@@ -27,7 +27,7 @@ const Layout = () => {
         sidebarOpen ? 'translate-x-0' : '-translate-x-full'
       }`}>
         <div className="w-80 h-full shadow-xl">
-          <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+          <Sidebar />
         </div>
       </div>
 

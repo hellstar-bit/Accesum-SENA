@@ -4,16 +4,6 @@ import { useDropzone } from 'react-dropzone';
 import * as XLSX from 'xlsx';
 import { userService } from '../../services/userService';
 
-interface ExcelRow {
-  tipoDocumento: string;
-  numeroDocumento: string;
-  nombre: string;
-  apellidos: string;
-  celular?: string;
-  correoElectronico: string;
-  estado: string;
-}
-
 interface PreviewData {
   headers: string[];
   rows: any[][];

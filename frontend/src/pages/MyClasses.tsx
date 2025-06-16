@@ -113,8 +113,8 @@ const MyClasses = () => {
       console.log(`📊 Cargando estadísticas semanales: ${weekStart} - ${weekEnd}`);
       
       const stats = await learnerService.getWeeklyAttendanceStats(
-        weekStart.toISOString().split('T')[0],
-        weekEnd.toISOString().split('T')[0]
+        weekStart.toISOString().split('T')[0] as string,
+        weekEnd.toISOString().split('T')[0] as string
       );
       
       setWeeklyStats(stats);
@@ -357,7 +357,7 @@ const MyClasses = () => {
           {getWeekDays().map((day, index) => (
             <button
               key={index}
-              onClick={() => setSelectedDate(day.toISOString().split('T')[0])}
+              onClick={() => setSelectedDate(day.toISOString().split('T')[0] ?? '')}
               className={`p-3 text-center rounded-lg transition-colors ${
                 selectedDate === day.toISOString().split('T')[0]
                   ? 'bg-sena-green text-white shadow-lg'

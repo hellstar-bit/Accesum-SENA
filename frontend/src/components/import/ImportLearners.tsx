@@ -49,7 +49,7 @@ const ImportLearners = ({ onImportComplete }: ImportLearnersProps) => {
     codigo: '',
     nombre: '',
     estado: 'EN EJECUCIÓN',
-    fecha: new Date().toISOString().split('T')[0], // Fecha actual por defecto
+    fecha: new Date().toISOString().split('T')[0] || '', // Fecha actual por defecto, nunca undefined
     regionalId: '', // ⭐ NUEVO CAMPO
     centerId: ''    // ⭐ NUEVO CAMPO
   });
@@ -193,7 +193,7 @@ const ImportLearners = ({ onImportComplete }: ImportLearnersProps) => {
       codigo: '',
       nombre: '',
       estado: 'EN EJECUCIÓN',
-      fecha: new Date().toISOString().split('T')[0],
+      fecha: new Date().toISOString().split('T')[0] || '',
       regionalId: '', // ⭐ RESETEAR NUEVOS CAMPOS
       centerId: ''
     });

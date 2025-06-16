@@ -17,7 +17,7 @@ const AccessHistoryComponent = () => {
       const data = await accessService.getHistory({
         page: currentPage,
         limit: 20,
-        date: new Date(selectedDate),
+        date: new Date(selectedDate ?? ''),
       });
       setHistory(data); // Ahora 'data' es del tipo correcto
     } catch (error) {

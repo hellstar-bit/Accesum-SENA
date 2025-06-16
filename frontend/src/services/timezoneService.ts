@@ -182,13 +182,20 @@ class TimezoneService {
   // ⭐ PARSEAR FECHA CON ZONA HORARIA DE COLOMBIA
   parseColombiaDate(dateString: string): Date {
     // Interpretar fecha en zona horaria de Colombia
-    const [year, month, day] = dateString.split('-').map(Number);
+    const [yearStr, monthStr, dayStr] = dateString.split('-');
+    const year = Number(yearStr);
+    const month = Number(monthStr);
+    const day = Number(dayStr);
     const date = new Date();
-    
-    // Configurar en zona horaria de Colombia
-    date.setFullYear(year, month - 1, day);
+
+    // Validar que los valores sean números válidos
+    date.setFullYear(
+      isNaN(year) ? 1970 : year,
+      isNaN(month) ? 0 : month - 1,
+      isNaN(day) ? 1 : day
+    );
     date.setHours(0, 0, 0, 0);
-    
+
     return date;
   }
 

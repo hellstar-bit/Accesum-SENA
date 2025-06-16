@@ -320,7 +320,7 @@ const TrimesterScheduleManagement: React.FC = () => {
       'bg-yellow-100 border-yellow-300 text-yellow-800',
       'bg-red-100 border-red-300 text-red-800'
     ];
-    return colors[competenceId % colors.length];
+    return (colors[competenceId % colors.length] || colors[0]) ?? '';
   };
 
   const checkTimeConflict = (day: string, startTime: string, endTime: string): boolean => {

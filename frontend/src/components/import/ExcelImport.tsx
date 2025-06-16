@@ -52,8 +52,15 @@ const ExcelImport = () => {
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data);
       const sheetName = workbook.SheetNames[0];
+      if (!sheetName) {
+        alert('No se encontró ninguna hoja en el archivo Excel.');
+        return;
+      }
       const worksheet = workbook.Sheets[sheetName];
-      
+      if (!worksheet) {
+        alert('No se pudo encontrar la hoja de cálculo en el archivo Excel.');
+        return;
+      }
       // Convertir a JSON
       const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
       
@@ -318,7 +325,7 @@ const ExcelImport = () => {
                 {preview.rows.map((row, rowIndex) => (
                   <tr key={rowIndex}>
                     {systemFields.map(field => {
-                      const columnIndex = preview.headers.indexOf(mapping[field.key]);
+                      const columnIndex = preview.headers.indexOf(mapping[field.key] || '');
                       const value = columnIndex >= 0 ? row[columnIndex] : '';
                       return (
                         <td key={field.key} className="px-4 py-2 text-sm text-gray-900 whitespace-nowrap">

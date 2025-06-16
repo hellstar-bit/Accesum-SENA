@@ -161,6 +161,15 @@ const detectNewArrivals = (oldData: ClassSchedule[], newData: ClassSchedule[]) =
     for (let i = 0; i < Math.min(oldData.length, newData.length); i++) {
       const newClass = newData[i];
       const oldClass = oldData[i];
+
+      if (!newClass) {
+        console.warn(`⚠️ newClass en índice ${i} es undefined`);
+        continue;
+      }
+      if (!oldClass) {
+        console.warn(`⚠️ oldClass en índice ${i} es undefined`);
+        continue;
+      }
       
       console.log(`🔍 Comparando clase ${i}: ${newClass.subject}`);
       console.log(`   - Registros antiguos: ${oldClass.records.length}`);
@@ -169,6 +178,12 @@ const detectNewArrivals = (oldData: ClassSchedule[], newData: ClassSchedule[]) =
       for (let j = 0; j < Math.min(oldClass.records.length, newClass.records.length); j++) {
         const newRecord = newClass.records[j];
         const oldRecord = oldClass.records[j];
+
+        // Check for undefined records before accessing properties
+        if (!newRecord || !oldRecord) {
+          console.warn(`⚠️ Registro en índice ${j} es undefined`);
+          continue;
+        }
         
         // ⭐ DEBUG DETALLADO
         console.log(`🔍 Estudiante ${j}: ${newRecord.learnerName}`);
@@ -353,8 +368,14 @@ const showArrivalNotifications = (arrivals: Array<{
 
   // ⭐ MANEJAR CAMBIO DE ESTADO
   const handleStatusChange = (scheduleIndex: number, recordIndex: number, newStatus: 'PRESENTE' | 'AUSENTE' | 'TARDE' | 'EXCUSA') => {
-    const record = schedules[scheduleIndex].records[recordIndex];
+    const schedule = schedules[scheduleIndex];
+    const record = schedule && schedule.records ? schedule.records[recordIndex] : undefined;
     
+    if (!record) {
+      console.warn('Registro no encontrado para el índice proporcionado');
+      return;
+    }
+
     if (newStatus === 'EXCUSA') {
       setShowExcuseModal({ record, scheduleIndex, recordIndex });
       setExcuseReason('');
@@ -363,8 +384,14 @@ const showArrivalNotifications = (arrivals: Array<{
 
     // Actualizar estado local inmediatamente
     const newSchedules = [...schedules];
-    newSchedules[scheduleIndex].records[recordIndex].status = getEnglishStatus(newStatus) as any;
-    setSchedules(newSchedules);
+    if (
+      newSchedules[scheduleIndex] &&
+      newSchedules[scheduleIndex].records &&
+      newSchedules[scheduleIndex].records[recordIndex]
+    ) {
+      newSchedules[scheduleIndex].records[recordIndex].status = getEnglishStatus(newStatus) as any;
+      setSchedules(newSchedules);
+    }
 
     // Guardar cambio pendiente
     const newPendingChanges = new Map(pendingChanges);
@@ -388,8 +415,14 @@ const showArrivalNotifications = (arrivals: Array<{
 
     // Actualizar estado local
     const newSchedules = [...schedules];
-    newSchedules[scheduleIndex].records[recordIndex].status = 'EXCUSED' as any;
-    setSchedules(newSchedules);
+    if (
+      newSchedules[scheduleIndex] &&
+      newSchedules[scheduleIndex].records &&
+      newSchedules[scheduleIndex].records[recordIndex]
+    ) {
+      newSchedules[scheduleIndex].records[recordIndex].status = 'EXCUSED' as any;
+      setSchedules(newSchedules);
+    }
 
     // Guardar cambio pendiente
     const newPendingChanges = new Map(pendingChanges);
@@ -411,21 +444,25 @@ const showArrivalNotifications = (arrivals: Array<{
 
   // ⭐ RECALCULAR ESTADÍSTICAS
   const recalculateStats = (scheduleIndex: number) => {
-    const records = schedules[scheduleIndex].records;
+    const schedule = schedules[scheduleIndex];
+    if (!schedule || !schedule.records) return;
+    const records = schedule.records;
     const total = records.length;
     const present = records.filter(r => r.status === 'PRESENT').length;
     const late = records.filter(r => r.status === 'LATE').length;
     const absent = records.filter(r => r.status === 'ABSENT').length;
 
     const newSchedules = [...schedules];
-    newSchedules[scheduleIndex].attendance = {
-      total,
-      present,
-      late,
-      absent,
-      percentage: total > 0 ? ((present + late) / total * 100).toFixed(1) : '0.0'
-    };
-    setSchedules(newSchedules);
+    if (newSchedules[scheduleIndex]) {
+      newSchedules[scheduleIndex].attendance = {
+        total,
+        present,
+        late,
+        absent,
+        percentage: total > 0 ? ((present + late) / total * 100).toFixed(1) : '0.0'
+      };
+      setSchedules(newSchedules);
+    }
   };
 
   // ⭐ GUARDAR TODOS LOS CAMBIOS
@@ -459,12 +496,22 @@ const showArrivalNotifications = (arrivals: Array<{
   const markAllAsPresent = async (scheduleIndex: number) => {
     try {
       const schedule = schedules[scheduleIndex];
+      if (!schedule || !schedule.records) {
+        console.warn('No hay registros de asistencia para esta clase.');
+        return;
+      }
       const newPendingChanges = new Map(pendingChanges);
 
       // Actualizar estado local
       const newSchedules = [...schedules];
       schedule.records.forEach((record, recordIndex) => {
-        newSchedules[scheduleIndex].records[recordIndex].status = 'PRESENT' as any;
+        if (
+          newSchedules[scheduleIndex] &&
+          newSchedules[scheduleIndex].records &&
+          newSchedules[scheduleIndex].records[recordIndex]
+        ) {
+          newSchedules[scheduleIndex].records[recordIndex].status = 'PRESENT' as any;
+        }
         newPendingChanges.set(record.attendanceId, {
           attendanceId: record.attendanceId,
           status: 'PRESENTE',

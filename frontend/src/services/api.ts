@@ -21,7 +21,7 @@ api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
     if (!config.headers) {
-      config.headers = {};
+      config.headers = {} as import('axios').AxiosRequestHeaders;
     }
     config.headers.Authorization = `Bearer ${token}`;
   }

@@ -530,9 +530,9 @@ class AccessService {
     
     // Convertir texto como "2h 30m" a minutos
     if (avgDurationText.includes('h')) {
-      const hours = parseInt(avgDurationText.split('h')[0]) || 0;
+      const hours = parseInt((avgDurationText.split('h')[0]) ?? '0') || 0;
       const minutes = avgDurationText.includes('m') ? 
-        parseInt(avgDurationText.split('h')[1]?.replace('m', '').trim()) || 0 : 0;
+        parseInt((avgDurationText.split('h')[1]?.replace('m', '').trim()) ?? '0') || 0 : 0;
       averageDurationMinutes = (hours * 60) + minutes;
     } else if (avgDurationText.includes('m')) {
       averageDurationMinutes = parseInt(avgDurationText.replace('m', '')) || 0;

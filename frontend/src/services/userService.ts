@@ -570,11 +570,17 @@ export const userService = {
       const learnerResults = await Promise.allSettled(learnerPromises);
 
       for (let i = 0; i < fichas.length; i++) {
+        const ficha = fichas[i];
+        if (!ficha) continue; // Skip undefined fichas
+
         const learnerResult = learnerResults[i];
-        const learners = learnerResult.status === 'fulfilled' ? learnerResult.value : [];
-        
+        let learners: User[] = [];
+        if (learnerResult && learnerResult.status === 'fulfilled') {
+          learners = learnerResult.value;
+        }
+
         results.push({
-          ficha: fichas[i],
+          ficha,
           learnersCount: learners.length
         });
       }

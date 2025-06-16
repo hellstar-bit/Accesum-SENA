@@ -233,10 +233,10 @@ export class DashboardService {
 
       // ⭐ HORA PICO (100% REAL)
       const hourlyAccessData = await buildAccessQuery()
-        .select('HOUR(access.entryTime)', 'hour')
+        .select('EXTRACT(HOUR FROM attendance.createdAt) as hour')
         .addSelect('COUNT(*)', 'count')
         .where('access.entryTime >= :weekAgo', { weekAgo })
-        .groupBy('HOUR(access.entryTime)')
+        .groupBy('EXTRACT(HOUR FROM access.entryTime)')
         .orderBy('count', 'DESC')
         .getRawOne();
 

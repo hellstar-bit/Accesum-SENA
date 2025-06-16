@@ -106,6 +106,53 @@ export interface UserStats {
   }>;
 }
 
+export interface CreateUserRequest {
+  email: string;
+  password: string;
+  roleId: number;
+  profile: {
+    documentType: string;
+    documentNumber: string;
+    firstName: string;
+    lastName: string;
+    phoneNumber?: string;
+    typeId: number;
+    regionalId: number;
+    centerId: number;
+    coordinationId?: number;
+    programId?: number;
+    fichaId?: number;
+  };
+}
+
+export interface UpdateUserRequest {
+  email?: string;
+  password?: string;
+  roleId?: number;
+  isActive?: boolean;
+  profile?: {
+    documentType?: string;
+    documentNumber?: string;
+    firstName?: string;
+    lastName?: string;
+    phoneNumber?: string;
+    bloodType?: string;
+    address?: string;
+    city?: string;
+    maritalStatus?: string;
+    sex?: string;
+    vaccine?: string;
+    profileImage?: string;
+    learnerStatus?: string;
+    typeId?: number;
+    regionalId?: number;
+    centerId?: number;
+    coordinationId?: number;
+    programId?: number;
+    fichaId?: number;
+  };
+}
+
 // ============= CONTROLADOR DE CANCELACIÓN =============
 
 // Para cancelar peticiones pendientes y evitar conflictos

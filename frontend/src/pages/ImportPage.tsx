@@ -6,10 +6,7 @@ import ImportLearners from '../components/import/ImportLearners';
 
 const ImportPage = () => {
   const [activeTab, setActiveTab] = useState<'learners' | 'general'>('learners');
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
-
   const handleImportComplete = () => {
-    setRefreshTrigger(prev => prev + 1);
     // Aquí puedes agregar lógica adicional como notificaciones
   };
 

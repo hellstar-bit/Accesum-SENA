@@ -2,8 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { instructorService } from '../services/instructorService';
 import type { 
-  InstructorProfile, 
-  UpdateInstructorProfileData, 
+  InstructorProfile,  
   WeeklySchedule, 
   InstructorSchedule
 } from '../services/instructorService';

@@ -235,6 +235,14 @@ const InstructorManagement: React.FC = () => {
             </div>
           </div>
         )}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-6">
+            <div className="text-red-800">
+              <p className="text-sm font-medium">Error:</p>
+              <p className="text-sm">{error}</p>
+            </div>
+          </div>
+        )}
 
         {/* ⭐ DEBUG INFO - TEMPORAL */}
         <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 mb-6">

@@ -55,7 +55,7 @@ const InstructorAttendance: React.FC = () => {
   }, [selectedDate]);
 
 const [autoRefresh, setAutoRefresh] = useState(true);
-const [refreshInterval, setRefreshInterval] = useState<ReturnType<typeof setInterval> | null>(null);
+const [refreshInterval, setRefreshInterval] = useState<number | null>(null);
 const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
 // ⭐ EFECTO PARA AUTO-REFRESH CADA 30 SEGUNDOS

@@ -20,9 +20,12 @@ const api = axios.create({
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
+<<<<<<< HEAD
     if (!config.headers) {
       config.headers = {} as import('axios').AxiosRequestHeaders;
     }
+=======
+>>>>>>> parent of 849f1a8 (no se)
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;

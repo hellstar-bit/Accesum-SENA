@@ -49,10 +49,14 @@ export const useAttendanceRealtime = (
 
     // Referencias para intervals y cleanup
 <<<<<<< HEAD
+<<<<<<< HEAD
     const refreshIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 =======
     const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
 >>>>>>> parent of ae7062f (arreglo de errores parte 2)
+=======
+    const refreshIntervalRef = useRef<number | null>(null);
+>>>>>>> parent of 849f1a8 (no se)
     const lastRefreshTimeRef = useRef<number>(Date.now());
 
     // ⭐ DETECTAR CAMBIOS DE CONECTIVIDAD

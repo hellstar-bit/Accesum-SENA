@@ -51,7 +51,9 @@ function App() {
             {/* Rutas protegidas con layout */}
             <Route path="/" element={
               <PrivateRoute>
-                <Layout />
+                <Layout isOpen={false} onClose={function (): void {
+                  throw new Error('Function not implemented.');
+                } } />
               </PrivateRoute>
             }>
               {/* ⭐ REDIRECCIÓN INTELIGENTE POR ROL */}

@@ -19,15 +19,12 @@ const api = axios.create({
 // Interceptor para agregar el token JWT
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
-  if (token) {
-<<<<<<< HEAD
-    if (!config.headers) {
-      config.headers = {} as import('axios').AxiosRequestHeaders;
-    }
-=======
->>>>>>> parent of 849f1a8 (no se)
-    config.headers.Authorization = `Bearer ${token}`;
+if (token) {
+  if (!config.headers) {
+    config.headers = {} as import('axios').AxiosRequestHeaders;
   }
+  config.headers.Authorization = `Bearer ${token}`;
+}
   return config;
 });
 

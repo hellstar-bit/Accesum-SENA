@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { learnerService } from '../services/learnerService';
 import { useDateSyncWithServer } from '../hooks/useDateSync';
-import SweetAlertUtils, { 
+import { 
   showProcessingAlert, 
   hideProcessingAlert, 
   showQuickToast, 
@@ -51,7 +51,7 @@ const MyClasses = () => {
   const [loading, setLoading] = useState(false);
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [weeklyStats, setWeeklyStats] = useState<WeeklyStats | null>(null);
-  const [loadingStats, setLoadingStats] = useState(false);
+  const [, setLoadingStats] = useState(false);
 
   // ⭐ USAR HOOK DE SINCRONIZACIÓN CON SERVIDOR
   const { 

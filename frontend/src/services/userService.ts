@@ -4,6 +4,38 @@ import api from './api';
 // ============= INTERFACES =============
 export type { Role } from '../types/user.types';
 
+// ✅ AGREGAR ESTOS TIPOS DESPUÉS DE LAS IMPORTACIONES EXISTENTES
+export interface CreateUserRequest {
+  email: string;
+  password: string;
+  roleId: number;
+  profile: {
+    documentType: string;
+    documentNumber: string;
+    firstName: string;
+    lastName: string;
+    phoneNumber?: string;
+    typeId: number;
+    regionalId: number;
+    centerId: number;
+  };
+}
+
+export interface UpdateUserRequest {
+  email: string;
+  roleId: number;
+  profile: {
+    documentType: string;
+    documentNumber: string;
+    firstName: string;
+    lastName: string;
+    phoneNumber?: string;
+    typeId: number;
+    regionalId: number;
+    centerId: number;
+  };
+}
+
 export interface User {
   id: number;
   email: string;

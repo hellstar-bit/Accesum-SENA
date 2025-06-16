@@ -37,7 +37,7 @@ const InstructorManagement: React.FC = () => {
   const [availableFichas, setAvailableFichas] = useState<Ficha[]>([]);
   const [loadingFichas, setLoadingFichas] = useState<boolean>(false);
   const [loadingAvailableFichas, setLoadingAvailableFichas] = useState<boolean>(false);
-  const [error, setError] = useState<string>('');
+  const [, setError] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [showAssignModal, setShowAssignModal] = useState<boolean>(false);

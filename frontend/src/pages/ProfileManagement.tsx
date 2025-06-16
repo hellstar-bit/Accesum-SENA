@@ -6,7 +6,7 @@ import { profileService } from '../services/profileService';
 import type { Profile, ProfileStats } from '../services/profileService';
 
 const ProfileManagement = () => {
-  const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null);
+  const [, setSelectedProfile] = useState<Profile | null>(null);
   const [viewingProfile, setViewingProfile] = useState<Profile | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [stats, setStats] = useState<ProfileStats | null>(null);

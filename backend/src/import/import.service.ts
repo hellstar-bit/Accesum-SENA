@@ -455,6 +455,7 @@ private async processLearnerRowWithFormFixed(
     if (!program) {
       program = this.programRepository.create({
         name: fichaData.nombre,
+        code: fichaData.codigo,
         coordinationId: coordination.id
       });
       program = await this.programRepository.save(program);

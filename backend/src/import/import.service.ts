@@ -11,6 +11,7 @@ import { Center } from '../config/entities/center.entity';
 import { Coordination } from '../config/entities/coordination.entity';
 import { Program } from '../config/entities/program.entity';
 import { Ficha } from '../config/entities/ficha.entity';
+import { ProgramType } from '../config/entities/program-type.entity';
 import * as XLSX from 'xlsx';
 import * as bcrypt from 'bcrypt';
 import * as QRCode from 'qrcode';
@@ -71,6 +72,9 @@ export interface FichaFormData {
   fecha: string;
   regionalId: string;
   centerId: string;
+  codigoPrograma: string;  // "TPS-41"
+  tipoPrograma: string;    // "TPS" 
+  nombreTipoPrograma: string; // "Técnico en Programación de Software"
 }
 
 export interface ValidationResult {
@@ -84,6 +88,8 @@ export interface ValidationResult {
 @Injectable()
 export class ImportService {
   constructor(
+    @InjectRepository(ProgramType)
+    private programTypeRepository: Repository<ProgramType>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
     @InjectRepository(Profile)
@@ -414,30 +420,49 @@ private async processLearnerRowWithFormFixed(
 
   // ⭐ BUSCAR O CREAR FICHA CON UBICACIÓN
   private async findOrCreateFichaWithLocation(fichaData: FichaFormData): Promise<Ficha> {
-    let ficha = await this.fichaRepository.findOne({
-      where: { code: fichaData.codigo },
-      relations: ['program', 'program.coordination', 'program.coordination.center']
+  let ficha = await this.fichaRepository.findOne({
+    where: { code: fichaData.codigo },
+    relations: ['program', 'program.programType']
+  });
+
+  if (ficha) {
+    console.log('📋 Ficha existente encontrada:', ficha.code);
+    return ficha;
+  }
+
+  console.log('🆕 Creando nueva ficha:', fichaData.codigo);
+
+  // ⭐ NUEVA LÓGICA: Buscar o crear tipo de programa
+  let programType = await this.programTypeRepository.findOne({
+    where: { code: fichaData.tipoPrograma }
+  });
+
+  if (!programType) {
+    programType = this.programTypeRepository.create({
+      code: fichaData.tipoPrograma,
+      name: fichaData.nombreTipoPrograma,
+      description: `Tipo de programa ${fichaData.nombreTipoPrograma}`
     });
+    programType = await this.programTypeRepository.save(programType);
+    console.log('✅ Nuevo tipo de programa creado:', programType.code);
+  }
 
-    if (ficha) {
-      console.log('📋 Ficha existente encontrada:', ficha.code);
-      return ficha;
-    }
+  // ⭐ NUEVA LÓGICA: Buscar o crear programa específico
+  let program = await this.programRepository.findOne({
+    where: { code: fichaData.codigoPrograma }
+  });
 
-    // Crear nueva ficha
-    console.log('🆕 Creando nueva ficha:', fichaData.codigo);
-
-    // Buscar o crear programa por defecto para este centro
+  if (!program) {
+    // Buscar coordinación (lógica existente)
     const center = await this.centerRepository.findOne({
       where: { id: parseInt(fichaData.centerId) },
       relations: ['coordinations']
     });
 
     if (!center) {
-      throw new BadRequestException('Centro no encontrado');
+      throw new BadRequestException('Centro no encontrado al crear programa');
     }
 
-    // Buscar o crear coordinación por defecto
     let coordination = center.coordinations?.[0];
     if (!coordination) {
       coordination = this.coordinationRepository.create({
@@ -447,34 +472,31 @@ private async processLearnerRowWithFormFixed(
       coordination = await this.coordinationRepository.save(coordination);
     }
 
-    // Buscar o crear programa
-    let program = await this.programRepository.findOne({
-      where: { name: fichaData.nombre, coordinationId: coordination.id }
+    program = this.programRepository.create({
+      name: fichaData.nombreTipoPrograma,
+      code: fichaData.codigoPrograma, // ⭐ Código específico del programa
+      fichaCode: fichaData.codigo,    // ⭐ Código de la ficha
+      programTypeId: programType.id,  // ⭐ Relación con tipo
+      coordinationId: coordination.id
     });
-
-    if (!program) {
-      program = this.programRepository.create({
-        name: fichaData.nombre,
-        code: fichaData.codigo,
-        coordinationId: coordination.id
-      });
-      program = await this.programRepository.save(program);
-    }
-
-    // Crear la ficha
-    ficha = this.fichaRepository.create({
-      code: fichaData.codigo,
-      name: fichaData.nombre,
-      status: fichaData.estado,
-      startDate: new Date(fichaData.fecha),
-      programId: program.id
-    });
-
-    ficha = await this.fichaRepository.save(ficha);
-    console.log('✅ Nueva ficha creada:', ficha.id);
-
-    return ficha;
+    program = await this.programRepository.save(program);
+    console.log('✅ Nuevo programa creado:', program.code);
   }
+
+  // Crear la ficha (lógica existente)
+  ficha = this.fichaRepository.create({
+    code: fichaData.codigo,
+    name: fichaData.nombre,
+    status: fichaData.estado,
+    startDate: new Date(fichaData.fecha),
+    programId: program.id
+  });
+
+  ficha = await this.fichaRepository.save(ficha);
+  console.log('✅ Nueva ficha creada:', ficha.id);
+
+  return ficha;
+}
 
   // ⭐ PROCESAR FILA DE APRENDIZ CON FORMULARIO
   private async processLearnerRowWithForm(row: any, fichaData: FichaFormData, ficha: Ficha): Promise<boolean> {

@@ -3,6 +3,7 @@ import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, ManyToMany, OneToMan
 import { Program } from './program.entity';
 import { User } from '../../users/entities/user.entity';
 import { FichaCompetence } from './ficha-competence.entity'; // ⭐ AGREGAR IMPORTACIÓN
+import { ProgramType } from './program-type.entity'; // Importar ProgramType
 
 @Entity('competences')
 export class Competence {
@@ -40,4 +41,13 @@ export class Competence {
 
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;
+
+  @Column({ nullable: true })
+  programTypeId: number; // Para competencias base
+
+  @ManyToOne(() => ProgramType, type => type.baseCompetences)
+  @JoinColumn({ name: 'programTypeId' })
+  programType: ProgramType;
+
+
 }

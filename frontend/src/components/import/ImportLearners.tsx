@@ -46,13 +46,17 @@ const ImportLearners = ({ onImportComplete }: ImportLearnersProps) => {
 
   // Estado del formulario de ficha ACTUALIZADO
   const [fichaForm, setFichaForm] = useState({
-    codigo: '',
-    nombre: '',
-    estado: 'EN EJECUCIÓN',
-    fecha: new Date().toISOString().split('T')[0], // Fecha actual por defecto
-    regionalId: '', // ⭐ NUEVO CAMPO
-    centerId: ''    // ⭐ NUEVO CAMPO
-  });
+  codigo: '',
+  nombre: '',
+  estado: 'EN EJECUCIÓN',
+  fecha: new Date().toISOString().split('T')[0],
+  regionalId: '',
+  centerId: '',
+  // ⭐ NUEVOS CAMPOS DEL PROGRAMA
+  codigoPrograma: '',
+  tipoPrograma: '',
+  nombreTipoPrograma: ''
+});
 
   // ⭐ CARGAR REGIONALES Y CENTROS AL MONTAR EL COMPONENTE
   useEffect(() => {
@@ -93,21 +97,23 @@ const ImportLearners = ({ onImportComplete }: ImportLearnersProps) => {
   };
 
   const handleFormSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // ⭐ VALIDAR FORMULARIO INCLUYENDO REGIONAL Y CENTRO
-    if (!fichaForm.codigo.trim() || !fichaForm.nombre.trim()) {
-      alert('Por favor complete todos los campos obligatorios');
-      return;
-    }
+  e.preventDefault();
+  
+  // ⭐ VALIDACIÓN AMPLIADA
+  if (!fichaForm.codigo.trim() || !fichaForm.nombre.trim() || 
+      !fichaForm.codigoPrograma.trim() || !fichaForm.tipoPrograma.trim() || 
+      !fichaForm.nombreTipoPrograma.trim()) {
+    alert('Por favor complete todos los campos obligatorios');
+    return;
+  }
 
-    if (!fichaForm.regionalId || !fichaForm.centerId) {
-      alert('Por favor seleccione una regional y un centro');
-      return;
-    }
-    
-    setStep('upload');
-  };
+  if (!fichaForm.regionalId || !fichaForm.centerId) {
+    alert('Por favor seleccione una regional y un centro');
+    return;
+  }
+  
+  setStep('upload');
+};
 
   const handleFileSelect = (selectedFile: File) => {
     // Validar tipo de archivo
@@ -186,18 +192,22 @@ const ImportLearners = ({ onImportComplete }: ImportLearnersProps) => {
   };
 
   const resetProcess = () => {
-    setStep('form');
-    setFile(null);
-    setResult(null);
-    setFichaForm({
-      codigo: '',
-      nombre: '',
-      estado: 'EN EJECUCIÓN',
-      fecha: new Date().toISOString().split('T')[0],
-      regionalId: '', // ⭐ RESETEAR NUEVOS CAMPOS
-      centerId: ''
-    });
-  };
+  setStep('form');
+  setFile(null);
+  setResult(null);
+  setFichaForm({
+    codigo: '',
+    nombre: '',
+    estado: 'EN EJECUCIÓN',
+    fecha: new Date().toISOString().split('T')[0],
+    regionalId: '',
+    centerId: '',
+    // ⭐ RESETEAR NUEVOS CAMPOS
+    codigoPrograma: '',
+    tipoPrograma: '',
+    nombreTipoPrograma: ''
+  });
+};
 
   // ⭐ OBTENER NOMBRES DE REGIONAL Y CENTRO SELECCIONADOS
   const getSelectedRegionalName = () => {
@@ -222,149 +232,209 @@ const ImportLearners = ({ onImportComplete }: ImportLearnersProps) => {
   }
 
   if (step === 'form') {
-    return (
-      <div className="bg-white rounded-lg shadow-lg p-6">
-        <div className="mb-6">
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">
-            Información de la Ficha y Ubicación
-          </h2>
-          <p className="text-gray-600">
-            Complete la información de la ficha y seleccione la ubicación antes de cargar el archivo Excel
+  return (
+    <div className="bg-white rounded-lg shadow-lg p-6">
+      <div className="mb-6">
+        <h2 className="text-xl font-semibold text-gray-800 mb-2">
+          Información de la Ficha y Ubicación
+        </h2>
+        <p className="text-gray-600">
+          Complete la información de la ficha y seleccione la ubicación antes de cargar el archivo Excel
+        </p>
+      </div>
+
+      <form onSubmit={handleFormSubmit} className="space-y-6">
+        {/* ⭐ SECCIÓN DE UBICACIÓN */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <h3 className="font-medium text-blue-800 mb-4">📍 Ubicación Institucional</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Regional *
+              </label>
+              <select
+                value={fichaForm.regionalId}
+                onChange={(e) => setFichaForm(prev => ({ 
+                  ...prev, 
+                  regionalId: e.target.value,
+                  centerId: '' // Resetear centro cuando cambie regional
+                }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sena-green"
+                required
+              >
+                <option value="">Seleccione una regional</option>
+                {regionales.map((regional) => (
+                  <option key={regional.id} value={regional.id}>
+                    {regional.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Centro de Formación *
+              </label>
+              <select
+                value={fichaForm.centerId}
+                onChange={(e) => setFichaForm(prev => ({ ...prev, centerId: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sena-green"
+                disabled={!fichaForm.regionalId}
+                required
+              >
+                <option value="">
+                  {!fichaForm.regionalId ? 'Primero seleccione una regional' : 'Seleccione un centro'}
+                </option>
+                {centers.map((center) => (
+                  <option key={center.id} value={center.id}>
+                    {center.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <p className="text-sm text-blue-600 mt-2">
+            💡 Todos los aprendices importados pertenecerán a esta regional y centro
           </p>
         </div>
 
-        <form onSubmit={handleFormSubmit} className="space-y-6">
-          {/* ⭐ SECCIÓN DE UBICACIÓN (NUEVA) */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h3 className="font-medium text-blue-800 mb-4">📍 Ubicación Institucional</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Regional *
-                </label>
-                <select
-                  value={fichaForm.regionalId}
-                  onChange={(e) => setFichaForm(prev => ({ 
-                    ...prev, 
-                    regionalId: e.target.value,
-                    centerId: '' // Resetear centro cuando cambie regional
-                  }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sena-green"
-                  required
-                >
-                  <option value="">Seleccione una regional</option>
-                  {regionales.map((regional) => (
-                    <option key={regional.id} value={regional.id}>
-                      {regional.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Centro de Formación *
-                </label>
-                <select
-                  value={fichaForm.centerId}
-                  onChange={(e) => setFichaForm(prev => ({ ...prev, centerId: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sena-green"
-                  disabled={!fichaForm.regionalId}
-                  required
-                >
-                  <option value="">
-                    {!fichaForm.regionalId ? 'Primero seleccione una regional' : 'Seleccione un centro'}
-                  </option>
-                  {centers.map((center) => (
-                    <option key={center.id} value={center.id}>
-                      {center.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <p className="text-sm text-blue-600 mt-2">
-              💡 Todos los aprendices importados pertenecerán a esta regional y centro
-            </p>
-          </div>
-
-          {/* INFORMACIÓN DE LA FICHA */}
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-            <h3 className="font-medium text-green-800 mb-4">📋 Información de la Ficha</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Código de Ficha *
-                </label>
-                <input
-                  type="text"
-                  value={fichaForm.codigo}
-                  onChange={(e) => setFichaForm(prev => ({ ...prev, codigo: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sena-green"
-                  placeholder="Ej: 2853176"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Estado de la Ficha *
-                </label>
-                <select
-                  value={fichaForm.estado}
-                  onChange={(e) => setFichaForm(prev => ({ ...prev, estado: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sena-green"
-                >
-                  <option value="EN EJECUCIÓN">EN EJECUCIÓN</option>
-                  <option value="TERMINADA">TERMINADA</option>
-                  <option value="CANCELADA">CANCELADA</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="mt-4">
+        {/* ⭐ NUEVA SECCIÓN: INFORMACIÓN DEL PROGRAMA */}
+        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+          <h3 className="font-medium text-purple-800 mb-4">📚 Información del Programa</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Nombre del Programa de Formación *
+                Tipo de Programa (Siglas) *
               </label>
               <input
                 type="text"
-                value={fichaForm.nombre}
-                onChange={(e) => setFichaForm(prev => ({ ...prev, nombre: e.target.value }))}
+                value={fichaForm.tipoPrograma}
+                onChange={(e) => setFichaForm(prev => ({
+                  ...prev,
+                  tipoPrograma: e.target.value.toUpperCase()
+                }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sena-green"
-                placeholder="Ej: ANÁLISIS Y DESARROLLO DE SOFTWARE"
+                placeholder="Ej: TPS, ADS"
                 required
               />
             </div>
 
-            <div className="mt-4">
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Fecha del Reporte
+                Código del Programa *
               </label>
               <input
-                type="date"
-                value={fichaForm.fecha}
-                onChange={(e) => setFichaForm(prev => ({ ...prev, fecha: e.target.value }))}
+                type="text"
+                value={fichaForm.codigoPrograma}
+                onChange={(e) => setFichaForm(prev => ({
+                  ...prev,
+                  codigoPrograma: e.target.value.toUpperCase()
+                }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sena-green"
+                placeholder="Ej: TPS-41, ADS-15"
+                required
               />
             </div>
           </div>
 
-          <div className="flex justify-end">
-            <button
-              type="submit"
-              className="btn-primary flex items-center space-x-2"
-              disabled={loadingConfig}
-            >
-              <span>Continuar</span>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Nombre Completo del Programa *
+            </label>
+            <input
+              type="text"
+              value={fichaForm.nombreTipoPrograma}
+              onChange={(e) => setFichaForm(prev => ({
+                ...prev,
+                nombreTipoPrograma: e.target.value
+              }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sena-green"
+              placeholder="Ej: Técnico en Programación de Software"
+              required
+            />
           </div>
-        </form>
-      </div>
-    );
-  }
+          <p className="text-sm text-purple-600 mt-2">
+            💡 El tipo define las competencias base, el código es único para esta ficha
+          </p>
+        </div>
+
+        {/* INFORMACIÓN DE LA FICHA */}
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <h3 className="font-medium text-green-800 mb-4">📋 Información de la Ficha</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Código de Ficha *
+              </label>
+              <input
+                type="text"
+                value={fichaForm.codigo}
+                onChange={(e) => setFichaForm(prev => ({ ...prev, codigo: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sena-green"
+                placeholder="Ej: 2853176"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Estado de la Ficha *
+              </label>
+              <select
+                value={fichaForm.estado}
+                onChange={(e) => setFichaForm(prev => ({ ...prev, estado: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sena-green"
+              >
+                <option value="EN EJECUCIÓN">EN EJECUCIÓN</option>
+                <option value="TERMINADA">TERMINADA</option>
+                <option value="CANCELADA">CANCELADA</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Nombre del Programa de Formación *
+            </label>
+            <input
+              type="text"
+              value={fichaForm.nombre}
+              onChange={(e) => setFichaForm(prev => ({ ...prev, nombre: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sena-green"
+              placeholder="Ej: ANÁLISIS Y DESARROLLO DE SOFTWARE"
+              required
+            />
+          </div>
+
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Fecha del Reporte
+            </label>
+            <input
+              type="date"
+              value={fichaForm.fecha}
+              onChange={(e) => setFichaForm(prev => ({ ...prev, fecha: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sena-green"
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end">
+          <button
+            type="submit"
+            className="btn-primary flex items-center space-x-2"
+            disabled={loadingConfig}
+          >
+            <span>Continuar</span>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
 
   if (step === 'upload') {
     return (
@@ -413,6 +483,15 @@ const ImportLearners = ({ onImportComplete }: ImportLearnersProps) => {
             </div>
           </div>
         </div>
+          {/* Programa */}
+          <div className="bg-white rounded-lg p-3">
+            <h4 className="font-medium text-gray-800 mb-2">📚 Programa:</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-700">
+              <p><strong>Tipo:</strong> {fichaForm.tipoPrograma}</p>
+              <p><strong>Código:</strong> {fichaForm.codigoPrograma}</p>
+              <p className="md:col-span-2"><strong>Nombre:</strong> {fichaForm.nombreTipoPrograma}</p>
+            </div>
+          </div>
 
         {/* Información del formato */}
         <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4">

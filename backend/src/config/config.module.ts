@@ -20,6 +20,7 @@ import { CompetenceService } from './competence.service';
 import { User } from '../users/entities/user.entity';
 import { TimezoneService } from './timezone.service';
 import { TimezoneController } from './timezone.controller';
+import { ProgramType } from './entities/program-type.entity';
 
 
 @Module({
@@ -35,6 +36,7 @@ import { TimezoneController } from './timezone.controller';
       PersonnelType,
       Role,
       User,
+      ProgramType
     ])
   ],
   controllers: [ConfigController,FichaCompetenceController,CompetenceController,TimezoneController],

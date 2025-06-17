@@ -12,6 +12,7 @@ import { Center } from '../config/entities/center.entity';
 import { Coordination } from '../config/entities/coordination.entity'; // ⭐ AGREGAR ESTA LÍNEA
 import { Program } from '../config/entities/program.entity';
 import { Ficha } from '../config/entities/ficha.entity';
+import { ProgramType } from '../config/entities/program-type.entity';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { Ficha } from '../config/entities/ficha.entity';
       Coordination, // ⭐ AGREGAR ESTA LÍNEA
       Program,
       Ficha,
+      ProgramType
     ])
   ],
   controllers: [ImportController],

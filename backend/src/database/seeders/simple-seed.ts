@@ -1,15 +1,19 @@
-// backend/src/database/seeders/simple-seed.ts - CORREGIDO
+// backend/src/database/seeders/simple-seed.ts - ACTUALIZADO CON NUEVA LÓGICA
 import { DataSource } from 'typeorm';
 import { Role } from '../../users/entities/role.entity';
 import { PersonnelType } from '../../config/entities/personnel-type.entity';
 import { Regional } from '../../config/entities/regional.entity';
 import { Center } from '../../config/entities/center.entity';
+import { Coordination } from '../../config/entities/coordination.entity';
+import { ProgramType } from '../../config/entities/program-type.entity'; // ⭐ NUEVO
+import { Program } from '../../config/entities/program.entity';
+import { Ficha } from '../../config/entities/ficha.entity';
 import { User } from '../../users/entities/user.entity';
 import { Profile } from '../../profiles/entities/profile.entity';
 import * as bcrypt from 'bcrypt';
 
 export async function simpleSeed(dataSource: DataSource) {
-  console.log('🌱 Iniciando seed básico...');
+  console.log('🌱 Iniciando seed con nueva lógica...');
 
   try {
     // 1. Crear roles
@@ -83,7 +87,135 @@ export async function simpleSeed(dataSource: DataSource) {
       console.log('ℹ️  Centro ya existe');
     }
 
-    // 5. Crear usuario administrador
+    // 5. Crear coordinación
+    const coordinationRepository = dataSource.getRepository(Coordination);
+    let coordination = await coordinationRepository.findOne({ 
+      where: { name: 'Coordinación Académica', centerId: center.id } 
+    });
+    if (!coordination) {
+      coordination = coordinationRepository.create({
+        name: 'Coordinación Académica',
+        centerId: center.id
+      });
+      coordination = await coordinationRepository.save(coordination);
+      console.log('✅ Coordinación creada');
+    } else {
+      console.log('ℹ️  Coordinación ya existe');
+    }
+
+    // ⭐ 6. NUEVO: Crear tipos de programa
+    const programTypeRepository = dataSource.getRepository(ProgramType);
+    
+    const programTypes = [
+      {
+        code: 'TPS',
+        name: 'Técnico en Programación de Software',
+        description: 'Programa técnico enfocado en desarrollo de software'
+      },
+      {
+        code: 'ADS',
+        name: 'Análisis y Desarrollo de Software',
+        description: 'Programa tecnológico en desarrollo de software'
+      },
+      {
+        code: 'ADSI',
+        name: 'Análisis y Desarrollo de Sistemas de Información',
+        description: 'Programa tecnológico en sistemas de información'
+      }
+    ];
+
+    for (const typeData of programTypes) {
+      let programType = await programTypeRepository.findOne({ where: { code: typeData.code } });
+      if (!programType) {
+        programType = programTypeRepository.create(typeData);
+        await programTypeRepository.save(programType);
+        console.log(`✅ Tipo de programa creado: ${typeData.code} - ${typeData.name}`);
+      } else {
+        console.log(`ℹ️  Tipo de programa ya existe: ${typeData.code}`);
+      }
+    }
+
+    // ⭐ 7. NUEVO: Crear programas específicos (ejemplos)
+    const programRepository = dataSource.getRepository(Program);
+    
+    const tpsType = await programTypeRepository.findOne({ where: { code: 'TPS' } });
+    const adsType = await programTypeRepository.findOne({ where: { code: 'ADS' } });
+
+    if (!tpsType || !adsType) {
+      throw new Error('No se encontraron los tipos de programa TPS o ADS');
+    }
+    
+    const programs = [
+      {
+        code: 'TPS-41',
+        name: 'Técnico en Programación de Software',
+        fichaCode: '2999518',
+        programTypeId: tpsType.id,
+        coordinationId: coordination.id
+      },
+      {
+        code: 'ADS-15',
+        name: 'Análisis y Desarrollo de Software',
+        fichaCode: '2853176',
+        programTypeId: adsType.id,
+        coordinationId: coordination.id
+      }
+    ];
+
+    for (const programData of programs) {
+      let program = await programRepository.findOne({ where: { code: programData.code } });
+      if (!program) {
+        program = programRepository.create(programData);
+        await programRepository.save(program);
+        console.log(`✅ Programa creado: ${programData.code} (Ficha: ${programData.fichaCode})`);
+      } else {
+        console.log(`ℹ️  Programa ya existe: ${programData.code}`);
+      }
+    }
+
+    // ⭐ 8. NUEVO: Crear fichas asociadas a programas
+    const fichaRepository = dataSource.getRepository(Ficha);
+    
+    const fichas = [
+      {
+        code: '2999518',
+        name: 'Ficha 2999518 - TPS',
+        status: 'EN EJECUCIÓN',
+        startDate: new Date('2024-01-15'),
+        programCode: 'TPS-41'
+      },
+      {
+        code: '2853176',
+        name: 'Ficha 2853176 - ADS',
+        status: 'EN EJECUCIÓN',
+        startDate: new Date('2024-02-01'),
+        programCode: 'ADS-15'
+      }
+    ];
+
+    for (const fichaData of fichas) {
+      let ficha = await fichaRepository.findOne({ where: { code: fichaData.code } });
+      if (!ficha) {
+        const program = await programRepository.findOne({ where: { code: fichaData.programCode } });
+        if (!program) {
+          console.warn(`⚠️  No se encontró el programa con código: ${fichaData.programCode}. Ficha no creada.`);
+          continue;
+        }
+        ficha = fichaRepository.create({
+          code: fichaData.code,
+          name: fichaData.name,
+          status: fichaData.status,
+          startDate: fichaData.startDate,
+          programId: program.id
+        });
+        await fichaRepository.save(ficha);
+        console.log(`✅ Ficha creada: ${fichaData.code} → Programa: ${fichaData.programCode}`);
+      } else {
+        console.log(`ℹ️  Ficha ya existe: ${fichaData.code}`);
+      }
+    }
+
+    // 9. Crear usuario administrador (sin cambios)
     const userRepository = dataSource.getRepository(User);
     const profileRepository = dataSource.getRepository(Profile);
     
@@ -130,7 +262,16 @@ export async function simpleSeed(dataSource: DataSource) {
       console.log('🔑 Password: admin123');
     }
 
-    console.log('🎉 Seed completado exitosamente!');
+    console.log('🎉 Seed completado exitosamente con nueva estructura!');
+    console.log('📋 Datos creados:');
+    console.log('   • 6 roles');
+    console.log('   • 6 tipos de personal');
+    console.log('   • 1 regional y 1 centro');
+    console.log('   • 1 coordinación');
+    console.log('   • 3 tipos de programa (TPS, ADS, ADSI)');
+    console.log('   • 2 programas específicos (TPS-41, ADS-15)');
+    console.log('   • 2 fichas de ejemplo');
+    console.log('   • 1 usuario administrador');
     
   } catch (error) {
     console.error('❌ Error en seed:', error);

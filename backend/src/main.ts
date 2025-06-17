@@ -4,9 +4,20 @@ import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { DataSource } from 'typeorm';
 import { simpleSeed } from './database/seeders/simple-seed';
+import { json, urlencoded } from 'express'; // 👈 AGREGAR ESTA LÍNEA
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+   // 🕒 CONFIGURAR TIMEOUT DEL SERVIDOR
+  const server = app.getHttpServer();
+  server.timeout = 300000; // 5 minutos (300,000 ms)
+  server.keepAliveTimeout = 65000; // 65 segundos
+  server.headersTimeout = 66000; 
+
+  // 🔧 CONFIGURAR LÍMITES DE PAYLOAD - AGREGAR ESTAS LÍNEAS
+  app.use(json({ limit: '10mb' }));
+  app.use(urlencoded({ extended: true, limit: '10mb' }));
 
   // Configurar CORS
   app.enableCors({

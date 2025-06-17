@@ -149,8 +149,10 @@ const QRScanner = ({ onScanSuccess }: QRScannerProps) => {
     }
   };
 
+  
+
 const [keyboardBuffer, setKeyboardBuffer] = useState('');
-const [usbScannerActive, setUsbScannerActive] = useState(false);
+const [usbScannerActive, setUsbScannerActive] = useState(true);
 const [lastUsbScan, setLastUsbScan] = useState('');
 const keyboardTimeoutRef = useRef<number | null>(null);
 const inputFieldRef = useRef<HTMLInputElement>(null);
@@ -170,19 +172,25 @@ useEffect(() => {
       
       // Enter indica fin de escaneo
       if (event.key === 'Enter') {
-        event.preventDefault();
-        console.log('🔍 ENTER detectado, buffer:', keyboardBuffer); // ⭐ AGREGAR ESTO
-        if (keyboardBuffer.length > 0) {
-          console.log('🔍 QR desde escáner USB HC-655:', keyboardBuffer);
-          handleScan(keyboardBuffer.trim());
-          setKeyboardBuffer('');
-          setLastUsbScan(keyboardBuffer.trim());
-          if (inputFieldRef.current) {
-            inputFieldRef.current.value = '';
-          }
-        }
-        return;
-      }
+  event.preventDefault();
+  console.log('🔍 ENTER detectado, buffer:', keyboardBuffer);
+  if (keyboardBuffer.length > 0) {
+    console.log('🔍 QR desde escáner USB HC-655:', keyboardBuffer);
+    handleScan(keyboardBuffer.trim());
+    
+    // ⭐ LIMPIAR Y REENFOCAR INMEDIATAMENTE
+    setKeyboardBuffer('');
+    setLastUsbScan(keyboardBuffer.trim());
+    if (inputFieldRef.current) {
+      inputFieldRef.current.value = '';
+      // Reenfocar después de un pequeño delay
+      setTimeout(() => {
+        inputFieldRef.current?.focus();
+      }, 100);
+    }
+  }
+  return;
+}
 
       // Acumular caracteres
       if (event.key.length === 1 || event.key === 'Backspace') {
@@ -224,6 +232,8 @@ useEffect(() => {
     }
   };
 }, []);
+
+
 
   // ⭐ FUNCIÓN MEJORADA PARA VALIDAR QR
   const validateAndCleanQRData = (rawData: string): string => {
@@ -433,6 +443,28 @@ useEffect(() => {
     }
   }
 };
+
+useEffect(() => {
+  const keepFieldFocused = () => {
+    if (usbScannerActive && inputFieldRef.current && !processingQR) {
+      inputFieldRef.current.focus();
+    }
+  };
+
+  // Enfocar cada vez que se haga clic en cualquier parte
+  document.addEventListener('click', keepFieldFocused);
+  
+  // Enfocar cuando la ventana regaine focus
+  window.addEventListener('focus', keepFieldFocused);
+  
+  // Enfocar inicialmente
+  keepFieldFocused();
+
+  return () => {
+    document.removeEventListener('click', keepFieldFocused);
+    window.removeEventListener('focus', keepFieldFocused);
+  };
+}, [usbScannerActive, processingQR]);
 
   const determineActionByProfile = async (profileId: number): Promise<'entry' | 'exit'> => {
   try {

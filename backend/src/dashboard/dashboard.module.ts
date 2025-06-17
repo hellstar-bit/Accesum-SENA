@@ -15,7 +15,7 @@ import { Center } from '../config/entities/center.entity';
 import { Coordination } from '../config/entities/coordination.entity';
 import { Program } from '../config/entities/program.entity';
 import { Ficha } from '../config/entities/ficha.entity';
-import { Role } from 'src/users/entities/role.entity';
+import { Role } from '../users/entities/role.entity';
 
 @Module({
   imports: [

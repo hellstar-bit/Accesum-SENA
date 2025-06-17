@@ -2,11 +2,13 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
+import { DataSource } from 'typeorm';
+import { simpleSeed } from './database/seeders/simple-seed';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // ⭐ CORS simplificado para debug
+  // Configurar CORS
   app.enableCors({
     origin: [
       'https://accesum-sena.netlify.app',
@@ -18,14 +20,7 @@ async function bootstrap() {
     credentials: true,
   });
 
-  // ⭐ Agregar prefijo global para que coincida con tu frontend
   app.setGlobalPrefix('api');
-
-  // ⭐ Middleware de debug
-  app.use((req, res, next) => {
-    console.log(`🌐 ${req.method} ${req.originalUrl} - Origin: ${req.headers.origin}`);
-    next();
-  });
 
   // Configurar validación global
   app.useGlobalPipes(
@@ -36,12 +31,36 @@ async function bootstrap() {
     }),
   );
 
+  // ⭐ EJECUTAR SEED AUTOMÁTICAMENTE
+  try {
+    const dataSource = app.get(DataSource);
+    
+    // Verificar si ya existe el admin antes de ejecutar seed
+    const userRepository = dataSource.getRepository('User');
+    const adminExists = await userRepository.findOne({
+      where: { email: 'admin@sena.edu.co' }
+    });
+
+    if (!adminExists) {
+      console.log('🌱 Ejecutando seed inicial automáticamente...');
+      await simpleSeed(dataSource);
+      console.log('✅ Seed completado - Sistema listo para usar');
+      console.log('👤 Admin creado: admin@sena.edu.co / admin123');
+    } else {
+      console.log('ℹ️ Seed ya ejecutado - Admin existe');
+      console.log('👤 Login admin: admin@sena.edu.co / admin123');
+    }
+  } catch (error) {
+    console.log('⚠️ Error en seed automático:', error.message);
+    console.log('💡 El sistema funcionará pero podrías necesitar crear datos manualmente');
+  }
+
   const port = process.env.PORT || 3000;
   await app.listen(port);
 
   console.log(`🚀 Backend running on port: ${port}`);
-  console.log(`🌐 CORS enabled for: https://accesum-sena.netlify.app`);
-  console.log(`📚 API available at: /api/*`);
+  console.log(`🌐 API disponible en: https://accesum-sena.onrender.com/api`);
+  console.log(`👤 Credenciales admin: admin@sena.edu.co / admin123`);
 }
 
 bootstrap();

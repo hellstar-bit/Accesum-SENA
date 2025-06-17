@@ -131,7 +131,8 @@ Accesum-SENA
 │  ├─ package.json
 │  ├─ postcss.config.js
 │  ├─ public
-│  │  └─ vite.svg
+│  │  ├─ vite.svg
+│  │  └─ _redirects
 │  ├─ README.md
 │  ├─ src
 │  │  ├─ App.css

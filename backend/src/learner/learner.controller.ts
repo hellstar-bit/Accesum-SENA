@@ -3,7 +3,7 @@ import { Controller, Get, Put, Post, Body, UseGuards, Request, Param, Query } fr
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { ROLES } from 'src/auth/constants/roles.constant';
+import { ROLES } from '../auth/constants/roles.constant';
 import { LearnerService } from './learner.service';
 
 @Controller('learner')

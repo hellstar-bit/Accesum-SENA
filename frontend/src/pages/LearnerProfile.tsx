@@ -78,6 +78,7 @@ const LearnerProfilePage = () => {
       setSaving(false);
     }
   };
+  
 
   const isValidImageUrl = (url: string | undefined): boolean => {
     if (!url) return false;
@@ -94,69 +95,91 @@ const LearnerProfilePage = () => {
     setImageError(false);
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Validar tipo de archivo
-    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
-    if (!validTypes.includes(file.type)) {
-      await SweetAlertUtils.general.showError(
-        'Formato no válido',
-        'Solo se permiten archivos de imagen (JPEG, PNG, GIF, WebP)'
-      );
-      return;
-    }
-
-    // Validar tamaño
-    if (file.size > 2 * 1024 * 1024) {
-      await SweetAlertUtils.general.showError(
-        'Archivo muy grande',
-        'La imagen no debe superar los 2MB'
-      );
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      try {
-        setSaving(true);
-        showProcessingAlert('Subiendo imagen', 'Procesando tu foto de perfil...');
-        
-        const result = reader.result as string;
-        
-        if (!result || !result.startsWith('data:image/')) {
-          throw new Error('Error al procesar la imagen');
-        }
-
-        await learnerService.uploadImage(result);
-        await fetchProfile();
-        
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
-        }
-        
-        hideProcessingAlert();
-        showQuickToast('¡Imagen subida correctamente!', 'success');
-        
-      } catch (error: any) {
-        hideProcessingAlert();
-        handleApiError(error, 'No se pudo subir la imagen');
-      } finally {
-        setSaving(false);
-      }
+  const compressImage = (file: File, maxWidth: number = 800, quality: number = 0.8): Promise<string> => {
+  return new Promise((resolve) => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d')!;
+    const img = new Image();
+    
+    img.onload = () => {
+      // Calcular nuevas dimensiones manteniendo proporción
+      const ratio = Math.min(maxWidth / img.width, maxWidth / img.height);
+      const newWidth = img.width * ratio;
+      const newHeight = img.height * ratio;
+      
+      // Configurar canvas con nuevas dimensiones
+      canvas.width = newWidth;
+      canvas.height = newHeight;
+      
+      // Dibujar imagen redimensionada en el canvas
+      ctx.drawImage(img, 0, 0, newWidth, newHeight);
+      
+      // Convertir a base64 con compresión JPEG
+      const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+      resolve(compressedBase64);
     };
+    
+    // Cargar la imagen desde el archivo
+    img.src = URL.createObjectURL(file);
+  });
+};
 
-    reader.onerror = () => {
-      SweetAlertUtils.general.showError(
-        'Error al leer archivo', 
-        'No se pudo procesar el archivo seleccionado.'
-      );
-      setSaving(false);
-    };
+// Función handleImageUpload actualizada con compresión
+const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
 
-    reader.readAsDataURL(file);
-  };
+  // Validaciones de tipo y tamaño
+  const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+  if (!validTypes.includes(file.type)) {
+    alert('Por favor selecciona una imagen válida (JPG, PNG, WEBP)');
+    return;
+  }
+
+  // Validar tamaño máximo (10MB)
+  const maxSize = 10 * 1024 * 1024; // 10MB
+  if (file.size > maxSize) {
+    alert('La imagen es demasiado grande. Máximo 10MB permitido.');
+    return;
+  }
+
+  try {
+    setSaving(true);
+    showProcessingAlert('Procesando imagen', 'Optimizando y subiendo tu foto de perfil...');
+    
+    // 🔧 COMPRIMIR IMAGEN ANTES DE SUBIR
+    console.log(`📊 Imagen original: ${file.size} bytes (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+    
+    const compressedBase64 = await compressImage(file, 800, 0.8);
+    
+    // Calcular tamaño aproximado de la imagen comprimida
+    const compressedSize = (compressedBase64.length * 3) / 4; // Aproximación del tamaño Base64
+    console.log(`📊 Imagen comprimida: ${compressedSize.toFixed(0)} bytes (${(compressedSize / 1024 / 1024).toFixed(2)} MB)`);
+    console.log(`📈 Reducción: ${(((file.size - compressedSize) / file.size) * 100).toFixed(1)}%`);
+    
+    // Subir imagen comprimida
+    await learnerService.uploadImage(compressedBase64);
+    await fetchProfile();
+    
+    hideProcessingAlert();
+    await SweetAlertUtils.general.showSuccess('¡Imagen actualizada!', 'Tu foto de perfil se ha actualizado correctamente.');
+    
+  } catch (error: any) {
+    hideProcessingAlert();
+    console.error('Error al subir imagen:', error);
+    
+    // Manejo específico de errores
+    if (error.message.includes('muy grande') || error.message.includes('conexión lenta')) {
+      SweetAlertUtils.general.showError('Imagen muy grande', 'Intenta con una imagen más pequeña o verifica tu conexión.');
+    } else if (error.message.includes('servidor')) {
+      SweetAlertUtils.general.showError('Error del servidor', 'Intenta nuevamente en unos momentos.');
+    } else {
+      SweetAlertUtils.general.showError('Error al subir imagen', error.message || 'Verifica tu conexión e intenta nuevamente.');
+    }
+  } finally {
+    setSaving(false);
+  }
+};
 
   const handleRegenerateQR = async () => {
     // Usar la confirmación específica para QR que ya tienes

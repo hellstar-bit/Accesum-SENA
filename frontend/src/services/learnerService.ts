@@ -124,10 +124,42 @@ export const learnerService = {
   },
 
   async uploadImage(imageBase64: string): Promise<LearnerProfile> {
-    const response = await api.post<LearnerProfile>('/learner/profile/image', {
-      profileImage: imageBase64,
-    });
-    return response.data;
+    try {
+      console.log(`📤 Iniciando subida de imagen: ${imageBase64.length} caracteres`);
+      const startTime = Date.now();
+      
+      const response = await api.post<LearnerProfile>('/learner/profile/image', {
+        profileImage: imageBase64,
+      }, {
+        timeout: 300000, // 5 minutos
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
+      });
+      
+      const duration = Date.now() - startTime;
+      console.log(`✅ Imagen subida exitosamente en ${duration}ms`);
+      
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ Error en uploadImage:', error);
+      
+      if (error.code === 'ECONNABORTED' || error.isTimeout) {
+        throw new Error('La imagen es muy grande o la conexión es lenta. Intenta con una imagen más pequeña o verifica tu conexión a internet.');
+      }
+      
+      if (error.response?.status === 413) {
+        throw new Error('La imagen es demasiado grande. Por favor, selecciona una imagen más pequeña.');
+      }
+      
+      if (error.response?.status >= 500) {
+        throw new Error('Error del servidor al procesar la imagen. Intenta nuevamente en unos momentos.');
+      }
+      
+      throw new Error(error.response?.data?.message || 'No se pudo subir la imagen. Verifica tu conexión e intenta nuevamente.');
+    }
   },
 
   async getCarnetData(): Promise<CarnetData> {

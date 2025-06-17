@@ -1,4 +1,4 @@
-// frontend/src/services/api.ts - OPTIMIZADO PARA CANCELACIONES
+// frontend/src/services/api.ts - OPTIMIZADO PARA CANCELACIONES Y SUBIDA DE ARCHIVOS
 import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
@@ -7,11 +7,22 @@ console.log('🔗 API URL configurada:', API_BASE_URL); // Para debug
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 30000,
+  timeout: 300000, // 🔧 CAMBIADO: 5 minutos para operaciones de archivos
   headers: {
     'Content-Type': 'application/json',
   },
 });
+
+// 🆕 CONFIGURACIÓN ESPECÍFICA PARA SUBIDA DE IMÁGENES
+export const createApiWithCustomTimeout = (timeoutMs: number) => {
+  return axios.create({
+    baseURL: API_BASE_URL,
+    timeout: timeoutMs,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+};
 
 // Interceptor de request - agregar token
 api.interceptors.request.use(
@@ -21,6 +32,11 @@ api.interceptors.request.use(
     // ⭐ SOLO loggear en desarrollo
     if (import.meta.env.MODE === 'development') {
       console.log(`🌐 ${config.method?.toUpperCase()} ${config.url}`);
+      
+      // 🔧 AGREGAR LOG ESPECIAL PARA SUBIDA DE IMÁGENES
+      if (config.url?.includes('/image') && config.data?.profileImage) {
+        console.log(`📸 Subiendo imagen: ${config.data.profileImage.length} caracteres`);
+      }
     }
     
     if (token) {
@@ -46,6 +62,11 @@ api.interceptors.response.use(
   (response) => {
     if (import.meta.env.MODE === 'development') {
       console.log(`✅ ${response.config.method?.toUpperCase()} ${response.config.url} - ${response.status}`);
+      
+      // 🔧 LOG ESPECIAL PARA SUBIDA DE IMÁGENES EXITOSA
+      if (response.config.url?.includes('/image')) {
+        console.log('📸 ✅ Imagen subida exitosamente');
+      }
     }
     return response;
   },
@@ -66,13 +87,20 @@ api.interceptors.response.use(
       });
     }
 
-    // ⭐ FILTRAR timeouts
+    // ⭐ MANEJO MEJORADO DE TIMEOUTS CON MENSAJE ESPECÍFICO
     if (error.code === 'ECONNABORTED') {
-      console.warn(`⏱️ ${method} ${url} - Timeout`);
+      const isImageUpload = url?.includes('/image');
+      const timeoutMessage = isImageUpload 
+        ? 'La imagen es muy grande o la conexión es lenta. Intenta con una imagen más pequeña.'
+        : 'Tiempo de espera agotado';
+      
+      console.warn(`⏱️ ${method} ${url} - Timeout${isImageUpload ? ' (subida de imagen)' : ''}`);
+      
       return Promise.reject({
         ...error,
-        message: 'Tiempo de espera agotado',
-        isTimeout: true
+        message: timeoutMessage,
+        isTimeout: true,
+        isImageUpload
       });
     }
 

@@ -10,7 +10,7 @@ async function bootstrap() {
   app.enableCors({
     origin: (origin, callback) => {
       const allowedOrigins = [
-        'http://accesum-sena.netlify.app',
+        'https://accesum-sena.netlify.app',
         'http://localhost:5173',
         'http://localhost:3000',
         'http://localhost:4173',

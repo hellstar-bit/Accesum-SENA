@@ -233,12 +233,12 @@ export class DashboardService {
 
       // ⭐ HORA PICO (100% REAL)
       const hourlyAccessData = await buildAccessQuery()
-        .select('EXTRACT(HOUR FROM attendance.createdAt) as hour')
-        .addSelect('COUNT(*)', 'count')
-        .where('access.entryTime >= :weekAgo', { weekAgo })
-        .groupBy('EXTRACT(HOUR FROM access.entryTime)')
-        .orderBy('count', 'DESC')
-        .getRawOne();
+      .select('EXTRACT(HOUR FROM access.createdAt) as hour') // ← access.createdAt
+      .addSelect('COUNT(*)', 'count')
+      .where('access.entryTime >= :weekAgo', { weekAgo })
+      .groupBy('EXTRACT(HOUR FROM access.createdAt)') // ← También cambiar aquí
+      .orderBy('count', 'DESC')
+      .getRawOne();
 
       const peakHour = hourlyAccessData ? parseInt(hourlyAccessData.hour) : 14;
 

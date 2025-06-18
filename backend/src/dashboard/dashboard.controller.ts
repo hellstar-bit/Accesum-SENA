@@ -10,6 +10,37 @@ export class DashboardController {
 
   // ===== ENDPOINTS CON DATOS 100% REALES =====
 
+  @Get('enhanced-activity')
+  async getEnhancedActivity(
+  @Query('days') days?: string,
+  @Query('activityType') activityType?: 'entry' | 'exit' | 'all',
+  @Query('fichaIds') fichaIds?: string,
+  @Query('userIds') userIds?: string,
+  @Query('limit') limit?: string,
+  @Query('offset') offset?: string,
+) {
+  const filters: any = {
+    days: days ? parseInt(days) : 7,
+    activityType: activityType || 'all',
+    limit: limit ? parseInt(limit) : 50,
+    offset: offset ? parseInt(offset) : 0,
+  };
+
+  if (fichaIds) {
+    filters.fichaIds = fichaIds.split(',').map(id => parseInt(id));
+  }
+  if (userIds) {
+    filters.userIds = userIds.split(',').map(id => parseInt(id));
+  }
+
+  return await this.dashboardService.getEnhancedRecentActivity(filters);
+}
+
+@Get('fichas')
+async getFichas() {
+  return await this.dashboardService.getFichas();
+}
+
   @Get('stats')
   async getStats() {
     console.log('📊 Endpoint: Obteniendo estadísticas básicas REALES');

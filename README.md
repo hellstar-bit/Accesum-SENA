@@ -74,6 +74,7 @@ Accesum-SENA
 │  │  │  │  ├─ ficha-competence.entity.ts
 │  │  │  │  ├─ ficha.entity.ts
 │  │  │  │  ├─ personnel-type.entity.ts
+│  │  │  │  ├─ program-type.entity.ts
 │  │  │  │  ├─ program.entity.ts
 │  │  │  │  └─ regional.entity.ts
 │  │  │  ├─ ficha-competence.controller.ts
@@ -90,7 +91,6 @@ Accesum-SENA
 │  │  ├─ database
 │  │  │  └─ seeders
 │  │  │     ├─ seed-simple.command.ts
-│  │  │     ├─ seed.command.ts
 │  │  │     └─ simple-seed.ts
 │  │  ├─ import
 │  │  │  ├─ import-excel.dto.ts
@@ -122,6 +122,7 @@ Accesum-SENA
 │  │  ├─ app.e2e-spec.ts
 │  │  └─ jest-e2e.json
 │  ├─ test-connection.js
+│  ├─ test-supabase-connection.js
 │  ├─ tsconfig.build.json
 │  └─ tsconfig.json
 ├─ frontend

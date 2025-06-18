@@ -343,5 +343,29 @@ export const dashboardService = {
       centerId: filters.centerId && filters.centerId > 0 ? filters.centerId : undefined,
       personnelTypeId: filters.personnelTypeId && filters.personnelTypeId > 0 ? filters.personnelTypeId : undefined
     };
-  }
+  },
+  async getEnhancedActivity(filters: {
+  days?: number;
+  activityType?: 'entry' | 'exit' | 'all';
+  fichaIds?: number[];
+  userIds?: number[];
+  limit?: number;
+  offset?: number;
+}): Promise<{ activities: any[]; total: number }> {
+  const params = new URLSearchParams();
+  if (filters.days) params.append('days', filters.days.toString());
+  if (filters.activityType) params.append('activityType', filters.activityType);
+  if (filters.fichaIds?.length) params.append('fichaIds', filters.fichaIds.join(','));
+  if (filters.userIds?.length) params.append('userIds', filters.userIds.join(','));
+  if (filters.limit) params.append('limit', filters.limit.toString());
+  if (filters.offset) params.append('offset', filters.offset.toString());
+
+  const response = await api.get(`/dashboard/enhanced-activity?${params.toString()}`);
+  return response.data;
+},
+
+async getFichas(): Promise<{id: number; code: string; name: string}[]> {
+  const response = await api.get('/dashboard/fichas');
+  return response.data;
+}
 };

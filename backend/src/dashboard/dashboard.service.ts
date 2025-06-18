@@ -8,6 +8,7 @@ import { AccessRecord } from '../access/entities/access-record.entity';
 import { PersonnelType } from '../config/entities/personnel-type.entity';
 import { Regional } from '../config/entities/regional.entity';
 import { Center } from '../config/entities/center.entity';
+import { Ficha } from '../config/entities/ficha.entity';
 
 export interface DashboardFilters {
   timeRange?: '1d' | '7d' | '30d' | '90d';
@@ -72,6 +73,30 @@ export interface EnhancedDashboardStats {
   };
 }
 
+export interface ActivityFilters {
+  fichaIds?: number[];
+  userIds?: number[];
+  days?: number;
+  startDate?: Date;
+  endDate?: Date;
+  activityType?: 'entry' | 'exit' | 'all';
+  limit?: number;
+  offset?: number;
+}
+
+export interface EnhancedRecentActivity {
+  id: number;
+  user: string;
+  email: string;
+  type: 'entry' | 'exit';
+  time: string;
+  center: string;
+  userType: string;
+  documentNumber: string;
+  fichaCode?: string;
+  fichaName?: string;
+}
+
 @Injectable()
 export class DashboardService {
   constructor(
@@ -87,6 +112,8 @@ export class DashboardService {
     private regionalRepository: Repository<Regional>,
     @InjectRepository(Center)
     private centerRepository: Repository<Center>,
+    @InjectRepository(Ficha)
+    private fichaRepository: Repository<Ficha>,
   ) {}
 
   // ===== ESTADÍSTICAS MEJORADAS CON DATOS 100% REALES =====
@@ -586,59 +613,81 @@ export class DashboardService {
 
   // ⭐ ACTIVIDAD RECIENTE CON DATOS 100% REALES
   async getRecentActivity(limit: number = 10, filters: DashboardFilters = {}) {
-    const { regionalId, centerId } = filters;
+  const { regionalId, centerId } = filters;
+  
+  console.log('🕐 Obteniendo actividad reciente REAL:', { limit, filters });
+
+  try {
+    let query = this.accessRecordRepository
+      .createQueryBuilder('access')
+      .leftJoinAndSelect('access.user', 'user')
+      .leftJoinAndSelect('user.profile', 'profile')
+      .leftJoinAndSelect('profile.type', 'type')
+      .leftJoinAndSelect('profile.center', 'center')
+      .leftJoinAndSelect('profile.ficha', 'ficha');
+
+    if (regionalId) {
+      query = query.andWhere('profile.regionalId = :regionalId', { regionalId });
+    }
+    if (centerId) {
+      query = query.andWhere('profile.centerId = :centerId', { centerId });
+    }
+
+    const recentAccess = await query
+      .orderBy('GREATEST(access.entryTime, COALESCE(access.exitTime, access.entryTime))', 'DESC')
+      .limit(limit * 2) // Obtener más para procesar entradas y salidas
+      .getMany();
+
+    // Procesar actividades (entradas y salidas)
+    const activities: any[] = [];
     
-    console.log('🕐 Obteniendo actividad reciente REAL:', { limit, filters });
+    recentAccess.forEach(access => {
+      const profile = access.user?.profile;
+      const baseActivity = {
+        user: profile ? `${profile.firstName} ${profile.lastName}` : 'Usuario sin perfil',
+        email: access.user?.email || 'Sin email',
+        center: profile?.center?.name || 'Sin centro',
+        userType: profile?.type?.name || 'Sin tipo',
+        documentNumber: profile?.documentNumber || 'Sin documento',
+        fichaCode: profile?.ficha?.code,
+        fichaName: profile?.ficha?.name,
+        profileImage: profile?.profileImage,
+      };
 
-    try {
-      // ⭐ CONSULTA REAL ORDENADA POR FECHA MÁS RECIENTE
-      let query = this.accessRecordRepository
-        .createQueryBuilder('access')
-        .leftJoinAndSelect('access.user', 'user')
-        .leftJoinAndSelect('user.profile', 'profile')
-        .leftJoinAndSelect('profile.type', 'type')
-        .leftJoinAndSelect('profile.center', 'center')
-        .orderBy('access.entryTime', 'DESC')
-        .limit(limit);
-
-      if (regionalId) {
-        query = query.andWhere('profile.regionalId = :regionalId', { regionalId });
-      }
-      if (centerId) {
-        query = query.andWhere('profile.centerId = :centerId', { centerId });
-      }
-
-      const recentAccess = await query.getMany();
-
-      // ⭐ FORMATEAR DATOS REALES PARA EL FRONTEND
-      const activity = recentAccess.map(access => {
-        const profile = access.user?.profile;
-        const isExit = !!access.exitTime;
-        
-        return {
-          id: access.id,
-          user: profile 
-            ? `${profile.firstName} ${profile.lastName}`
-            : 'Usuario sin perfil',
-          email: access.user?.email || 'Sin email',
-          type: isExit ? 'exit' : 'entry',
-          time: (isExit ? access.exitTime : access.entryTime).toISOString(),
-          exitTime: access.exitTime?.toISOString() || null,
-          center: profile?.center?.name || 'Sin centro',
-          userType: profile?.type?.name || 'Sin tipo',
-          status: access.status || 'INSIDE',
-          duration: access.duration || null,
-        };
+      // Agregar entrada
+      activities.push({
+        ...baseActivity,
+        id: access.id,
+        type: 'entry',
+        time: access.entryTime.toISOString(),
+        status: 'Entrada exitosa',
       });
 
-      console.log('✅ Actividad reciente REAL obtenida:', activity.length, 'registros');
-      return activity;
+      // Agregar salida si existe
+      if (access.exitTime) {
+        activities.push({
+          ...baseActivity,
+          id: access.id + 100000,
+          type: 'exit', 
+          time: access.exitTime.toISOString(),
+          status: 'Salida exitosa',
+        });
+      }
+    });
 
-    } catch (error) {
-      console.error('❌ Error en getRecentActivity:', error);
-      return [];
-    }
+    // Ordenar por tiempo y limitar
+    const sortedActivities = activities
+      .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
+      .slice(0, limit);
+
+    console.log('✅ Actividad reciente REAL obtenida:', sortedActivities.length, 'registros');
+    return sortedActivities;
+
+  } catch (error) {
+    console.error('❌ Error en getRecentActivity:', error);
+    return [];
   }
+}
 
   // ===== MÉTODOS LEGACY COMPATIBLES =====
 
@@ -977,4 +1026,115 @@ export class DashboardService {
       };
     }
   }
+  async getEnhancedRecentActivity(filters: ActivityFilters = {}): Promise<{
+  activities: EnhancedRecentActivity[];
+  total: number;
+}> {
+  const {
+    fichaIds,
+    userIds,
+    days = 7,
+    startDate,
+    endDate,
+    activityType = 'all',
+    limit = 50,
+    offset = 0
+  } = filters;
+
+  try {
+    let fromDate: Date, toDate: Date;
+    
+    if (startDate && endDate) {
+      fromDate = startDate;
+      toDate = endDate;
+    } else {
+      toDate = new Date();
+      fromDate = new Date();
+      fromDate.setDate(fromDate.getDate() - days);
+    }
+
+    let query = this.accessRecordRepository
+      .createQueryBuilder('access')
+      .leftJoinAndSelect('access.user', 'user')
+      .leftJoinAndSelect('user.profile', 'profile')
+      .leftJoinAndSelect('profile.type', 'type')
+      .leftJoinAndSelect('profile.center', 'center')
+      .leftJoinAndSelect('profile.ficha', 'ficha')
+      .where('access.entryTime >= :fromDate', { fromDate })
+      .andWhere('access.entryTime <= :toDate', { toDate });
+
+    if (fichaIds?.length) {
+      query = query.andWhere('profile.fichaId IN (:...fichaIds)', { fichaIds });
+    }
+    if (userIds?.length) {
+      query = query.andWhere('user.id IN (:...userIds)', { userIds });
+    }
+
+    const records = await query
+      .orderBy('access.entryTime', 'DESC')
+      .getMany();
+
+    const activities: EnhancedRecentActivity[] = [];
+    
+    records.forEach(record => {
+      const profile = record.user?.profile;
+      const baseData = {
+        user: profile ? `${profile.firstName} ${profile.lastName}` : 'Usuario sin perfil',
+        email: record.user?.email || 'Sin email',
+        center: profile?.center?.name || 'Sin centro',
+        userType: profile?.type?.name || 'Sin tipo',
+        documentNumber: profile?.documentNumber || 'Sin documento',
+        fichaCode: profile?.ficha?.code,
+        fichaName: profile?.ficha?.name,
+        profileImage: profile?.profileImage,
+      };
+
+      // Agregar entrada
+      if (activityType === 'all' || activityType === 'entry') {
+        activities.push({
+          ...baseData,
+          id: record.id,
+          type: 'entry',
+          time: record.entryTime.toISOString(),
+        });
+      }
+
+      // Agregar salida
+      if (record.exitTime && (activityType === 'all' || activityType === 'exit')) {
+        activities.push({
+          ...baseData,
+          id: record.id + 100000,
+          type: 'exit',
+          time: record.exitTime.toISOString(),
+        });
+      }
+    });
+
+    const sortedActivities = activities
+      .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
+      .slice(offset, offset + limit);
+
+    return {
+      activities: sortedActivities,
+      total: activities.length
+    };
+
+  } catch (error) {
+    console.error('❌ Error en getEnhancedRecentActivity:', error);
+    return { activities: [], total: 0 };
+  }
+}
+
+async getFichas(): Promise<{id: number; code: string; name: string}[]> {
+  try {
+    const fichas = await this.fichaRepository.find({
+      select: ['id', 'code', 'name'],
+      order: { name: 'ASC' }
+    });
+    return fichas;
+  } catch (error) {
+    console.error('❌ Error al obtener fichas:', error);
+    return [];
+  }
+}
 }

@@ -433,7 +433,7 @@ const Dashboard = () => {
       <div className="bg-white rounded-xl shadow-lg p-6">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold text-gray-900">Actividad Reciente</h2>
-          <a href="/access" className="text-green-600 hover:text-green-700 text-sm font-medium">
+          <a href="/recent-activity" className="text-green-600 hover:text-green-700 text-sm font-medium">
             Ver todo →
           </a>
         </div>
@@ -453,10 +453,22 @@ const Dashboard = () => {
                 <tr key={activity.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
-                      <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
-                        <span className="text-sm font-medium text-gray-700">
-                          {activity.user.split(' ').map((n: string) => n[0]).join('')}
-                        </span>
+                      <div className="h-10 w-10 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
+                        {activity.profileImage ? (
+                          <img
+                            src={activity.profileImage}
+                            alt={activity.user}
+                            className="h-full w-full object-cover"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                            }}
+                          />
+                        ) : (
+                          <span className="text-sm font-medium text-gray-700">
+                            {activity.user.split(' ').map((n: string) => n[0]).join('')}
+                          </span>
+                        )}
                       </div>
                       <div className="ml-4">
                         <div className="text-sm font-medium text-gray-900">{activity.user}</div>

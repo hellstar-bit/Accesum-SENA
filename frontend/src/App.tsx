@@ -18,6 +18,7 @@ import Layout from './components/layout/Layout';
 import PrivateRoute from './components/auth/PrivateRoute';
 import { AuthProvider } from './context/AuthContext';
 import { useAuth } from './context/AuthContext';
+import RecentActivity from './pages/RecentActivity';
 
 // Componente para redirección inteligente por rol
 const RoleBasedRedirect = () => {
@@ -73,6 +74,13 @@ function App() {
               <Route path="profiles" element={
                 <PrivateRoute roles={['Administrador']}>
                   <ProfileManagement />
+                </PrivateRoute>
+              } />
+
+              {/* ⭐ ACTIVIDAD RECIENTE - Solo Administradores */}
+              <Route path="recent-activity" element={
+                <PrivateRoute roles={['Administrador']}>
+                  <RecentActivity />
                 </PrivateRoute>
               } />
               

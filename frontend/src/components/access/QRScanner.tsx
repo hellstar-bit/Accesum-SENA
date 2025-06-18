@@ -558,10 +558,18 @@ useEffect(() => {
     html: `
       <div class="text-center">
         <div class="mb-4">
-          ${user.profileImage 
-            ? `<img src="${user.profileImage}" class="w-20 h-20 rounded-full mx-auto object-cover mb-2 border-4 ${isEntry ? 'border-green-400' : 'border-red-400'}" />` 
-            : `<div class="w-20 h-20 rounded-full mx-auto ${isEntry ? 'bg-green-100' : 'bg-red-100'} flex items-center justify-center ${isEntry ? 'text-green-600' : 'text-red-600'} text-2xl font-bold mb-2 border-4 ${isEntry ? 'border-green-400' : 'border-red-400'}">${user.firstName?.charAt(0) || '?'}${user.lastName?.charAt(0) || ''}</div>`
-          }
+          ${user.profileImage && user.profileImage.trim() !== '' 
+          ? `<img src="${user.profileImage}" 
+                alt="${user.firstName} ${user.lastName}"
+                class="w-20 h-20 rounded-full mx-auto object-cover mb-2 border-4 ${isEntry ? 'border-green-400' : 'border-red-400'}" 
+                onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+            <div style="display:none;" class="w-20 h-20 rounded-full mx-auto ${isEntry ? 'bg-green-100' : 'bg-red-100'} flex items-center justify-center ${isEntry ? 'text-green-600' : 'text-red-600'} text-2xl font-bold mb-2 border-4 ${isEntry ? 'border-green-400' : 'border-red-400'}">
+              ${user.firstName?.charAt(0) || '?'}${user.lastName?.charAt(0) || ''}
+            </div>` 
+          : `<div class="w-20 h-20 rounded-full mx-auto ${isEntry ? 'bg-green-100' : 'bg-red-100'} flex items-center justify-center ${isEntry ? 'text-green-600' : 'text-red-600'} text-2xl font-bold mb-2 border-4 ${isEntry ? 'border-green-400' : 'border-red-400'}">
+              ${user.firstName?.charAt(0) || '?'}${user.lastName?.charAt(0) || ''}
+            </div>`
+}
         </div>
         <h3 class="text-lg font-semibold text-gray-800">${user.firstName || 'Sin nombre'} ${user.lastName || ''}</h3>
         <p class="text-sm text-gray-600 mb-2">${user.type || 'Tipo desconocido'} - ${user.documentNumber || 'Sin documento'}</p>

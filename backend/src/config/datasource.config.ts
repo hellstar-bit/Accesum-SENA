@@ -12,15 +12,13 @@ export const dataSourceOptions: DataSourceOptions = {
   username: process.env.DB_USERNAME || 'postgres',
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME || 'postgres',
-  schema: process.env.DB_SCHEMA || 'acceso', // ⭐ AGREGADO
+  schema: process.env.DB_SCHEMA || 'acceso',
   entities: [
     join(__dirname, '..', '**', '*.entity{.ts,.js}')
   ],
   synchronize: process.env.NODE_ENV !== 'production',
   logging: process.env.NODE_ENV === 'development',
-  ssl: process.env.NODE_ENV === 'production' ? {
-    rejectUnauthorized: false
-  } : false,
+  ssl: false, // ⭐ DESACTIVADO: Sin SSL
 };
 
 export const AppDataSource = new DataSource(dataSourceOptions);

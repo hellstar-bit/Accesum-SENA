@@ -16,14 +16,12 @@ export const databaseConfig: TypeOrmModuleOptions = {
   username: process.env.DB_USERNAME || 'postgres',
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME || 'postgres',
-  schema: process.env.DB_SCHEMA || 'acceso', // ⭐ AGREGADO: esquema específico
+  schema: process.env.DB_SCHEMA || 'acceso',
   synchronize: process.env.NODE_ENV !== 'production',
   logging: process.env.NODE_ENV === 'development',
   entities: [__dirname + '/../**/*.entity{.ts,.js}'],
   autoLoadEntities: true,
-  ssl: process.env.NODE_ENV === 'production' ? {
-    rejectUnauthorized: false
-  } : false,
+  ssl: false, // ⭐ DESACTIVADO: Sin SSL
   extra: {
     max: 20,
     idleTimeoutMillis: 30000,
@@ -36,7 +34,7 @@ console.log('🔧 Configuración de BD:', {
   host: process.env.DB_HOST,
   port: process.env.DB_PORT,
   database: process.env.DB_NAME,
-  schema: databaseConfig.schema, // ⭐ AGREGADO
+  schema: databaseConfig.schema,
   ssl: databaseConfig.ssl,
   synchronize: databaseConfig.synchronize,
 });

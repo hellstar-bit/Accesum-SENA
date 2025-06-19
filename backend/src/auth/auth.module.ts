@@ -1,4 +1,4 @@
-// backend/src/auth/auth.module.ts - CON JWT_SECRET DEL .ENV
+// backend/src/auth/auth.module.ts - ORDEN CORREGIDO
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtModule } from '@nestjs/jwt';
@@ -13,12 +13,13 @@ import { Profile } from '../profiles/entities/profile.entity';
 
 console.log('🔑 AuthModule - JWT_SECRET del .env:', process.env.JWT_SECRET || 'NO DEFINIDO');
 
+// ⭐ MOVER EL @Module AL FINAL DEL ARCHIVO
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, Profile]),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({
-      secret: process.env.JWT_SECRET || 'accesum_secret_key', // ✅ USAR EL DEL .ENV
+      secret: process.env.JWT_SECRET || 'accesum_secret_key',
       signOptions: { 
         expiresIn: process.env.JWT_EXPIRATION || '24h'
       },

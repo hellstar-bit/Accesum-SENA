@@ -1,37 +1,66 @@
-// backend/src/auth/auth.controller.ts - AGREGAR ESTOS ENDPOINTS
+// backend/src/auth/auth.controller.ts - SEPARADO Y LIMPIO
 import { 
   Controller, 
   Post, 
+  Get, 
   Body, 
   UseGuards, 
   Request,
-  HttpStatus,
-  HttpException,
+  HttpCode,
+  HttpStatus, 
+  UnauthorizedException,
   BadRequestException
 } from '@nestjs/common';
+import { AuthService, LoginDto } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { Roles } from './decorators/roles.decorator';
-import { AuthService } from './auth.service';
-
-export interface ChangePasswordDto {
-  currentPassword: string;
-  newPassword: string;
-  confirmPassword: string;
-}
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  // ... otros endpoints existentes (login, etc.)
+  // ⭐ LOGIN
+  @Post('login')
+  @HttpCode(HttpStatus.OK)
+  async login(@Body() loginDto: LoginDto) {
+    try {
+      console.log('🔐 Login attempt for:', loginDto.email);
+      const result = await this.authService.login(loginDto);
+      console.log('✅ Login successful for:', loginDto.email);
+      return result;
+    } catch (error) {
+      console.error('❌ Login failed:', error.message);
+      throw error;
+    }
+  }
 
-  // ⭐ NUEVO: CAMBIAR CONTRASEÑA (PARA INSTRUCTOR Y APRENDIZ)
+  // ⭐ OBTENER PERFIL ACTUAL
+  @Get('profile')
+  @UseGuards(JwtAuthGuard)
+  async getProfile(@Request() req: any) {
+    try {
+      const user = await this.authService.getProfile(req.user.id);
+      if (!user) {
+        throw new UnauthorizedException('Usuario no encontrado o inactivo');
+      }
+      return user;
+    } catch (error) {
+      console.error('❌ Error getting profile:', error);
+      throw error;
+    }
+  }
+
+  // ⭐ CAMBIAR CONTRASEÑA (PARA INSTRUCTOR Y APRENDIZ)
   @Post('change-password')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('Instructor', 'Aprendiz')
   async changePassword(
-    @Body() changePasswordDto: ChangePasswordDto,
+    @Body() changePasswordDto: {
+      currentPassword: string;
+      newPassword: string;
+      confirmPassword: string;
+    },
     @Request() req: any
   ) {
     try {
@@ -73,19 +102,11 @@ export class AuthController {
 
     } catch (error) {
       console.error('❌ Error al cambiar contraseña:', error);
-      
-      if (error instanceof BadRequestException) {
-        throw error;
-      }
-
-      throw new HttpException(
-        error.message || 'Error interno al cambiar contraseña',
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
+      throw error;
     }
   }
 
-  // ⭐ NUEVO: VERIFICAR CONTRASEÑA ACTUAL (PARA VALIDACIÓN EN FRONTEND)
+  // ⭐ VERIFICAR CONTRASEÑA ACTUAL
   @Post('verify-password')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('Instructor', 'Aprendiz')
@@ -112,10 +133,33 @@ export class AuthController {
 
     } catch (error) {
       console.error('❌ Error al verificar contraseña:', error);
-      throw new HttpException(
-        'Error al verificar contraseña',
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
+      return {
+        isValid: false,
+        message: 'Error al verificar contraseña'
+      };
     }
+  }
+
+  // ⭐ LOGOUT
+  @Post('logout')
+  @UseGuards(JwtAuthGuard)
+  async logout(@Request() req: any) {
+    try {
+      await this.authService.logout(req.user.id);
+      return { message: 'Sesión cerrada correctamente' };
+    } catch (error) {
+      console.error('❌ Error en logout:', error);
+      return { message: 'Sesión cerrada' };
+    }
+  }
+
+  // ⭐ VERIFICAR TOKEN
+  @Get('verify')
+  @UseGuards(JwtAuthGuard)
+  async verify(@Request() req: any) {
+    return { 
+      valid: true, 
+      user: req.user 
+    };
   }
 }

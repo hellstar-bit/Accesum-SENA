@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { learnerService } from '../services/learnerService.ts';
 import type { LearnerProfile } from '../services/learnerService.ts';
 import { downloadLearnerCarnet } from '../utils/carnetGenerator';
+import ChangePasswordForm from '../components/auth/ChangePasswordForm';
 import SweetAlertUtils, { 
   showProcessingAlert, 
   hideProcessingAlert, 
@@ -11,6 +12,7 @@ import SweetAlertUtils, {
 } from '../utils/sweetAlertUtils';
 
 const LearnerProfilePage = () => {
+  const [showChangePassword, setShowChangePassword] = useState(false);
   const [profile, setProfile] = useState<LearnerProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
@@ -572,6 +574,53 @@ const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
           </div>
         </div>
       </div>
+      {/* ⭐ NUEVA SECCIÓN: SEGURIDAD - CAMBIO DE CONTRASEÑA */}
+<div className="bg-white rounded-lg shadow p-6">
+  <div className="flex justify-between items-center mb-4">
+    <div>
+      <h3 className="text-lg font-semibold text-gray-800">🔐 Seguridad de la Cuenta</h3>
+      <p className="text-gray-600 text-sm mt-1">
+        Mantén tu cuenta segura actualizando tu contraseña regularmente
+      </p>
+    </div>
+  </div>
+  
+  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+    <div className="flex items-center space-x-3">
+      <div className="p-2 bg-blue-100 rounded-full">
+        <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+        </svg>
+      </div>
+      <div>
+        <h4 className="font-medium text-gray-800">Contraseña de Acceso</h4>
+        <p className="text-sm text-gray-600">
+          Cambia tu contraseña para mantener tu cuenta segura
+        </p>
+      </div>
+    </div>
+    <button
+      onClick={() => setShowChangePassword(true)}
+      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
+    >
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+      </svg>
+      <span>Cambiar Contraseña</span>
+    </button>
+  </div>
+
+  {/* Modal/Formulario de cambio de contraseña */}
+  {showChangePassword && (
+    <div className="mt-4 border-t pt-4">
+      <ChangePasswordForm
+        onSuccess={() => setShowChangePassword(false)}
+        onCancel={() => setShowChangePassword(false)}
+        isModal={true}
+      />
+    </div>
+  )}
+</div>
 
       {/* Información adicional */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">

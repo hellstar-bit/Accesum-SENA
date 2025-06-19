@@ -75,6 +75,77 @@ export class AuthService {
     };
   }
 
+  async changePassword(
+    userId: number, 
+    currentPassword: string, 
+    newPassword: string
+  ): Promise<void> {
+    console.log('🔐 Iniciando cambio de contraseña para usuario:', userId);
+
+    const user = await this.userRepository.findOne({
+      where: { id: userId, isActive: true }
+    });
+
+    if (!user) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    // Verificar contraseña actual
+    const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
+    if (!isCurrentPasswordValid) {
+      console.log('❌ Contraseña actual incorrecta para usuario:', userId);
+      throw new UnauthorizedException('Contraseña actual incorrecta');
+    }
+
+    // Verificar que la nueva contraseña sea diferente
+    const isSamePassword = await bcrypt.compare(newPassword, user.password);
+    if (isSamePassword) {
+      throw new UnauthorizedException('La nueva contraseña debe ser diferente a la actual');
+    }
+
+    // Hash de la nueva contraseña
+    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+    
+    // Actualizar contraseña
+    await this.userRepository.update(userId, {
+      password: hashedNewPassword,
+      updatedAt: new Date()
+    });
+
+    console.log('✅ Contraseña cambiada exitosamente para usuario:', userId);
+  }
+
+  // ⭐ NUEVO: VERIFICAR CONTRASEÑA ACTUAL
+  async verifyCurrentPassword(
+    userId: number, 
+    currentPassword: string
+  ): Promise<boolean> {
+    console.log('🔍 Verificando contraseña actual para usuario:', userId);
+
+    const user = await this.userRepository.findOne({
+      where: { id: userId, isActive: true }
+    });
+
+    if (!user) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    const isValid = await bcrypt.compare(currentPassword, user.password);
+    console.log('🔍 Contraseña válida:', isValid ? 'SÍ' : 'NO');
+    
+    return isValid;
+  }
+
+  // ⭐ MÉTODO EXISTENTE ACTUALIZADO: CAMBIAR CONTRASEÑA (COMPATIBLE)
+  async changePasswordLegacy(
+    userId: number, 
+    currentPassword: string, 
+    newPassword: string
+  ): Promise<void> {
+    // Mantener compatibilidad con implementación anterior
+    return this.changePassword(userId, currentPassword, newPassword);
+  }
+
   // ⭐ OBTENER PERFIL ACTUAL
   async getProfile(userId: number): Promise<User> {
     const user = await this.userRepository.findOne({
@@ -126,34 +197,6 @@ export class AuthService {
     return userWithoutPassword as User;
   }
 
-  // ⭐ CAMBIAR CONTRASEÑA
-  async changePassword(
-    userId: number, 
-    currentPassword: string, 
-    newPassword: string
-  ): Promise<void> {
-    const user = await this.userRepository.findOne({
-      where: { id: userId }
-    });
-
-    if (!user) {
-      throw new NotFoundException('Usuario no encontrado');
-    }
-
-    // Verificar contraseña actual
-    const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
-    if (!isCurrentPasswordValid) {
-      throw new UnauthorizedException('Contraseña actual incorrecta');
-    }
-
-    // Hash de la nueva contraseña
-    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
-    
-    // Actualizar contraseña
-    await this.userRepository.update(userId, {
-      password: hashedNewPassword
-    });
-  }
 
   // ⭐ LOGOUT (opcional - para invalidar tokens en el futuro)
   async logout(userId: number): Promise<void> {

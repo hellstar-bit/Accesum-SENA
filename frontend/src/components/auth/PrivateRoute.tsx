@@ -1,3 +1,4 @@
+// frontend/src/components/auth/PrivateRoute.tsx - CON ROL CONTROL DE ACCESO
 import type { ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -56,6 +57,15 @@ const PrivateRoute = ({ children, roles }: PrivateRouteProps) => {
         return <>{children}</>;
       }
     }
+
+    // ⭐ MANEJO ESPECIAL PARA RUTAS BLOQUEADAS PARA CONTROL DE ACCESO
+    if (roles.includes('BLOCKED_FOR_ACCESS_CONTROL')) {
+      console.log('🚫 PrivateRoute - Ruta bloqueada para Control de Acceso');
+      if (userRole === 'Control de Acceso') {
+        console.log('🔄 PrivateRoute - Control de Acceso intentando acceder a ruta bloqueada, redirigiendo a Control de Acceso');
+        return <Navigate to="/access" replace />;
+      }
+    }
     
     if (!userRole || !roles.includes(userRole)) {
       // Redirigir según el rol del usuario
@@ -69,16 +79,18 @@ const PrivateRoute = ({ children, roles }: PrivateRouteProps) => {
   return <>{children}</>;
 };
 
-// ⭐ FUNCIÓN ACTUALIZADA PARA REDIRECCIÓN POR ROL
+// ⭐ FUNCIÓN ACTUALIZADA PARA REDIRECCIÓN POR ROL (INCLUYE CONTROL DE ACCESO)
 const getRedirectPathByRole = (role: string | undefined): string => {
   console.log('🎯 getRedirectPathByRole - rol:', role);
   switch (role) {
     case 'Administrador':
       return '/dashboard';
     case 'Instructor':
-      return '/instructor-profile'; // ⭐ CAMBIO: Ahora redirige a Mi Perfil en lugar de Dashboard
+      return '/instructor-profile';
     case 'Aprendiz':
       return '/my-classes';
+    case 'Control de Acceso':
+      return '/access'; // ⭐ NUEVO: Redirige directamente al control de acceso
     default:
       console.warn('⚠️ Rol no reconocido:', role);
       return '/login';

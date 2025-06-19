@@ -5,7 +5,8 @@ export const ROLES = {
   LEARNER: 'Aprendiz',
   EMPLOYEE: 'Funcionario',
   CONTRACTOR: 'Contratista',
-  VISITOR: 'Visitante'
+  VISITOR: 'Visitante',
+  ACCESS_CONTROL: 'Control de Acceso' // ⭐ NUEVO ROL
 } as const;
 
 export type RoleType = typeof ROLES[keyof typeof ROLES];

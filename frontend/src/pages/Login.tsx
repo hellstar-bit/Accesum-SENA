@@ -1,3 +1,4 @@
+// frontend/src/pages/Login.tsx - CON REDIRECCIÓN PARA CONTROL DE ACCESO
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -18,7 +19,7 @@ const Login = () => {
     }
   }, [isAuthenticated, user]);
 
-  // ✅ FUNCIÓN PARA REDIRIGIR SEGÚN EL ROL
+  // ✅ FUNCIÓN PARA REDIRIGIR SEGÚN EL ROL (INCLUYE CONTROL DE ACCESO)
   const redirectUserByRole = (userData: any) => {
     const role = userData?.role?.name;
     console.log('🎯 Redirigiendo usuario con rol:', role);
@@ -32,6 +33,9 @@ const Login = () => {
         break;
       case 'Aprendiz':
         navigate('/learner-profile', { replace: true });
+        break;
+      case 'Control de Acceso':
+        navigate('/access', { replace: true }); // ⭐ NUEVO: Redirige directamente al control de acceso
         break;
       default:
         console.warn('Rol no reconocido:', role);
@@ -80,6 +84,17 @@ const Login = () => {
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-green-600">ACCESUM</h1>
           <p className="text-gray-600 mt-2">Sistema de control de acceso a las instalaciones del SENA</p>
+          
+          {/* ⭐ MENSAJE ADICIONAL PARA DIFERENTES TIPOS DE USUARIO */}
+          <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+            <p className="text-xs text-blue-600 font-medium">Tipos de acceso disponibles:</p>
+            <div className="text-xs text-blue-500 mt-1 space-y-1">
+              <div>🔧 <strong>Administrador:</strong> Acceso completo al sistema</div>
+              <div>👨‍🏫 <strong>Instructor:</strong> Control de asistencia</div>
+              <div>🎓 <strong>Aprendiz:</strong> Consulta de clases</div>
+              <div>🔐 <strong>Control de Acceso:</strong> Solo gestión de entradas/salidas</div>
+            </div>
+          </div>
         </div>
 
         {error && (
@@ -158,6 +173,14 @@ const Login = () => {
             </a>
           </div>
         </form>
+
+        {/* ⭐ INFORMACIÓN ADICIONAL EN EL FOOTER */}
+        <div className="mt-6 text-center">
+          <div className="text-xs text-gray-500">
+            <p>Si eres personal de portería, utiliza tus credenciales de <strong>"Control de Acceso"</strong></p>
+            <p className="mt-1">Solo tendrás acceso al sistema de gestión de entradas y salidas</p>
+          </div>
+        </div>
       </div>
     </div>
   );

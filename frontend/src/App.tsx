@@ -1,53 +1,44 @@
-// frontend/src/App.tsx - ACTUALIZADO CON REDIRECCIÓN POR ROL Y GUARDS
+// frontend/src/App.tsx - CON RUTAS PARA CONTROL DE ACCESO
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+import PrivateRoute from './components/auth/PrivateRoute';
+import Layout from './components/layout/Layout';
+
+// Páginas de autenticación
 import Login from './pages/Login';
+
+// Páginas del administrador
 import Dashboard from './pages/Dashboard';
 import UserManagement from './pages/UserManagement';
-import AccessControl from './pages/AccessControl';
 import Configuration from './pages/Configuration';
 import ImportPage from './pages/ImportPage';
-import LearnerProfile from './pages/LearnerProfile';
 import InstructorManagement from './pages/InstructorManagement';
-import InstructorProfilePage from './pages/InstructorProfile';
-import InstructorDashboard from './pages/InstructorDashboard';
-import InstructorAttendance from './pages/InstructorAttendance';
-import MyClasses from './pages/MyClasses';
 import ProfileManagement from './pages/ProfileManagement';
 import TrimesterScheduleManagement from './pages/TrimesterScheduleManagement';
-import Layout from './components/layout/Layout';
-import PrivateRoute from './components/auth/PrivateRoute';
-import { AuthProvider } from './context/AuthContext';
-import { useAuth } from './context/AuthContext';
-import RecentActivity from './pages/RecentActivity';
 
-// Componente para redirección inteligente por rol
-const RoleBasedRedirect = () => {
-  const { user } = useAuth();
-  const userRole = user?.role?.name;
-  
-  console.log('🎯 RoleBasedRedirect - Redirigiendo según rol:', userRole);
-  
-  switch (userRole) {
-    case 'Administrador':
-      return <Navigate to="/dashboard" replace />;
-    case 'Instructor':
-      return <Navigate to="/instructor-profile" replace />;
-    case 'Aprendiz':
-      return <Navigate to="/my-classes" replace />;
-    default:
-      console.warn('⚠️ Rol no reconocido, redirigiendo a dashboard:', userRole);
-      return <Navigate to="/dashboard" replace />;
-  }
-};
+// Páginas del instructor
+import InstructorDashboard from './pages/InstructorDashboard';
+import InstructorAttendance from './pages/InstructorAttendance';
+import InstructorProfile from './pages/InstructorProfile';
+
+// Páginas del aprendiz
+import LearnerProfile from './pages/LearnerProfile';
+import MyClasses from './pages/MyClasses';
+
+// Páginas de control de acceso
+import AccessControl from './pages/AccessControl';
 
 function App() {
   return (
-    <div className="app-container h-screen overflow-hidden">
-      <Router>
-        <AuthProvider>
+    <Router>
+      <AuthProvider>
+        <div className="App">
           <Routes>
-            {/* Ruta de login - Pantalla completa */}
+            {/* Ruta pública de login */}
             <Route path="/login" element={<Login />} />
+            
+            {/* Redirección de la raíz */}
+            <Route path="/" element={<Navigate to="/login" replace />} />
             
             {/* Rutas protegidas con layout */}
             <Route path="/" element={
@@ -55,119 +46,168 @@ function App() {
                 <Layout />
               </PrivateRoute>
             }>
-              {/* ⭐ REDIRECCIÓN INTELIGENTE POR ROL */}
-              <Route index element={<RoleBasedRedirect />} />
               
-              {/* ⭐ DASHBOARD PRINCIPAL - Solo Administradores */}
-              <Route path="dashboard" element={
+              {/* ================================= */}
+              {/* RUTAS DEL ADMINISTRADOR */}
+              {/* ================================= */}
+              <Route path="/dashboard" element={
                 <PrivateRoute roles={['Administrador']}>
                   <Dashboard />
                 </PrivateRoute>
               } />
               
-              {/* ⭐ GESTIÓN DE USUARIOS Y PERFILES - Solo Administradores */}
-              <Route path="users" element={
+              <Route path="/users" element={
                 <PrivateRoute roles={['Administrador']}>
                   <UserManagement />
                 </PrivateRoute>
               } />
-              <Route path="profiles" element={
+              
+              <Route path="/profiles" element={
                 <PrivateRoute roles={['Administrador']}>
                   <ProfileManagement />
                 </PrivateRoute>
               } />
-
-              {/* ⭐ ACTIVIDAD RECIENTE - Solo Administradores */}
-              <Route path="recent-activity" element={
-                <PrivateRoute roles={['Administrador']}>
-                  <RecentActivity />
-                </PrivateRoute>
-              } />
               
-              {/* ⭐ CONTROL DE ACCESO - Solo Administradores */}
-              <Route path="access" element={
-                <PrivateRoute roles={['Administrador']}>
-                  <AccessControl />
-                </PrivateRoute>
-              } />
-              
-              {/* ⭐ GESTIÓN DE INSTRUCTORES - Solo Administradores */}
-              <Route path="instructors" element={
+              <Route path="/instructors" element={
                 <PrivateRoute roles={['Administrador']}>
                   <InstructorManagement />
                 </PrivateRoute>
               } />
               
-              {/* ⭐ RUTAS DE INSTRUCTOR - RESTRINGIDAS */}
-              
-              {/* Dashboard de Instructor - BLOQUEADA */}
-              <Route path="instructor-dashboard" element={
-                <PrivateRoute roles={['BLOCKED_FOR_INSTRUCTOR']}>
-                  <InstructorDashboard />
-                </PrivateRoute>
-              } />
-              
-              {/* Mis Clases - BLOQUEADA PARA INSTRUCTORES, PERMITIDA PARA APRENDICES */}
-              <Route path="my-classes" element={
-                <PrivateRoute roles={['Aprendiz']}>
-                  <MyClasses />
-                </PrivateRoute>
-              } />
-              
-              {/* ⭐ RUTAS PERMITIDAS PARA INSTRUCTOR */}
-              <Route path="instructor-profile" element={
-                <PrivateRoute roles={['Instructor']}>
-                  <InstructorProfilePage />
-                </PrivateRoute>
-              } />
-              <Route path="instructor-attendance" element={
-                <PrivateRoute roles={['Instructor']}>
-                  <InstructorAttendance />
-                </PrivateRoute>
-              } />
-              
-              {/* ⭐ GESTIÓN DE HORARIOS POR TRIMESTRE - Solo Administradores */}
-              <Route path="trimester-schedules" element={
-                <PrivateRoute roles={['Administrador']}>
-                  <TrimesterScheduleManagement />
-                </PrivateRoute>
-              } />
-              
-              {/* ⭐ CONFIGURACIÓN DEL SISTEMA - Solo Administradores */}
-              <Route path="config" element={
+              <Route path="/config" element={
                 <PrivateRoute roles={['Administrador']}>
                   <Configuration />
                 </PrivateRoute>
               } />
               
-              {/* ⭐ IMPORTACIÓN DE DATOS - Solo Administradores */}
-              <Route path="import" element={
+              <Route path="/import" element={
                 <PrivateRoute roles={['Administrador']}>
                   <ImportPage />
                 </PrivateRoute>
               } />
               
-              {/* ⭐ PERFIL PERSONAL PARA APRENDICES */}
-              <Route path="my-profile" element={
-                <PrivateRoute roles={['Aprendiz', 'Instructor', 'Administrador']}>
+              <Route path="/trimester-schedule" element={
+                <PrivateRoute roles={['Administrador']}>
+                  <TrimesterScheduleManagement />
+                </PrivateRoute>
+              } />
+              
+              {/* ================================= */}
+              {/* RUTAS DEL INSTRUCTOR */}
+              {/* ================================= */}
+              <Route path="/instructor-dashboard" element={
+                <PrivateRoute roles={['Instructor']}>
+                  <InstructorDashboard />
+                </PrivateRoute>
+              } />
+              
+              <Route path="/instructor-attendance" element={
+                <PrivateRoute roles={['Instructor']}>
+                  <InstructorAttendance />
+                </PrivateRoute>
+              } />
+              
+              <Route path="/instructor-profile" element={
+                <PrivateRoute roles={['Instructor']}>
+                  <InstructorProfile />
+                </PrivateRoute>
+              } />
+              
+              {/* ================================= */}
+              {/* RUTAS DEL APRENDIZ */}
+              {/* ================================= */}
+              <Route path="/learner-profile" element={
+                <PrivateRoute roles={['Aprendiz']}>
                   <LearnerProfile />
                 </PrivateRoute>
               } />
               
-              {/* Rutas legacy - mantener compatibilidad con redirección */}
-              <Route path="user-management" element={<Navigate to="/users" replace />} />
-              <Route path="profile-management" element={<Navigate to="/profiles" replace />} />
-              <Route path="access-control" element={<Navigate to="/access" replace />} />
-              <Route path="instructor-management" element={<Navigate to="/instructors" replace />} />
-              <Route path="configuration" element={<Navigate to="/config" replace />} />
+              <Route path="/my-classes" element={
+                <PrivateRoute roles={['Aprendiz']}>
+                  <MyClasses />
+                </PrivateRoute>
+              } />
+              
+              <Route path="/my-profile" element={
+                <PrivateRoute roles={['Aprendiz']}>
+                  <LearnerProfile />
+                </PrivateRoute>
+              } />
+              
+              {/* ================================= */}
+              {/* RUTAS DE CONTROL DE ACCESO */}
+              {/* ================================= */}
+              
+              {/* ⭐ RUTA PRINCIPAL PARA CONTROL DE ACCESO */}
+              <Route path="/access" element={
+                <PrivateRoute roles={['Administrador', 'Control de Acceso']}>
+                  <AccessControl />
+                </PrivateRoute>
+              } />
+              
+              {/* ⭐ PERFIL PARA USUARIO DE CONTROL DE ACCESO */}
+              <Route path="/access-profile" element={
+                <PrivateRoute roles={['Control de Acceso']}>
+                  <InstructorProfile />
+                </PrivateRoute>
+              } />
+              
+              {/* ================================= */}
+              {/* RUTAS BLOQUEADAS PARA CIERTOS ROLES */}
+              {/* ================================= */}
+              
+              {/* Rutas que instructores NO pueden acceder */}
+              <Route path="/users/*" element={
+                <PrivateRoute roles={['BLOCKED_FOR_INSTRUCTOR']}>
+                  <div>Acceso denegado</div>
+                </PrivateRoute>
+              } />
+              
+              {/* Rutas que Control de Acceso NO puede acceder */}
+              <Route path="/dashboard" element={
+                <PrivateRoute roles={['BLOCKED_FOR_ACCESS_CONTROL']}>
+                  <div>Acceso denegado</div>
+                </PrivateRoute>
+              } />
+              
+              <Route path="/users" element={
+                <PrivateRoute roles={['BLOCKED_FOR_ACCESS_CONTROL']}>
+                  <div>Acceso denegado</div>
+                </PrivateRoute>
+              } />
+              
+              <Route path="/config" element={
+                <PrivateRoute roles={['BLOCKED_FOR_ACCESS_CONTROL']}>
+                  <div>Acceso denegado</div>
+                </PrivateRoute>
+              } />
+              
+              <Route path="/import" element={
+                <PrivateRoute roles={['BLOCKED_FOR_ACCESS_CONTROL']}>
+                  <div>Acceso denegado</div>
+                </PrivateRoute>
+              } />
+              
+              <Route path="/instructors" element={
+                <PrivateRoute roles={['BLOCKED_FOR_ACCESS_CONTROL']}>
+                  <div>Acceso denegado</div>
+                </PrivateRoute>
+              } />
+              
+              <Route path="/profiles" element={
+                <PrivateRoute roles={['BLOCKED_FOR_ACCESS_CONTROL']}>
+                  <div>Acceso denegado</div>
+                </PrivateRoute>
+              } />
+              
             </Route>
             
-            {/* Catch-all - Redireccionar a la página principal con redirección inteligente */}
-            <Route path="*" element={<Navigate to="/" replace />} />
+            {/* Ruta de fallback */}
+            <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
-        </AuthProvider>
-      </Router>
-    </div>
+        </div>
+      </AuthProvider>
+    </Router>
   );
 }
 

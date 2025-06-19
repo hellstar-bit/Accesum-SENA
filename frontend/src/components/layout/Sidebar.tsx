@@ -1,4 +1,4 @@
-// frontend/src/components/layout/Sidebar.tsx - ACTUALIZADO PARA INSTRUCTOR
+// frontend/src/components/layout/Sidebar.tsx - CON ROL CONTROL DE ACCESO
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
@@ -26,6 +26,7 @@ const Sidebar = () => {
       }
     ];
 
+    // ⭐ MENÚ PARA ADMINISTRADOR (ACCESO COMPLETO)
     if (role === 'Administrador') {
       return [
         ...commonItems,
@@ -47,16 +48,6 @@ const Sidebar = () => {
             </svg>
           )
         },
-        // ❌ GESTIÓN DE PERFILES REMOVIDA - Ya no aparece en el menú
-        // {
-        //   path: '/profiles',
-        //   name: 'Gestión de Perfiles',
-        //   icon: (
-        //     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        //       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-        //     </svg>
-        //   )
-        // },
         {
           path: '/instructors',
           name: 'Gestión de Instructores',
@@ -88,7 +79,31 @@ const Sidebar = () => {
       ];
     }
 
-    // ⭐ CONFIGURACIÓN ACTUALIZADA PARA INSTRUCTOR - SOLO CONTROL DE ASISTENCIA Y MI PERFIL
+    // ⭐ NUEVO: MENÚ PARA CONTROL DE ACCESO (SOLO ACCESO)
+    if (role === 'Control de Acceso') {
+      return [
+        {
+          path: '/access',
+          name: 'Control de Acceso',
+          icon: (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          )
+        },
+        {
+          path: '/access-profile',
+          name: 'Mi Perfil',
+          icon: (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+          )
+        }
+      ];
+    }
+
+    // ⭐ MENÚ PARA INSTRUCTOR (SOLO ASISTENCIA Y PERFIL)
     if (role === 'Instructor') {
       return [
         {
@@ -112,6 +127,7 @@ const Sidebar = () => {
       ];
     }
 
+    // MENÚ PARA APRENDIZ
     if (role === 'Aprendiz') {
       return [
         {
@@ -169,6 +185,14 @@ const Sidebar = () => {
               {user?.profile?.firstName} {user?.profile?.lastName}
             </p>
             <p className="text-xs text-gray-500 truncate">{user?.role?.name}</p>
+            {/* ⭐ INDICADOR ESPECIAL PARA CONTROL DE ACCESO */}
+            {user?.role?.name === 'Control de Acceso' && (
+              <div className="mt-1">
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                  🔐 Portero
+                </span>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -192,6 +216,18 @@ const Sidebar = () => {
           </NavLink>
         ))}
       </nav>
+
+      {/* ⭐ INFORMACIÓN ESPECÍFICA PARA CONTROL DE ACCESO */}
+      {user?.role?.name === 'Control de Acceso' && (
+        <div className="px-4 py-3 border-t border-gray-200 bg-blue-50">
+          <div className="text-center">
+            <div className="text-xs text-blue-600 font-medium mb-1">🔐 Modo Control de Acceso</div>
+            <div className="text-xs text-blue-500">
+              Solo tienes acceso al sistema de control de entradas y salidas
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Footer con botón de logout */}
       <div className="px-4 py-4 border-t border-gray-200">

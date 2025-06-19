@@ -24,9 +24,9 @@ import { AccessService } from './access.service';
 export class AccessController {
   constructor(private readonly accessService: AccessService) {}
 
-  // ⭐ CHECK-IN - ENTRADA AL SISTEMA
+  // ⭐ CHECK-IN - ENTRADA AL SISTEMA (INCLUYE CONTROL DE ACCESO)
   @Post('check-in')
-  @Roles('Administrador', 'Instructor', 'Aprendiz')
+  @Roles('Administrador', 'Instructor', 'Aprendiz', 'Control de Acceso')
   async checkIn(@Body() data: { 
     profileId?: number; 
     qrData?: string 
@@ -47,9 +47,9 @@ export class AccessController {
     }
   }
 
-  // ⭐ CHECK-OUT - SALIDA DEL SISTEMA
+  // ⭐ CHECK-OUT - SALIDA DEL SISTEMA (INCLUYE CONTROL DE ACCESO)
   @Post('check-out')
-  @Roles('Administrador', 'Instructor', 'Aprendiz')
+  @Roles('Administrador', 'Instructor', 'Aprendiz', 'Control de Acceso')
   async checkOut(@Body() data: { 
     profileId?: number; 
     qrData?: string 
@@ -70,7 +70,7 @@ export class AccessController {
     }
   }
 
-  // ⭐ OBTENER ESTADÍSTICAS DE ACCESO
+  // ⭐ OBTENER ESTADÍSTICAS DE ACCESO (SOLO ADMIN)
   @Get('stats')
   @Roles('Administrador')
   async getStats(@Query() filters: {
@@ -92,9 +92,9 @@ export class AccessController {
     }
   }
 
-  // ⭐ OBTENER HISTORIAL DE ACCESOS
+  // ⭐ OBTENER HISTORIAL DE ACCESOS (INCLUYE CONTROL DE ACCESO PARA VISTA LIMITADA)
   @Get('history')
-  @Roles('Administrador')
+  @Roles('Administrador', 'Control de Acceso')
   async getHistory(@Query() filters: {
     userId?: number;
     startDate?: string;
@@ -117,9 +117,9 @@ export class AccessController {
     }
   }
 
-  // ⭐ BUSCAR POR NÚMERO DE DOCUMENTO
+  // ⭐ BUSCAR POR NÚMERO DE DOCUMENTO (INCLUYE CONTROL DE ACCESO)
   @Get('search/:document')
-  @Roles('Administrador')
+  @Roles('Administrador', 'Control de Acceso')
   async searchByDocument(@Param('document') documentNumber: string) {
     try {
       console.log('🌐 GET /access/search/' + documentNumber);
@@ -148,9 +148,9 @@ export class AccessController {
     }
   }
 
-  // ⭐ OBTENER ACCESOS ACTIVOS (USUARIOS DENTRO)
+  // ⭐ OBTENER ACCESOS ACTIVOS (INCLUYE CONTROL DE ACCESO)
   @Get('active')
-  @Roles('Administrador')
+  @Roles('Administrador', 'Control de Acceso')
   async getActiveAccess() {
     try {
       console.log('🌐 GET /access/active');
@@ -168,7 +168,7 @@ export class AccessController {
 
   // ⭐ OBTENER OCUPACIÓN ACTUAL
   @Get('occupancy')
-  @Roles('Administrador')
+  @Roles('Administrador', 'Control de Acceso')
   async getCurrentOccupancy() {
     try {
       console.log('🌐 GET /access/occupancy');
@@ -186,7 +186,7 @@ export class AccessController {
 
   // ⭐ VERIFICAR ESTADO DE ACCESO DE UN USUARIO
   @Get('status/:userId')
-  @Roles('Administrador')
+  @Roles('Administrador', 'Control de Acceso')
   async checkUserStatus(@Param('userId', ParseIntPipe) userId: number) {
     try {
       console.log('🌐 GET /access/status/' + userId);
@@ -400,7 +400,7 @@ export class AccessController {
 
   // ⭐ VALIDAR QR
   @Post('validate-qr')
-  @Roles('Administrador', 'Instructor', 'Aprendiz')
+  @Roles('Administrador', 'Instructor', 'Aprendiz', 'Control de Acceso')
   async validateQR(@Body() data: { qrData: string }) {
     try {
       console.log('🌐 POST /access/validate-qr');
@@ -420,7 +420,7 @@ export class AccessController {
 
   // ⭐ BÚSQUEDA POR DOCUMENTO (QUERY PARAM)
   @Get('search')
-  @Roles('Administrador', 'Instructor')
+  @Roles('Administrador', 'Control de Acceso')
   async searchByDocumentQuery(@Query('documentNumber') documentNumber: string) {
     try {
       console.log('🌐 GET /access/search?documentNumber=' + documentNumber);
@@ -447,19 +447,18 @@ export class AccessController {
 
   // ⭐ OCUPACIÓN ACTUAL (ALIAS PARA COMPATIBILIDAD) - CORREGIDO
   @Get('current-occupancy')
-  @Roles('Administrador', 'Instructor')
+  @Roles('Administrador', 'Control de Acceso')
   async getCurrentOccupancyAlias() {
     try {
       console.log('🌐 GET /access/current-occupancy');
       const occupancy = await this.accessService.getCurrentOccupancy();
       
-      // ⭐ USAR 'records' EN LUGAR DE 'details'
       return {
         current: occupancy.total,
         capacity: 100,
         percentage: Math.round((occupancy.total / 100) * 100),
         total: occupancy.total,
-        records: occupancy.records // ⭐ CORREGIDO: usar 'records'
+        records: occupancy.records
       };
     } catch (error) {
       console.error('❌ Error al obtener ocupación actual:', error);
@@ -472,7 +471,7 @@ export class AccessController {
 
   // ⭐ ESTADÍSTICAS EN TIEMPO REAL
   @Get('realtime-stats')
-  @Roles('Administrador', 'Instructor')
+  @Roles('Administrador', 'Control de Acceso')
   async getRealTimeStats() {
     try {
       console.log('🌐 GET /access/realtime-stats');
@@ -487,19 +486,12 @@ export class AccessController {
       
       const occupancy = await this.accessService.getCurrentOccupancy();
       
-      const mostActiveUsers = [
-        { name: 'Usuario Ejemplo 1', visits: 15 },
-        { name: 'Usuario Ejemplo 2', visits: 12 },
-        { name: 'Usuario Ejemplo 3', visits: 10 }
-      ];
-      
       const result = {
         entriesLast24h: stats.totalEntries || 0,
         exitsLast24h: stats.completedSessions || 0,
         currentOccupancy: occupancy.total,
         averageStayTime: stats.averageSessionTime || '0h 0m',
-        peakHourToday: stats.peakHour?.hour ? `${stats.peakHour.hour}:00` : 'N/A',
-        mostActiveUsers
+        peakHourToday: stats.peakHour?.hour ? `${stats.peakHour.hour}:00` : 'N/A'
       };
       
       console.log('✅ Estadísticas en tiempo real obtenidas');
@@ -559,7 +551,7 @@ export class AccessController {
 
   // ⭐ REGISTROS DE HOY
   @Get('today')
-  @Roles('Administrador', 'Instructor')
+  @Roles('Administrador', 'Control de Acceso')
   async getTodayRecords() {
     try {
       console.log('🌐 GET /access/today');
@@ -586,14 +578,13 @@ export class AccessController {
 
   // ⭐ PERSONAS ACTUALMENTE DENTRO - CORREGIDO
   @Get('people-inside')
-  @Roles('Administrador', 'Instructor')
+  @Roles('Administrador', 'Control de Acceso')
   async getPeopleInside() {
     try {
       console.log('🌐 GET /access/people-inside');
       
       const occupancy = await this.accessService.getCurrentOccupancy();
       
-      // ⭐ USAR 'records' Y CORREGIR ESTRUCTURA
       const result = {
         count: occupancy.total,
         people: occupancy.records.map(record => ({

@@ -1,23 +1,26 @@
-// backend/src/config/datasource.config.ts - CORREGIDO
+// backend/src/config/datasource.config.ts
 import { DataSource, DataSourceOptions } from 'typeorm';
 import { join } from 'path';
+import { config } from 'dotenv';
 
-// Configuración específica para DataSource (seeds, migrations, etc.)
+config();
+
 export const dataSourceOptions: DataSourceOptions = {
-  type: 'mysql', // ✅ Especificar tipo explícitamente
+  type: 'postgres',
   host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '3307'),
-  username: process.env.DB_USERNAME || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_DATABASE || 'accesum', // ✅ CORREGIDO: cambiado de 'accesum_sena' a 'accesum'
+  port: parseInt(process.env.DB_PORT || '5432'),
+  username: process.env.DB_USERNAME || 'postgres',
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME || 'postgres',
+  schema: process.env.DB_SCHEMA || 'acceso', // ⭐ AGREGADO
   entities: [
     join(__dirname, '..', '**', '*.entity{.ts,.js}')
   ],
-  synchronize: process.env.NODE_ENV !== 'production', // ⚠️ Solo en desarrollo
+  synchronize: process.env.NODE_ENV !== 'production',
   logging: process.env.NODE_ENV === 'development',
-  charset: 'utf8mb4',
-  timezone: 'Z',
+  ssl: process.env.NODE_ENV === 'production' ? {
+    rejectUnauthorized: false
+  } : false,
 };
 
-// DataSource para usar en seeds y migrations
 export const AppDataSource = new DataSource(dataSourceOptions);

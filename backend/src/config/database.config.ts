@@ -6,13 +6,19 @@ config();
 
 console.log('🔍 Debug - Variables de entorno:');
 console.log('NODE_ENV:', process.env.NODE_ENV);
-console.log('DATABASE_URL existe:', !!process.env.DATABASE_URL);
+console.log('DB_HOST:', process.env.DB_HOST);
+console.log('DB_SCHEMA:', process.env.DB_SCHEMA);
 
 export const databaseConfig: TypeOrmModuleOptions = {
   type: 'postgres',
-  url: process.env.DATABASE_URL,
-  synchronize: true,
-  logging: true,
+  host: process.env.DB_HOST || 'localhost',
+  port: parseInt(process.env.DB_PORT || '5432'),
+  username: process.env.DB_USERNAME || 'postgres',
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME || 'postgres',
+  schema: process.env.DB_SCHEMA || 'acceso', // ⭐ AGREGADO: esquema específico
+  synchronize: process.env.NODE_ENV !== 'production',
+  logging: process.env.NODE_ENV === 'development',
   entities: [__dirname + '/../**/*.entity{.ts,.js}'],
   autoLoadEntities: true,
   ssl: process.env.NODE_ENV === 'production' ? {
@@ -27,7 +33,10 @@ export const databaseConfig: TypeOrmModuleOptions = {
 
 console.log('🔧 Configuración de BD:', {
   type: databaseConfig.type,
-  hasUrl: !!databaseConfig.url,
+  host: process.env.DB_HOST,
+  port: process.env.DB_PORT,
+  database: process.env.DB_NAME,
+  schema: databaseConfig.schema, // ⭐ AGREGADO
   ssl: databaseConfig.ssl,
   synchronize: databaseConfig.synchronize,
 });

@@ -16,9 +16,9 @@ export const dataSourceOptions: DataSourceOptions = {
   entities: [
     join(__dirname, '..', '**', '*.entity{.ts,.js}')
   ],
-  synchronize: process.env.NODE_ENV !== 'production',
+  synchronize: true, // ⭐ ACTIVADO: Para crear tablas automáticamente
   logging: process.env.NODE_ENV === 'development',
-  ssl: false, // ⭐ DESACTIVADO: Sin SSL
+  ssl: false,
 };
 
 export const AppDataSource = new DataSource(dataSourceOptions);

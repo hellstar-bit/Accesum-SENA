@@ -17,11 +17,11 @@ export const databaseConfig: TypeOrmModuleOptions = {
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME || 'postgres',
   schema: process.env.DB_SCHEMA || 'acceso',
-  synchronize: process.env.NODE_ENV !== 'production',
+  synchronize: true, // ⭐ ACTIVADO: Para crear tablas automáticamente
   logging: process.env.NODE_ENV === 'development',
   entities: [__dirname + '/../**/*.entity{.ts,.js}'],
   autoLoadEntities: true,
-  ssl: false, // ⭐ DESACTIVADO: Sin SSL
+  ssl: false,
   extra: {
     max: 20,
     idleTimeoutMillis: 30000,

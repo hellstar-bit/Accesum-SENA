@@ -52,7 +52,7 @@ export class EmailService {
   }
 
   async sendPasswordResetEmail(email: string, firstName: string, resetToken: string): Promise<boolean> {
-    const frontendUrl = process.env.FRONTEND_URL || 'https://acceso-sena.netlify.app';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://accesum-sena.netlify.app';
     const resetUrl = `${frontendUrl}/reset-password/${resetToken}`;
     
     const html = this.generatePasswordResetTemplate(firstName, resetUrl, resetToken);

@@ -10,6 +10,8 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { User } from '../users/entities/user.entity';
 import { Profile } from '../profiles/entities/profile.entity';
+import { PasswordResetService } from './password-reset.service';
+import { EmailService } from '../common/services/email.service';
 
 console.log('🔑 AuthModule - JWT_SECRET del .env:', process.env.JWT_SECRET || 'NO DEFINIDO');
 
@@ -27,12 +29,16 @@ console.log('🔑 AuthModule - JWT_SECRET del .env:', process.env.JWT_SECRET || 
   ],
   controllers: [AuthController],
   providers: [
+    EmailService,
+    PasswordResetService,
     AuthService,
     JwtStrategy,
     JwtAuthGuard,
     RolesGuard,
   ],
   exports: [
+    EmailService,
+    PasswordResetService,
     AuthService,
     JwtAuthGuard,
     RolesGuard,

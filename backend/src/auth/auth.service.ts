@@ -204,4 +204,18 @@ export class AuthService {
     // En el futuro se puede implementar una blacklist de tokens
     console.log(`Usuario ${userId} ha cerrado sesión`);
   }
+
+  async findUserByEmail(email: string): Promise<User | null> {
+    try {
+      const user = await this.userRepository.findOne({
+        where: { email, isActive: true },
+        relations: ['role', 'profile']
+      });
+      
+      return user;
+    } catch (error) {
+      console.error('Error buscando usuario por email:', error);
+      return null;
+    }
+  }
 }

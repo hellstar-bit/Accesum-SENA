@@ -18,6 +18,13 @@ export class User {
   @Column({ default: true })
   isActive: boolean;
 
+  // ✅ CAMPOS CORREGIDOS PARA RESET DE CONTRASEÑA
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  resetToken: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  resetTokenExpiry: Date | null;
+
   @OneToOne(() => Profile, profile => profile.user, { cascade: true })
   profile: Profile;
 
@@ -28,7 +35,6 @@ export class User {
   @Column()
   roleId: number;
 
-  // ✅ Relación many-to-many con Competence
   @ManyToMany(() => Competence, competence => competence.instructors)
   @JoinTable({
     name: 'instructor_competences',
@@ -43,9 +49,9 @@ export class User {
   })
   competences: Competence[];
 
-  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+  @Column({ type: 'timestamptz', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;
 
-  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP', onUpdate: 'CURRENT_TIMESTAMP' })
+  @Column({ type: 'timestamptz', default: () => 'CURRENT_TIMESTAMP' })
   updatedAt: Date;
 }

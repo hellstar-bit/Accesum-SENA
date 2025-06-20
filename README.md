@@ -55,6 +55,7 @@ Accesum-SENA
 │  │  │  │  ├─ jwt-auth.guard.ts
 │  │  │  │  └─ roles.guard.ts
 │  │  │  ├─ jwt.config.ts
+│  │  │  ├─ password-reset.service.ts
 │  │  │  ├─ strategies
 │  │  │  │  └─ jwt.strategy.ts
 │  │  │  └─ types
@@ -132,7 +133,7 @@ Accesum-SENA
 │  ├─ package.json
 │  ├─ postcss.config.js
 │  ├─ public
-│  │  ├─ vite.svg
+│  │  ├─ favicon.ico
 │  │  └─ _redirects
 │  ├─ README.md
 │  ├─ src
@@ -148,6 +149,7 @@ Accesum-SENA
 │  │  │  ├─ attendance
 │  │  │  │  └─ AttendanceNotifications.tsx
 │  │  │  ├─ auth
+│  │  │  │  ├─ ChangePasswordForm.tsx
 │  │  │  │  └─ PrivateRoute.tsx
 │  │  │  ├─ ficha
 │  │  │  │  └─ FichaCompetenceManagement.tsx
@@ -176,6 +178,7 @@ Accesum-SENA
 │  │  │  ├─ AccessControl.tsx
 │  │  │  ├─ Configuration.tsx
 │  │  │  ├─ Dashboard.tsx
+│  │  │  ├─ ForgotPassword.tsx
 │  │  │  ├─ ImportPage.tsx
 │  │  │  ├─ InstructorAttendance.tsx
 │  │  │  ├─ InstructorDashboard.tsx
@@ -185,6 +188,8 @@ Accesum-SENA
 │  │  │  ├─ Login.tsx
 │  │  │  ├─ MyClasses.tsx
 │  │  │  ├─ ProfileManagement.tsx
+│  │  │  ├─ RecentActivity.tsx
+│  │  │  ├─ ResetPassword.tsx
 │  │  │  ├─ TrimesterScheduleManagement.tsx
 │  │  │  └─ UserManagement.tsx
 │  │  ├─ services
@@ -199,6 +204,8 @@ Accesum-SENA
 │  │  │  ├─ instructorAssignmentService.ts
 │  │  │  ├─ instructorService.ts
 │  │  │  ├─ learnerService.ts
+│  │  │  ├─ passwordResetService.ts
+│  │  │  ├─ passwordService.ts
 │  │  │  ├─ profileService.ts
 │  │  │  ├─ scheduleService.ts
 │  │  │  ├─ timezoneService.ts

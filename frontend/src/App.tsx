@@ -6,6 +6,8 @@ import Layout from './components/layout/Layout';
 
 // Páginas de autenticación
 import Login from './pages/Login';
+import ForgotPassword from './pages/ForgotPassword';    // ⭐ NUEVO
+import ResetPassword from './pages/ResetPassword';  
 
 // Páginas del administrador
 import Dashboard from './pages/Dashboard';
@@ -34,8 +36,12 @@ function App() {
       <AuthProvider>
         <div className="App">
           <Routes>
-            {/* Ruta pública de login */}
+            {/* ================================= */}
+            {/* RUTAS PÚBLICAS DE AUTENTICACIÓN */}
+            {/* ================================= */}
             <Route path="/login" element={<Login />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password/:token" element={<ResetPassword />} />
             
             {/* Redirección de la raíz */}
             <Route path="/" element={<Navigate to="/login" replace />} />
@@ -169,6 +175,8 @@ function App() {
                   <div>Acceso denegado</div>
                 </PrivateRoute>
               } />
+
+              
               
               <Route path="/users" element={
                 <PrivateRoute roles={['BLOCKED_FOR_ACCESS_CONTROL']}>
@@ -187,6 +195,8 @@ function App() {
                   <div>Acceso denegado</div>
                 </PrivateRoute>
               } />
+
+              
               
               <Route path="/instructors" element={
                 <PrivateRoute roles={['BLOCKED_FOR_ACCESS_CONTROL']}>

@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { Link } from 'react-router-dom';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -168,9 +169,12 @@ const Login = () => {
           </button>
 
           <div className="mt-4 text-center">
-            <a href="#" className="text-sm text-green-600 hover:underline">
+            <Link 
+              to="/forgot-password"                    // ⭐ CAMBIAR href por to
+              className="text-sm text-green-600 hover:underline"
+            >
               ¿Olvidaste tu contraseña?
-            </a>
+            </Link>
           </div>
         </form>
 

@@ -27,16 +27,6 @@ export class EmailService {
       },
     });
 
-    // Alternativa para SMTP personalizado
-    // this.transporter = nodemailer.createTransporter({
-    //   host: process.env.SMTP_HOST,
-    //   port: parseInt(process.env.SMTP_PORT || '587'),
-    //   secure: process.env.SMTP_SECURE === 'true',
-    //   auth: {
-    //     user: process.env.SMTP_USER,
-    //     pass: process.env.SMTP_PASSWORD,
-    //   },
-    // });
   }
 
   async sendEmail(options: EmailOptions): Promise<boolean> {
@@ -62,7 +52,8 @@ export class EmailService {
   }
 
   async sendPasswordResetEmail(email: string, firstName: string, resetToken: string): Promise<boolean> {
-    const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
+    const frontendUrl = process.env.FRONTEND_URL || 'https://acceso-sena.netlify.app';
+    const resetUrl = `${frontendUrl}/reset-password/${resetToken}`;
     
     const html = this.generatePasswordResetTemplate(firstName, resetUrl, resetToken);
     

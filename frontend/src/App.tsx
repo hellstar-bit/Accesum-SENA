@@ -17,6 +17,7 @@ import ImportPage from './pages/ImportPage';
 import InstructorManagement from './pages/InstructorManagement';
 import ProfileManagement from './pages/ProfileManagement';
 import TrimesterScheduleManagement from './pages/TrimesterScheduleManagement';
+import RecentActivity from './pages/RecentActivity';
 
 // Páginas del instructor
 import InstructorDashboard from './pages/InstructorDashboard';
@@ -56,6 +57,13 @@ function App() {
               {/* ================================= */}
               {/* RUTAS DEL ADMINISTRADOR */}
               {/* ================================= */}
+
+              {/* ⭐ NUEVA RUTA: RECENT ACTIVITY */}
+              <Route path="/recent-activity" element={
+                <PrivateRoute roles={['Administrador', 'Control de Acceso']}>
+                  <RecentActivity />
+                </PrivateRoute>
+              } />
               <Route path="/dashboard" element={
                 <PrivateRoute roles={['Administrador']}>
                   <Dashboard />

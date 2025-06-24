@@ -60,6 +60,9 @@ Accesum-SENA
 │  │  │  │  └─ jwt.strategy.ts
 │  │  │  └─ types
 │  │  │     └─ user-role.type.ts
+│  │  ├─ common
+│  │  │  └─ services
+│  │  │     └─ email.service.ts
 │  │  ├─ config
 │  │  │  ├─ competence.controller.ts
 │  │  │  ├─ competence.service.ts

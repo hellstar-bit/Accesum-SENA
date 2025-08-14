@@ -32,14 +32,12 @@ export class AccessController {
     qrData?: string 
   }) {
     try {
-      console.log('🌐 POST /access/check-in');
       
       if (!data.profileId && !data.qrData) {
         throw new BadRequestException('Se requiere profileId o qrData');
       }
 
       const result = await this.accessService.checkIn(data);
-      console.log('✅ Check-in exitoso');
       return result;
     } catch (error) {
       console.error('❌ Error en check-in:', error);
@@ -55,14 +53,12 @@ export class AccessController {
     qrData?: string 
   }) {
     try {
-      console.log('🌐 POST /access/check-out');
       
       if (!data.profileId && !data.qrData) {
         throw new BadRequestException('Se requiere profileId o qrData');
       }
 
       const result = await this.accessService.checkOut(data);
-      console.log('✅ Check-out exitoso');
       return result;
     } catch (error) {
       console.error('❌ Error en check-out:', error);
@@ -79,9 +75,7 @@ export class AccessController {
     groupBy?: 'day' | 'week' | 'month';
   }) {
     try {
-      console.log('🌐 GET /access/stats');
       const stats = await this.accessService.getStats(filters);
-      console.log('✅ Estadísticas obtenidas exitosamente');
       return stats;
     } catch (error) {
       console.error('❌ Error al obtener estadísticas:', error);
@@ -104,9 +98,7 @@ export class AccessController {
     limit?: number;
   }) {
     try {
-      console.log('🌐 GET /access/history');
       const history = await this.accessService.getHistory(filters);
-      console.log('✅ Historial obtenido exitosamente');
       return history;
     } catch (error) {
       console.error('❌ Error al obtener historial:', error);
@@ -122,7 +114,6 @@ export class AccessController {
   @Roles('Administrador', 'Control de Acceso')
   async searchByDocument(@Param('document') documentNumber: string) {
     try {
-      console.log('🌐 GET /access/search/' + documentNumber);
       
       if (!documentNumber || documentNumber.trim().length === 0) {
         throw new BadRequestException('Número de documento requerido');
@@ -134,7 +125,6 @@ export class AccessController {
         throw new NotFoundException(result.message || 'Usuario no encontrado');
       }
       
-      console.log('✅ Búsqueda por documento exitosa');
       return result;
     } catch (error) {
       console.error('❌ Error en búsqueda por documento:', error);
@@ -153,9 +143,7 @@ export class AccessController {
   @Roles('Administrador', 'Control de Acceso')
   async getActiveAccess() {
     try {
-      console.log('🌐 GET /access/active');
       const activeAccess = await this.accessService.getActiveAccess();
-      console.log('✅ Accesos activos obtenidos exitosamente');
       return activeAccess;
     } catch (error) {
       console.error('❌ Error al obtener accesos activos:', error);
@@ -171,9 +159,7 @@ export class AccessController {
   @Roles('Administrador', 'Control de Acceso')
   async getCurrentOccupancy() {
     try {
-      console.log('🌐 GET /access/occupancy');
       const occupancy = await this.accessService.getCurrentOccupancy();
-      console.log('✅ Ocupación actual obtenida exitosamente');
       return occupancy;
     } catch (error) {
       console.error('❌ Error al obtener ocupación actual:', error);
@@ -189,9 +175,7 @@ export class AccessController {
   @Roles('Administrador', 'Control de Acceso')
   async checkUserStatus(@Param('userId', ParseIntPipe) userId: number) {
     try {
-      console.log('🌐 GET /access/status/' + userId);
       const status = await this.accessService.checkUserStatus(userId);
-      console.log('✅ Estado de usuario obtenido exitosamente');
       return status;
     } catch (error) {
       console.error('❌ Error al verificar estado del usuario:', error);
@@ -214,7 +198,6 @@ export class AccessController {
     @Request() req: any
   ) {
     try {
-      console.log('🌐 POST /access/force-checkout');
       
       if (!data.userId && !data.accessRecordId) {
         throw new BadRequestException('Se requiere userId o accessRecordId');
@@ -225,7 +208,6 @@ export class AccessController {
         adminUserId: req.user.id
       });
       
-      console.log('✅ Check-out forzado exitoso');
       return result;
     } catch (error) {
       console.error('❌ Error al forzar check-out:', error);
@@ -243,7 +225,6 @@ export class AccessController {
     includeActive?: string;
   }) {
     try {
-      console.log('🌐 GET /access/report');
       
       const processedFilters = {
         startDate: filters.startDate,
@@ -255,7 +236,6 @@ export class AccessController {
       };
 
       const report = await this.accessService.getDetailedReport(processedFilters);
-      console.log('✅ Reporte detallado generado exitosamente');
       return report;
     } catch (error) {
       console.error('❌ Error al generar reporte detallado:', error);
@@ -271,7 +251,6 @@ export class AccessController {
   @Roles('Administrador')
   async cleanupOldRecords(@Body() data: { daysToKeep?: number }) {
     try {
-      console.log('🌐 POST /access/cleanup');
       
       const daysToKeep = data.daysToKeep || 365;
       
@@ -280,7 +259,6 @@ export class AccessController {
       }
 
       const result = await this.accessService.cleanupOldRecords(daysToKeep);
-      console.log('✅ Limpieza de registros completada');
       return result;
     } catch (error) {
       console.error('❌ Error en limpieza de registros:', error);
@@ -293,9 +271,7 @@ export class AccessController {
   @Roles('Administrador', 'Instructor', 'Aprendiz')
   async getMyStatus(@Request() req: any) {
     try {
-      console.log('🌐 GET /access/my-status');
       const status = await this.accessService.checkUserStatus(req.user.id);
-      console.log('✅ Mi estado obtenido exitosamente');
       return status;
     } catch (error) {
       console.error('❌ Error al obtener mi estado:', error);
@@ -319,14 +295,12 @@ export class AccessController {
     }
   ) {
     try {
-      console.log('🌐 GET /access/my-history');
       
       const history = await this.accessService.getHistory({
         ...filters,
         userId: req.user.id
       });
       
-      console.log('✅ Mi historial obtenido exitosamente');
       return history;
     } catch (error) {
       console.error('❌ Error al obtener mi historial:', error);
@@ -362,7 +336,6 @@ export class AccessController {
   @Roles('Administrador')
   async getQuickStats() {
     try {
-      console.log('🌐 GET /access/quick-stats');
       
       const today = new Date().toISOString().split('T')[0];
       const todayStats = await this.accessService.getStats({
@@ -373,7 +346,6 @@ export class AccessController {
       const occupancy = await this.accessService.getCurrentOccupancy();
       const activeAccess = await this.accessService.getActiveAccess();
 
-      console.log('✅ Estadísticas rápidas obtenidas');
       
       return {
         today: {
@@ -403,14 +375,12 @@ export class AccessController {
   @Roles('Administrador', 'Instructor', 'Aprendiz', 'Control de Acceso')
   async validateQR(@Body() data: { qrData: string }) {
     try {
-      console.log('🌐 POST /access/validate-qr');
       
       if (!data.qrData) {
         throw new BadRequestException('Datos QR requeridos');
       }
 
       const result = await this.accessService.validateQR(data.qrData);
-      console.log('✅ Validación QR exitosa');
       return result;
     } catch (error) {
       console.error('❌ Error al validar QR:', error);
@@ -423,7 +393,6 @@ export class AccessController {
   @Roles('Administrador', 'Control de Acceso')
   async searchByDocumentQuery(@Query('documentNumber') documentNumber: string) {
     try {
-      console.log('🌐 GET /access/search?documentNumber=' + documentNumber);
       
       if (!documentNumber || documentNumber.trim().length === 0) {
         return {
@@ -433,7 +402,6 @@ export class AccessController {
       }
 
       const result = await this.accessService.searchByDocument(documentNumber.trim());
-      console.log('✅ Búsqueda por documento exitosa');
       return result;
     } catch (error) {
       console.error('❌ Error en búsqueda por documento:', error);
@@ -450,7 +418,6 @@ export class AccessController {
   @Roles('Administrador', 'Control de Acceso')
   async getCurrentOccupancyAlias() {
     try {
-      console.log('🌐 GET /access/current-occupancy');
       const occupancy = await this.accessService.getCurrentOccupancy();
       
       return {
@@ -474,7 +441,6 @@ export class AccessController {
   @Roles('Administrador', 'Control de Acceso')
   async getRealTimeStats() {
     try {
-      console.log('🌐 GET /access/realtime-stats');
       
       const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       const now = new Date().toISOString();
@@ -494,7 +460,6 @@ export class AccessController {
         peakHourToday: stats.peakHour?.hour ? `${stats.peakHour.hour}:00` : 'N/A'
       };
       
-      console.log('✅ Estadísticas en tiempo real obtenidas');
       return result;
     } catch (error) {
       console.error('❌ Error al obtener estadísticas en tiempo real:', error);
@@ -514,7 +479,6 @@ export class AccessController {
     groupBy?: 'day' | 'week' | 'month';
   }) {
     try {
-      console.log('🌐 GET /access/metrics');
       
       const stats = await this.accessService.getStats({
         startDate: params.startDate,
@@ -538,7 +502,6 @@ export class AccessController {
         })) : []
       };
       
-      console.log('✅ Métricas de acceso obtenidas');
       return result;
     } catch (error) {
       console.error('❌ Error al obtener métricas:', error);
@@ -554,7 +517,6 @@ export class AccessController {
   @Roles('Administrador', 'Control de Acceso')
   async getTodayRecords() {
     try {
-      console.log('🌐 GET /access/today');
       
       const today = new Date().toISOString().split('T')[0];
       const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -565,7 +527,6 @@ export class AccessController {
         limit: 100
       });
       
-      console.log('✅ Registros de hoy obtenidos');
       return history.data;
     } catch (error) {
       console.error('❌ Error al obtener registros de hoy:', error);
@@ -581,7 +542,6 @@ export class AccessController {
   @Roles('Administrador', 'Control de Acceso')
   async getPeopleInside() {
     try {
-      console.log('🌐 GET /access/people-inside');
       
       const occupancy = await this.accessService.getCurrentOccupancy();
       
@@ -597,7 +557,6 @@ export class AccessController {
         }))
       };
       
-      console.log('✅ Personas dentro obtenidas');
       return result;
     } catch (error) {
       console.error('❌ Error al obtener personas dentro:', error);

@@ -36,7 +36,6 @@ export class AttendanceController {
   @Roles('Administrador', 'Instructor')
   async debugFicha(@Param('fichaId') fichaId: number) {
     try {
-      console.log(`🔍 DEBUG: Diagnosticando ficha ${fichaId}`);
       const debugData = await this.attendanceService.debugFichaData(fichaId);
       
       return {
@@ -63,17 +62,14 @@ export class AttendanceController {
     @Request() req?: any
   ) {
     try {
-      console.log(`🌐 GET /attendance/my-classes?date=${date}`);
       
       const instructorId = req.user.id;
-      console.log(`👨‍🏫 Instructor ID desde token: ${instructorId}`);
       
       const result = await this.attendanceService.getMyClassesAttendance(
         instructorId,
         date
       );
       
-      console.log(`✅ Retornando ${result.length} clases del instructor`);
       return result;
     } catch (error) {
       console.error('❌ Error al obtener clases del instructor:', error);

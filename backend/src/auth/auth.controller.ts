@@ -40,19 +40,29 @@ export class AuthController {
 
   // ⭐ OBTENER PERFIL ACTUAL
   @Get('profile')
-  @UseGuards(JwtAuthGuard)
-  async getProfile(@Request() req: any) {
-    try {
-      const user = await this.authService.getProfile(req.user.id);
-      if (!user) {
-        throw new UnauthorizedException('Usuario no encontrado o inactivo');
-      }
-      return user;
-    } catch (error) {
-      console.error('❌ Error getting profile:', error);
-      throw error;
+@UseGuards(JwtAuthGuard)
+async getProfile(@Request() req: any) {
+  try {
+    console.log('👤 GET /auth/profile llamado');
+    console.log('🔍 Usuario del request:', req.user ? {
+      id: req.user.id,
+      email: req.user.email,
+      role: req.user.role?.name
+    } : 'NO HAY USUARIO');
+    
+    const user = await this.authService.getProfile(req.user.id);
+    if (!user) {
+      console.log('❌ getProfile retornó null para usuario:', req.user.id);
+      throw new UnauthorizedException('Usuario no encontrado o inactivo');
     }
+    
+    console.log('✅ Perfil obtenido exitosamente para:', user.email);
+    return user;
+  } catch (error) {
+    console.error('❌ Error getting profile:', error);
+    throw error;
   }
+}
 
   // ⭐ CAMBIAR CONTRASEÑA (PARA INSTRUCTOR Y APRENDIZ)
   @Post('change-password')

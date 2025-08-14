@@ -89,12 +89,7 @@ export class AttendanceNotificationsService {
 
       this.addNotificationToInstructor(instructorId, notification);
       
-      console.log('🔔 Notificación de asistencia automática creada:', {
-        instructor: instructorId,
-        learner: learnerName,
-        class: className,
-        status: attendanceRecord.status
-      });
+      
     } catch (error) {
       console.error('❌ Error al crear notificación automática:', error);
     }
@@ -144,12 +139,7 @@ export class AttendanceNotificationsService {
 
       this.addNotificationToInstructor(instructorId, notification);
       
-      console.log('🔔 Notificación de asistencia manual creada:', {
-        instructor: instructorId,
-        learner: learnerName,
-        status: attendanceRecord.status,
-        markedBy: markedByName || markedBy
-      });
+      
     } catch (error) {
       console.error('❌ Error al crear notificación manual:', error);
     }
@@ -212,11 +202,7 @@ export class AttendanceNotificationsService {
         this.addNotificationToInstructor(instructorId, notification);
       });
       
-      console.log('🔔 Notificación de actualización masiva creada:', {
-        instructor: instructorId,
-        totalUpdated: updatedRecords.length,
-        markedBy: markedByName || markedBy
-      });
+      
     } catch (error) {
       console.error('❌ Error al crear notificación masiva:', error);
     }
@@ -259,11 +245,7 @@ export class AttendanceNotificationsService {
 
       this.addNotificationToInstructor(instructorId, notification);
       
-      console.log('🔔 Notificación de excusa creada:', {
-        instructor: instructorId,
-        learner: learnerName,
-        reason: attendanceRecord.excuseReason
-      });
+     
     } catch (error) {
       console.error('❌ Error al crear notificación de excusa:', error);
     }
@@ -321,7 +303,6 @@ export class AttendanceNotificationsService {
     
     this.notifications.set(instructorId, filteredNotifications);
     
-    console.log(`🔔 ${notificationIds.length} notificaciones marcadas como leídas para instructor ${instructorId}`);
   }
 
   // ⭐ LIMPIAR NOTIFICACIONES ANTIGUAS (Sin cambios)
@@ -389,6 +370,5 @@ export class AttendanceNotificationsService {
   // ⭐ NUEVO: LIMPIAR TODAS LAS NOTIFICACIONES DE UN INSTRUCTOR
   clearInstructorNotifications(instructorId: number) {
     this.notifications.delete(instructorId);
-    console.log(`🔔 Todas las notificaciones limpiadas para instructor ${instructorId}`);
   }
 }

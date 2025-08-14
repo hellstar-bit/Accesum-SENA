@@ -29,25 +29,18 @@ export class AccessService {
 async checkIn(data: { profileId?: number; qrData?: string }): Promise<AccessRecord> {
   let profile: Profile | null = null;
 
-  console.log('🚪 === INICIANDO PROCESO DE CHECK-IN ===');
-  console.log('🚪 Datos recibidos:', { 
-    profileId: data.profileId, 
-    hasQrData: !!data.qrData 
-  });
+  
 
   try {
     // ⭐ PASO 1: BUSCAR PERFIL POR ID O QR
     if (data.profileId) {
-      console.log('🔍 Buscando perfil por ID:', data.profileId);
       profile = await this.profileRepository.findOne({
         where: { id: data.profileId },
         relations: ['user', 'type', 'ficha', 'regional', 'center']
       });
     } else if (data.qrData) {
-      console.log('📱 Procesando datos QR...');
       try {
         const qrInfo = JSON.parse(data.qrData);
-        console.log('📋 Datos QR parseados:', qrInfo);
         
         if (qrInfo.doc) {
           profile = await this.profileRepository.findOne({
@@ -71,17 +64,6 @@ async checkIn(data: { profileId?: number; qrData?: string }): Promise<AccessReco
       throw new BadRequestException('Usuario inactivo');
     }
 
-    console.log('✅ Perfil encontrado:', {
-      id: profile.id,
-      name: `${profile.firstName} ${profile.lastName}`,
-      type: profile.type.name,
-      document: profile.documentNumber,
-      ficha: profile.ficha ? {
-        id: profile.ficha.id,
-        code: profile.ficha.code,
-        name: profile.ficha.name
-      } : null
-    });
 
     // ⭐ PASO 2: VERIFICAR SI YA ESTÁ DENTRO (SIN CHECK-OUT)
     const existingEntry = await this.accessRecordRepository.findOne({
@@ -93,15 +75,10 @@ async checkIn(data: { profileId?: number; qrData?: string }): Promise<AccessReco
     });
 
     if (existingEntry) {
-      console.log('⚠️ Usuario ya tiene entrada activa:', {
-        recordId: existingEntry.id,
-        entryTime: existingEntry.entryTime
-      });
       throw new BadRequestException('El usuario ya se encuentra dentro de las instalaciones');
     }
 
     // ⭐ PASO 3: CREAR NUEVO REGISTRO DE ACCESO
-    console.log('📝 Creando nuevo registro de acceso...');
     const newRecord = this.accessRecordRepository.create({
       userId: profile.user.id,
       entryTime: new Date(),
@@ -110,26 +87,11 @@ async checkIn(data: { profileId?: number; qrData?: string }): Promise<AccessReco
     });
 
     const accessRecord = await this.accessRecordRepository.save(newRecord);
-    console.log('✅ Registro de acceso creado:', {
-      id: accessRecord.id,
-      userId: profile.user.id,
-      entryTime: accessRecord.entryTime.toISOString(),
-      status: accessRecord.status
-    });
+    
 
     // ⭐ PASO 4: MARCAR ASISTENCIA AUTOMÁTICAMENTE PARA APRENDICES
     if (profile.type.name === 'Aprendiz' && profile.ficha) {
-  console.log('🎓 === INICIANDO MARCADO AUTOMÁTICO DE ASISTENCIA ===');
-  console.log('📚 Datos del aprendiz:', {
-    profileId: profile.id,
-    nombre: `${profile.firstName} ${profile.lastName}`,
-    documento: profile.documentNumber,
-    ficha: {
-      id: profile.ficha.id,
-      code: profile.ficha.code,
-      name: profile.ficha.name
-    }
-  });
+  ;
 
   try {
     const attendanceResults = await this.attendanceService.autoMarkAttendance(
@@ -138,35 +100,6 @@ async checkIn(data: { profileId?: number; qrData?: string }): Promise<AccessReco
       accessRecord.id
     );
 
-    console.log('📋 Resultado del marcado automático:', {
-      success: attendanceResults.success,
-      message: attendanceResults.message,
-      recordsProcessed: Array.isArray(attendanceResults.records) ? attendanceResults.records.length : 0
-    });
-
-    // ⭐ LOGGING DETALLADO CON VERIFICACIÓN DE TIPOS
-    if (attendanceResults.success && Array.isArray(attendanceResults.records) && attendanceResults.records.length > 0) {
-      console.log('✅ ASISTENCIA MARCADA EXITOSAMENTE:');
-      attendanceResults.records.forEach((record: any, index: number) => {
-        console.log(`   📝 Registro ${index + 1}:`, {
-          id: record?.id || 'N/A',
-          trimesterScheduleId: record?.trimesterScheduleId || 'N/A',
-          status: record?.status || 'N/A',
-          markedAt: record?.markedAt || 'N/A',
-          isManual: record?.isManual || false,
-          notes: record?.notes || 'Sin notas'
-        });
-      });
-    } else if (!attendanceResults.success) {
-      console.log('⚠️ NO SE MARCÓ ASISTENCIA:', attendanceResults.message || 'Sin mensaje de error');
-      console.log('💡 Posibles razones:');
-      console.log('   - No hay clases programadas para este momento');
-      console.log('   - El aprendiz no está en ninguna ficha activa');
-      console.log('   - No hay horarios de trimestre configurados');
-      console.log('   - Error en la base de datos');
-    } else {
-      console.log('ℹ️ No se crearon registros de asistencia (posiblemente ya existían)');
-    }
 
   } catch (error: any) {
     console.error('❌ ERROR CRÍTICO en marcado automático:', {
@@ -179,20 +112,15 @@ async checkIn(data: { profileId?: number; qrData?: string }): Promise<AccessReco
     });
     
     // ⭐ NO lanzar el error para no afectar el check-in
-    console.log('⚠️ El check-in continuará sin marcado de asistencia');
   }
 
-  console.log('🎓 === FIN DEL MARCADO AUTOMÁTICO ===');
 } else {
   if (profile.type.name !== 'Aprendiz') {
-    console.log(`ℹ️ No es aprendiz (es ${profile.type.name}), no se marca asistencia automática`);
   } else {
-    console.log('ℹ️ Aprendiz sin ficha asignada, no se marca asistencia automática');
   }
 }
 
     // ⭐ PASO 5: RETORNAR ESTRUCTURA CORRECTA PARA FRONTEND
-    console.log('📤 Preparando respuesta para el frontend...');
     const response = {
       id: accessRecord.id,
       entryTime: accessRecord.entryTime.toISOString(),
@@ -213,14 +141,8 @@ async checkIn(data: { profileId?: number; qrData?: string }): Promise<AccessReco
       }
     } as any;
 
-    console.log('✅ CHECK-IN COMPLETADO EXITOSAMENTE:', {
-      accessRecordId: response.id,
-      userName: `${profile.firstName} ${profile.lastName}`,
-      userType: profile.type.name,
-      hasAsistencia: profile.type.name === 'Aprendiz' && profile.ficha
-    });
+    
 
-    console.log('🚪 === FIN DEL PROCESO DE CHECK-IN ===');
     return response;
 
   } catch (error) {
@@ -228,7 +150,6 @@ async checkIn(data: { profileId?: number; qrData?: string }): Promise<AccessReco
       message: error.message,
       stack: error.stack?.split('\n').slice(0, 3).join('\n')
     });
-    console.log('🚪 === CHECK-IN TERMINADO CON ERROR ===');
     throw error;
   }
 }
@@ -237,24 +158,18 @@ async checkIn(data: { profileId?: number; qrData?: string }): Promise<AccessReco
 async checkOut(data: { profileId?: number; qrData?: string }): Promise<AccessRecord> {
   let profile: Profile | null = null;
 
-  console.log('🚪 Iniciando proceso de CHECK-OUT:', { 
-    profileId: data.profileId, 
-    hasQrData: !!data.qrData 
-  });
+ 
 
   try {
     // ⭐ BUSCAR PERFIL POR ID O QR
     if (data.profileId) {
-      console.log('🔍 Buscando perfil por ID:', data.profileId);
       profile = await this.profileRepository.findOne({
         where: { id: data.profileId },
         relations: ['user', 'type', 'center']
       });
     } else if (data.qrData) {
-      console.log('📱 Procesando datos QR...');
       try {
         const qrInfo = JSON.parse(data.qrData);
-        console.log('📋 Datos QR parseados:', qrInfo);
         
         if (qrInfo.doc) {
           profile = await this.profileRepository.findOne({
@@ -278,12 +193,7 @@ async checkOut(data: { profileId?: number; qrData?: string }): Promise<AccessRec
       throw new BadRequestException('Usuario inactivo');
     }
 
-    console.log('✅ Perfil encontrado:', {
-      id: profile.id,
-      name: `${profile.firstName} ${profile.lastName}`,
-      type: profile.type.name,
-      document: profile.documentNumber
-    });
+   
 
     // ⭐ BUSCAR ENTRADA ACTIVA (SIN SALIDA)
     const activeEntry = await this.accessRecordRepository.findOne({
@@ -295,7 +205,6 @@ async checkOut(data: { profileId?: number; qrData?: string }): Promise<AccessRec
     });
 
     if (!activeEntry) {
-      console.log('⚠️ No se encontró entrada activa para el usuario');
       throw new BadRequestException('No se encontró una entrada activa para este usuario');
     }
 
@@ -307,12 +216,7 @@ async checkOut(data: { profileId?: number; qrData?: string }): Promise<AccessRec
     activeEntry.notes = (activeEntry.notes || '') + ` | Check-out realizado`;
 
     const updatedRecord = await this.accessRecordRepository.save(activeEntry);
-    console.log('✅ Check-out registrado:', {
-      id: updatedRecord.id,
-      userId: profile.user.id,
-      exitTime: updatedRecord.exitTime,
-      duration: updatedRecord.duration
-    });
+   
 
     // ⭐ RETORNAR ESTRUCTURA CORRECTA PARA FRONTEND
     return {
@@ -350,7 +254,6 @@ async checkOut(data: { profileId?: number; qrData?: string }): Promise<AccessRec
     groupBy?: 'day' | 'week' | 'month';
   }) {
     try {
-      console.log('📊 Obteniendo estadísticas de acceso:', filters);
 
       const startDate = filters.startDate ? new Date(filters.startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       const endDate = filters.endDate ? new Date(filters.endDate) : new Date();
@@ -400,7 +303,6 @@ async checkOut(data: { profileId?: number; qrData?: string }): Promise<AccessRec
       const averageMinutes = Math.floor((averageSessionTime % (1000 * 60 * 60)) / (1000 * 60));
       const averageDurationMinutes = Math.floor(averageSessionTime / (1000 * 60));
 
-      console.log('✅ Estadísticas calculadas:', { totalEntries, uniqueUsers });
 
       return {
         period: { startDate, endDate },
@@ -440,7 +342,6 @@ async checkOut(data: { profileId?: number; qrData?: string }): Promise<AccessRec
     limit?: number;
   }) {
     try {
-      console.log('📋 Obteniendo historial de acceso con filtros:', filters);
 
       const page = filters.page || 1;
       const limit = filters.limit || 50;
@@ -481,7 +382,6 @@ async checkOut(data: { profileId?: number; qrData?: string }): Promise<AccessRec
         .take(limit)
         .getManyAndCount();
 
-      console.log('✅ Historial obtenido:', { total, page, limit });
 
       return {
         data: records,
@@ -502,7 +402,6 @@ async checkOut(data: { profileId?: number; qrData?: string }): Promise<AccessRec
   // ⭐ BUSCAR POR NÚMERO DE DOCUMENTO
   async searchByDocument(documentNumber: string) {
     try {
-      console.log('🔍 Buscando accesos por documento:', documentNumber);
 
       // Buscar el perfil por documento
       const profile = await this.profileRepository.findOne({
@@ -529,10 +428,7 @@ async checkOut(data: { profileId?: number; qrData?: string }): Promise<AccessRec
       // Verificar estado actual
       const currentStatus = await this.checkUserStatus(profile.user.id);
 
-      console.log('✅ Búsqueda por documento completada:', { 
-        document: documentNumber, 
-        records: accessRecords.length 
-      });
+     
 
       return {
         found: true,
@@ -584,7 +480,7 @@ async checkOut(data: { profileId?: number; qrData?: string }): Promise<AccessRec
   // ⭐ OBTENER ACCESOS ACTIVOS
   async getActiveAccess() {
     try {
-      console.log('📋 Obteniendo todos los accesos activos...');
+      
 
       const activeRecords = await this.accessRecordRepository.find({
         where: {
@@ -594,7 +490,7 @@ async checkOut(data: { profileId?: number; qrData?: string }): Promise<AccessRec
         order: { entryTime: 'DESC' }
       });
 
-      console.log('✅ Accesos activos obtenidos:', activeRecords.length);
+      
 
       return {
         total: activeRecords.length,
@@ -626,7 +522,6 @@ async checkOut(data: { profileId?: number; qrData?: string }): Promise<AccessRec
   // ⭐ OBTENER OCUPACIÓN ACTUAL
   async getCurrentOccupancy() {
   try {
-    console.log('📊 Obteniendo ocupación actual...');
 
     const currentOccupancy = await this.accessRecordRepository.find({
       where: {
@@ -636,21 +531,9 @@ async checkOut(data: { profileId?: number; qrData?: string }): Promise<AccessRec
       order: { entryTime: 'DESC' }
     });
 
-    console.log(`📊 [DEBUG] Registros encontrados: ${currentOccupancy.length}`);
 
     // ⭐ LOGGING DETALLADO PARA DEBUGGING
-    currentOccupancy.forEach((record, index) => {
-      console.log(`📋 [DEBUG] Record ${index + 1}:`, {
-        id: record.id,
-        userId: record.user?.id,
-        profileId: record.user?.profile?.id,
-        firstName: record.user?.profile?.firstName,
-        lastName: record.user?.profile?.lastName,
-        documentNumber: record.user?.profile?.documentNumber,
-        typeName: record.user?.profile?.type?.name,
-        entryTime: record.entryTime
-      });
-    });
+   
 
     // ⭐ AGRUPAR POR TIPO DE USUARIO CON CONTADORES
     const occupancyByType = currentOccupancy.reduce((acc, record) => {
@@ -688,22 +571,6 @@ async checkOut(data: { profileId?: number; qrData?: string }): Promise<AccessRec
       }))
     };
 
-    console.log('✅ Ocupación actual formateada:', { 
-      total: totalOccupancy, 
-      byType: occupancyByType,
-      recordsCount: response.records.length
-    });
-
-    console.log('📤 [DEBUG] Estructura de respuesta:', {
-      total: response.total,
-      byTypeKeys: Object.keys(response.byType),
-      firstRecord: response.records[0] ? {
-        id: response.records[0].id,
-        firstName: response.records[0].user.profile.firstName,
-        lastName: response.records[0].user.profile.lastName,
-        typeName: response.records[0].user.profile.type.name
-      } : 'No records'
-    });
 
     return response;
 
@@ -716,7 +583,6 @@ async checkOut(data: { profileId?: number; qrData?: string }): Promise<AccessRec
   // ⭐ VERIFICAR ESTADO DE ACCESO DE UN USUARIO
   async checkUserStatus(userId: number) {
     try {
-      console.log('🔍 Verificando estado de acceso para usuario:', userId);
 
       const activeEntry = await this.accessRecordRepository.findOne({
         where: {
@@ -734,7 +600,6 @@ async checkOut(data: { profileId?: number; qrData?: string }): Promise<AccessRec
         order: { entryTime: 'DESC' }
       });
 
-      console.log('✅ Estado verificado:', { userId, isInside });
 
       return {
         userId,
@@ -768,7 +633,6 @@ async checkOut(data: { profileId?: number; qrData?: string }): Promise<AccessRec
     adminUserId: number;
   }) {
     try {
-      console.log('🔧 Forzando check-out:', data);
 
       let activeEntry: AccessRecord | null = null;
 
@@ -807,11 +671,6 @@ async checkOut(data: { profileId?: number; qrData?: string }): Promise<AccessRec
 
       const updatedRecord = await this.accessRecordRepository.save(activeEntry);
 
-      console.log('✅ Check-out forzado completado:', {
-        recordId: updatedRecord.id,
-        userId: activeEntry.userId,
-        adminUserId: data.adminUserId
-      });
 
       return {
         message: 'Check-out forzado exitosamente',
@@ -843,7 +702,6 @@ async checkOut(data: { profileId?: number; qrData?: string }): Promise<AccessRec
     includeActive?: boolean;
   }) {
     try {
-      console.log('📊 Generando reporte detallado:', filters);
 
       const startDate = filters.startDate ? new Date(filters.startDate) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
       const endDate = filters.endDate ? new Date(filters.endDate) : new Date();
@@ -918,7 +776,6 @@ async checkOut(data: { profileId?: number; qrData?: string }): Promise<AccessRec
         }
       });
 
-      console.log('✅ Reporte detallado generado');
 
       return {
         period: { startDate, endDate },
@@ -937,7 +794,6 @@ async checkOut(data: { profileId?: number; qrData?: string }): Promise<AccessRec
   // ⭐ LIMPIAR REGISTROS ANTIGUOS (MANTENIMIENTO)
   async cleanupOldRecords(daysToKeep: number = 365) {
     try {
-      console.log(`🧹 Limpiando registros anteriores a ${daysToKeep} días...`);
 
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
@@ -948,7 +804,6 @@ async checkOut(data: { profileId?: number; qrData?: string }): Promise<AccessRec
         .where('entryTime < :cutoffDate', { cutoffDate })
         .execute();
 
-      console.log('✅ Limpieza completada:', { recordsDeleted: result.affected });
 
       return {
         message: `Se eliminaron ${result.affected} registros antiguos`,
@@ -981,14 +836,12 @@ async validateQR(qrData: string): Promise<{
   message: string;
 }> {
   try {
-    console.log('🔍 Validando código QR...');
     
     // Intentar parsear el QR
     let qrInfo;
     try {
       qrInfo = JSON.parse(qrData);
     } catch (parseError) {
-      console.log('❌ QR no es JSON válido');
       return {
         valid: false,
         message: 'Formato de código QR inválido'
@@ -1030,7 +883,6 @@ async validateQR(qrData: string): Promise<{
       };
     }
     
-    console.log('✅ QR válido para:', `${profile.firstName} ${profile.lastName}`);
     
     return {
       valid: true,
